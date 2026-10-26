@@ -1,0 +1,27 @@
+---
+import Studio from "../../layouts/Studio.astro";
+import MediaLibrary from "../../components/media/MediaLibrary";
+import { loadPageData } from "../../server/page-data";
+const data = await loadPageData(Astro);
+---
+
+<Studio title="媒体库" active="media" settings={data.settings}>
+  <div class="page-heading">
+    <div>
+      <div class="eyebrow">A LITTLE MORE THAN WORDS</div>
+      <h1>给灵感，留个画面。</h1>
+      <p>图片、声音与片段，都可以成为故事的一部分。</p>
+    </div>
+  </div>
+  <section class="content-panel media-panel">
+    {data.capabilities.authenticated ? (
+      <MediaLibrary
+        imageConfigured={data.capabilities.imageConfigured}
+        providers={data.settings.providers}
+        client:load
+      />
+    ) : (
+      <div class="notice">需要作者身份才能查看与管理媒体。</div>
+    )}
+  </section>
+</Studio>
