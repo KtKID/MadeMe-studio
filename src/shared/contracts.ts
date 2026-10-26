@@ -245,8 +245,9 @@ export const providerSchema = z.object({
     .regex(/^[a-zA-Z0-9_-]+$/)
     .max(64),
   name: z.string().min(1).max(80),
-  kind: z.enum(["openai", "openrouter", "siliconflow", "cloudflare"]),
+  kind: z.enum(["openai", "openrouter", "siliconflow", "cloudflare", "gemini"]),
   model: z.string().min(1).max(160),
+  imageModel: z.string().trim().min(1).max(160).optional(),
   temperature: z.number().min(0).max(2).default(0.7),
   maxTokens: z.number().int().min(16).max(16384).default(2048),
   configured: z.boolean().default(false),

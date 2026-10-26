@@ -13,3 +13,11 @@
 ## 边界与测试
 
 此模块不访问数据库、环境变量或网络。运行 `npm test -- tests/backend/settings.test.ts` 验证外观协议；完整后端协议验证见 `tests/backend`。
+
+## 安全回执与结构约束
+
+`editorBlockSchema` 校验受支持 BlockNote 块类型、内联文字/链接及表格行列结构；畸形 JSON 在写入前被拒绝。`postMutationResponseSchema` 是完整文章与严格 `{id, version}` 回执的联合：write-only Token 不能通过写响应读取已有私密内容。
+
+各端点响应（文章、设置、媒体、模型、令牌、修订、错误、确认）统一导出 Zod schema。`acceptedMediaMimeTypes` 是界面 accept 与上传验证的共用清单。
+
+`accent` 是可空的自定义颜色覆盖，默认 null；null 表示恢复皮肤自带颜色，不影响 mode、skin 或 font。

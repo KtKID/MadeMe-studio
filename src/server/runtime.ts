@@ -37,6 +37,8 @@ export interface RuntimeEnv {
   ENVIRONMENT?: string;
   ALLOW_LOCAL_DEV_IDENTITY?: string;
   DEV_OWNER_ID?: string;
+  GEMINI_API_KEY?: string;
+  SILICONFLOW_IMAGE_HOSTS?: string;
   OPENAI_API_KEY?: string;
   OPENROUTER_API_KEY?: string;
   SILICONFLOW_API_KEY?: string;

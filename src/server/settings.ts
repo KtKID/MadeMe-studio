@@ -12,6 +12,7 @@ export function providerKey(provider: Provider, env: RuntimeEnv) {
     openrouter: env.OPENROUTER_API_KEY,
     siliconflow: env.SILICONFLOW_API_KEY,
     cloudflare: env.CLOUDFLARE_AI_TOKEN,
+    gemini: env.GEMINI_API_KEY,
   }[provider.kind];
 }
 export function redactSettings(
