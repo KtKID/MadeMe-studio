@@ -44,6 +44,10 @@ import { embedUrl, SafeEmbed } from "../content/BlockReader";
 import MediaLibrary from "../media/MediaLibrary";
 import { resolveMode } from "../shared/appearance";
 import { EditClock, hasDocumentContent } from "./editor-state";
+import {
+  initialPublishVisibility,
+  publicationAvailability,
+} from "./publishing-state";
 const embed = createReactBlockSpec(
   { type: "embed", propSchema: { url: { default: "" } }, content: "none" },
   { render: ({ block }) => <SafeEmbed url={block.props.url} /> },
@@ -67,6 +71,7 @@ type Props = {
   authenticated: boolean;
   aiConfigured: boolean;
   imageConfigured?: boolean;
+  passwordConfigured?: boolean;
   inline?: boolean;
   onClose?: () => void;
   onPublished?: (post: Post) => void;
@@ -77,6 +82,7 @@ export default function Editor({
   authenticated,
   aiConfigured,
   imageConfigured = false,
+  passwordConfigured = false,
   inline = false,
   onClose,
   onPublished,
@@ -119,15 +125,10 @@ export default function Editor({
   const [tags, setTags] = useState(post?.tags.join(", ") || "");
   const [slug, setSlug] = useState(post?.slug || "");
   const [cover, setCover] = useState(post?.coverImage || "");
-  const [visibility, setVisibility] = useState<
-    "public" | "unlisted" | "password"
-  >(
-    post?.visibility === "password"
-      ? "password"
-      : post?.visibility === "unlisted"
-        ? "unlisted"
-        : "public",
+  const [visibility, setVisibility] = useState(() =>
+    initialPublishVisibility(post?.visibility),
   );
+  const publication = publicationAvailability(visibility, passwordConfigured);
   const [password, setPassword] = useState("");
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState("");
@@ -253,6 +254,10 @@ export default function Editor({
     }
   }
   async function publish() {
+    if (!publication.allowed) {
+      setError(publication.message);
+      return;
+    }
     const snapshot = await save(true);
     const saved = snapshot?.post;
     if (!saved) return;
@@ -898,9 +903,17 @@ export default function Editor({
             >
               <option value="public">公开 · 显示在首页与 RSS</option>
               <option value="unlisted">不公开列出 · 仅通过链接访问</option>
-              <option value="password">密码保护 · 输入密码后访问</option>
+              <option value="password" disabled={!passwordConfigured}>
+                密码保护 · 输入密码后访问
+              </option>
             </select>
           </label>
+          {!passwordConfigured && (
+            <Notice>
+              {publicationAvailability("password", false).message}{" "}
+              公开与链接发布不受影响。
+            </Notice>
+          )}
           {visibility === "password" && (
             <label>
               访问密码
@@ -919,7 +932,7 @@ export default function Editor({
             </button>
             <button
               className="button primary"
-              disabled={!!busy}
+              disabled={!!busy || !publication.allowed}
               onClick={publish}
             >
               {busy ? (

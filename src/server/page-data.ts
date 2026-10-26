@@ -26,6 +26,10 @@ export async function loadPageData(
         identity.owner && settings.providers.some((p) => !!providerKey(p, env)),
       imageConfigured:
         identity.owner && hasConfiguredImageProvider(settings.providers, env),
+      passwordConfigured:
+        identity.owner &&
+        !!env.SESSION_SECRET &&
+        env.SESSION_SECRET.length >= 32,
       storageConfigured: !!(env.DB && env.BUCKET),
       ownerConfigured: ownerConfigured(env),
     },

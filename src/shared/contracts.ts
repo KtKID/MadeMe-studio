@@ -388,6 +388,7 @@ export const capabilitiesSchema = z
     authenticated: z.boolean(),
     aiConfigured: z.boolean(),
     imageConfigured: z.boolean(),
+    passwordConfigured: z.boolean().optional(),
     storageConfigured: z.boolean(),
     ownerConfigured: z.boolean(),
   })

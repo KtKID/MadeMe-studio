@@ -18,3 +18,5 @@
 `identity.test.ts` 覆盖配置缺失、伪造头、非作者、显式邮箱、ID 优先、本地开发限定、CSRF、scope、密码与设置脱敏；`http.e2e.test.ts` 覆盖真实请求下的解锁和撤销。
 
 写权限不隐含读权限。没有 `posts:read` 的令牌执行创建、修改、删除、发布、撤回或恢复时只得到 `{id, version}` 回执；作者和具有读取 scope 的令牌才能得到完整文章。恢复已发布回收站内容还需要 `posts:publish`，防止借恢复绕过发布权限。
+
+密码发布在 API 边界先检查 `SESSION_SECRET`：缺失或短于 32 字符时返回 `503 SESSION_SETUP_REQUIRED`，不会修改草稿版本、密码摘要或已发布快照；草稿已设为 password 且发布请求省略 visibility 时同样检查。公开/链接发布不依赖此密钥。`passwordConfigured` 能力仅向作者报告配置是否就绪，不含密钥值；该检查不在纯文章领域服务中混入运行时配置。

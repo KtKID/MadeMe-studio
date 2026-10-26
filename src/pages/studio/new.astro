@@ -11,6 +11,7 @@ const data = await loadPageData(Astro);
     authenticated={data.capabilities.authenticated}
     aiConfigured={data.capabilities.aiConfigured}
     imageConfigured={data.capabilities.imageConfigured}
+    passwordConfigured={data.capabilities.passwordConfigured ?? false}
     client:only="react"
   >
     <div slot="fallback" class="loading-panel">

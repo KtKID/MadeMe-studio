@@ -18,3 +18,13 @@ export function secureResponse(response: Response, url: URL): Response {
     response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
   return response;
 }
+
+// 已知链接可访问不等于允许搜索引擎收录。
+export function canIndexPost(
+  post: {
+    visibility: "public" | "draft" | "password" | "unlisted";
+    publishedAt: string | null;
+  } | null,
+): boolean {
+  return !!post && post.visibility === "public" && post.publishedAt !== null;
+}

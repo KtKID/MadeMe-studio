@@ -8,11 +8,13 @@ export default function InlineEditor({
   settings,
   aiConfigured,
   imageConfigured,
+  passwordConfigured = false,
 }: {
   id: string;
   settings: Settings;
   aiConfigured: boolean;
   imageConfigured: boolean;
+  passwordConfigured?: boolean;
 }) {
   const publishedSlug = useRef<string | null>(null);
   const [post, setPost] = useState<Post | null>(null);
@@ -51,6 +53,7 @@ export default function InlineEditor({
           authenticated
           aiConfigured={aiConfigured}
           imageConfigured={imageConfigured}
+          passwordConfigured={passwordConfigured}
           inline
           onClose={close}
           onPublished={(value) => {

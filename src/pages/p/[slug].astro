@@ -1,4 +1,5 @@
 ---
+import { canIndexPost } from "../../server/response-policy";
 import Base from "../../layouts/Base.astro";
 import BlockReader from "../../components/content/BlockReader";
 import InlineEditor from "../../components/editor/InlineEditor";
@@ -8,6 +9,8 @@ import { loadPostPage, loadPageData } from "../../server/page-data";
 import { date } from "../../components/shared/ui";
 const data = await loadPostPage(Astro, Astro.params.slug || "");
 const { settings, post, locked, authenticated } = data;
+if (!canIndexPost(post))
+  Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
 if (!post && !locked) Astro.response.status = 404;
 const capabilities = authenticated
   ? (await loadPageData(Astro)).capabilities
@@ -55,6 +58,7 @@ const capabilities = authenticated
               settings={settings}
               aiConfigured={capabilities.aiConfigured}
               imageConfigured={capabilities.imageConfigured}
+              passwordConfigured={capabilities.passwordConfigured ?? false}
               client:only="react"
             />
           )}
