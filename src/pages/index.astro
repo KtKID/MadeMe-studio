@@ -1,0 +1,17 @@
+---
+import FoundationEditor from '../components/FoundationEditor';
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>MadeMe Studio · 基础框架</title></head>
+  <body>
+    <main><small>MADEME STUDIO</small><h1>把想法写下来。</h1><p>Astro + BlockNote 基础框架已集成。当前编辑内容尚未持久化。</p><FoundationEditor client:only="react"/></main>
+  </body>
+</html>
+<style>
+  :global(body) { margin:0; background:#fff9e9; color:#332d20; font-family:'Microsoft YaHei','微软雅黑','PingFang SC',system-ui,sans-serif; }
+  main { max-width:900px; margin:70px auto; padding:32px; }
+  small { color:#936700; letter-spacing:.18em; }
+  h1 { font-size:44px; }
+  p { color:#776c57; line-height:1.8; margin-bottom:32px; }
+</style>

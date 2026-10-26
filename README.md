@@ -32,3 +32,21 @@ MadeMe Studio 是一个面向个人作者的 AI 写作、内容管理与发布�
 ## 当前状态
 
 项目初始化阶段。本次提交用于验证云端开发环境与 GitHub 仓库连接。以上功能属于建设目标，不代表已经实现或通过测试。
+
+## 开发清单与模块索引
+
+- [开发清单与验收规则](docs/DEVELOPMENT.md)
+- [协议模块](src/shared/README.md)
+- [编辑器框架集成](src/components/README.md)
+- [工程脚本](scripts/README.md)
+- [测试模块](tests/README.md)
+
+## 本地运行
+
+需要 Node.js 24。运行 `npm ci` 安装依赖，`npm run dev` 启动开发服务。
+运行 `npm test`、`npm run check`、`npm run build` 验证基础框架。
+服务启动后运行 `npm run test:smoke` 执行真实 HTTP 冒烟。
+
+默认字体优先微软雅黑，未安装时回退到系统中文字体，不分发字体文件。
+
+- [实际验证记录](docs/VERIFICATION.md)
