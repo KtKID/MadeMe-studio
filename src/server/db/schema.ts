@@ -1,24 +1,30 @@
+import { sql } from "drizzle-orm";
 import {
   sqliteTable,
   text,
   integer,
   primaryKey,
   index,
+  check,
 } from "drizzle-orm/sqlite-core";
-export const posts = sqliteTable("posts", {
-  id: text("id").primaryKey(),
-  slug: text("slug").notNull().unique(),
-  publishedSlug: text("published_slug").unique(),
-  documentJson: text("document_json").notNull(),
-  publishedJson: text("published_json"),
-  passwordHash: text("password_hash"),
-  publishedPasswordHash: text("published_password_hash"),
-  version: integer("version").notNull(),
-  deletedAt: text("deleted_at"),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-  mutationId: text("mutation_id").notNull(),
-});
+export const posts = sqliteTable(
+  "posts",
+  {
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    publishedSlug: text("published_slug").unique(),
+    documentJson: text("document_json").notNull(),
+    publishedJson: text("published_json"),
+    passwordHash: text("password_hash"),
+    publishedPasswordHash: text("published_password_hash"),
+    version: integer("version").notNull().default(1),
+    deletedAt: text("deleted_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    mutationId: text("mutation_id").notNull(),
+  },
+  (t) => [index("posts_updated").on(t.updatedAt)],
+);
 export const revisions = sqliteTable(
   "revisions",
   {
@@ -32,11 +38,15 @@ export const revisions = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.postId, t.version] })],
 );
-export const settings = sqliteTable("settings", {
-  id: integer("id").primaryKey(),
-  documentJson: text("document_json").notNull(),
-  updatedAt: text("updated_at").notNull(),
-});
+export const settings = sqliteTable(
+  "settings",
+  {
+    id: integer("id").primaryKey(),
+    documentJson: text("document_json").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [check("settings_singleton", sql`${t.id} = 1`)],
+);
 export const media = sqliteTable(
   "media",
   {
@@ -46,7 +56,7 @@ export const media = sqliteTable(
     mime: text("mime").notNull(),
     size: integer("size").notNull(),
     postId: text("post_id").references(() => posts.id),
-    source: text("source").notNull(),
+    source: text("source").notNull().default("upload"),
     prompt: text("prompt"),
     createdAt: text("created_at").notNull(),
   },
@@ -61,4 +71,11 @@ export const apiTokens = sqliteTable("api_tokens", {
   expiresAt: text("expires_at").notNull(),
   lastUsedAt: text("last_used_at"),
   revokedAt: text("revoked_at"),
+});
+
+// 限流计数属于持久化状态，避免运行实例切换后失效。
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: integer("window_start").notNull(),
+  count: integer("count").notNull(),
 });

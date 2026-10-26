@@ -11,3 +11,6 @@ dist/
 
 test-results/
 playwright-report/
+
+.schema-gen/
+.schema-baseline/
