@@ -1,0 +1,67 @@
+---
+import "../styles/global.css";
+import { accentOverrideStyle } from "../components/shared/appearance";
+interface Props {
+  title?: string;
+  description?: string;
+  theme?: string;
+  mode?: string;
+  skin?: string;
+  font?: string;
+  accent?: string | null;
+}
+const {
+  title = "MadeMe · 写作与发布",
+  description = "一个安静的地方，写下值得分享的事。",
+  theme = "paper",
+  mode = "system",
+  skin = "amber",
+  font = "yahei",
+  accent,
+} = Astro.props;
+const accentStyle = accentOverrideStyle(accent);
+---
+
+<!doctype html>
+<html
+  style={accentStyle}
+  lang="zh-CN"
+  data-theme={theme}
+  data-mode={mode}
+  data-skin={skin}
+  data-font={font}
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f8f7f3" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <script is:inline>
+      // 首屏与系统模式保持一致；不保存身份或敏感信息。
+      const root = document.documentElement;
+      const preference = window.matchMedia("(prefers-color-scheme: dark)");
+      const applyMode = () => {
+        root.dataset.colorMode =
+          root.dataset.mode === "system"
+            ? preference.matches
+              ? "dark"
+              : "light"
+            : root.dataset.mode;
+      };
+      applyMode();
+      preference.addEventListener("change", applyMode);
+      new MutationObserver(applyMode).observe(root, {
+        attributes: true,
+        attributeFilter: ["data-mode"],
+      });
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      跳到主要内容
+    </a>
+    <slot />
+  </body>
+</html>

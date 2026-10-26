@@ -1,0 +1,93 @@
+---
+import Base from "./Base.astro";
+import {
+  Feather,
+  FileText,
+  Image,
+  Settings,
+  Cable,
+  ArrowUpRight,
+  Plus,
+} from "lucide-react";
+const { title = "写作台", active = "posts", settings } = Astro.props;
+const links = [
+  { key: "posts", label: "所有文章", href: "/studio", icon: FileText },
+  { key: "media", label: "媒体库", href: "/studio/media", icon: Image },
+  {
+    key: "settings",
+    label: "站点设置",
+    href: "/studio/settings",
+    icon: Settings,
+  },
+  {
+    key: "integrations",
+    label: "连接与发布",
+    href: "/studio/integrations",
+    icon: Cable,
+  },
+];
+---
+
+<Base
+  title={`${title} · ${settings?.siteTitle || "MadeMe"}`}
+  theme={settings?.theme}
+  mode={settings?.mode}
+  skin={settings?.skin}
+  font={settings?.font}
+  accent={settings?.accent}
+>
+  <div class="studio-shell">
+    <aside class="studio-sidebar">
+      <a class="brand" href="/studio">
+        <span class="brand-icon">
+          <Feather size={22} />
+        </span>
+        <span>
+          {settings?.siteTitle || "MadeMe"}
+          <small>YOUR PERSONAL STUDIO</small>
+        </span>
+      </a>
+      <a href="/studio/new" class="button primary new-post">
+        <Plus size={17} />
+        写新文章
+      </a>
+      <div class="nav-label">工作空间</div>
+      <nav class="studio-nav" aria-label="创作后台">
+        {links.map((item) => (
+          <a href={item.href} class:list={[{ active: active === item.key }]}>
+            <item.icon size={18} />
+            {item.label}
+          </a>
+        ))}
+      </nav>
+      <div class="sidebar-bottom">
+        <a class="site-link" href="/" target="_blank" rel="noreferrer">
+          <span class="site-avatar">M</span>
+          <span>
+            我的站点<small>看看发布后的样子</small>
+          </span>
+          <ArrowUpRight size={16} />
+        </a>
+        <div class="sidebar-note">
+          <span class="status-dot"></span>写作，让想法有迹可循
+        </div>
+      </div>
+    </aside>
+    <div class="studio-body">
+      <header class="studio-topbar">
+        <span class="breadcrumb">
+          工作空间 <span>/</span> <strong>{title}</strong>
+        </span>
+        <a class="topbar-site" href="/">
+          访问站点 <ArrowUpRight size={14} />
+        </a>
+      </header>
+      <main id="main" class="studio-main">
+        <slot />
+      </main>
+      <footer class="studio-footer">
+        Made with intention. <span>Powered by MadeMe</span>
+      </footer>
+    </div>
+  </div>
+</Base>
