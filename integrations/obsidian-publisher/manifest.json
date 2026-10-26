@@ -1,0 +1,9 @@
+{
+  "id": "mademe-publisher",
+  "name": "MadeMe Publisher",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Preview the current Markdown note and explicitly save it as a private MadeMe draft.",
+  "author": "MadeMe Studio",
+  "isDesktopOnly": false
+}
