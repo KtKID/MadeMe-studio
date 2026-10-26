@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Clip to MadeMe</title><link rel="stylesheet" href="popup.css"></head>
+<body>
+  <header><span class="mark">M</span><div><h1>Keep an idea.</h1><p>Selected text → private draft</p></div></header>
+  <details id="connection"><summary>Connection settings</summary>
+    <label for="site">MadeMe site origin</label><input id="site" type="url" placeholder="https://your-site.example" autocomplete="off">
+    <label for="token">API token · posts:write only</label><input id="token" type="password" autocomplete="off" spellcheck="false">
+    <p class="hint">Stored only in this browser's local extension storage, not browser sync. Anyone with access to this profile may access it.</p>
+    <div class="actions"><button id="connect" type="button">Allow this site & save</button><button id="forget" type="button" class="secondary">Forget connection</button></div>
+  </details>
+  <form id="clip-form">
+    <label for="title">Title</label><input id="title" required maxlength="240">
+    <label for="markdown">Review exactly what will be sent</label><textarea id="markdown" required rows="10" spellcheck="true"></textarea>
+    <p class="hint">Only your selection and the page title/link. URL query and fragment are removed. No page HTML, images, cookies, or browsing history.</p>
+    <button id="save" type="submit" disabled>Save private draft</button>
+  </form>
+  <p id="status" role="status" aria-live="polite">Reading this tab…</p>
+  <a id="studio" hidden target="_blank" rel="noopener noreferrer">Open Studio to review</a>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

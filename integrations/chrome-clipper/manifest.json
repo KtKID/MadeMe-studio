@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "MadeMe — Save a draft",
+  "version": "0.1.0",
+  "description": "Preview selected page text and save it as a private MadeMe draft.",
+  "minimum_chrome_version": "102",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "action": { "default_title": "Clip to MadeMe", "default_popup": "popup.html" },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'" }
+}
