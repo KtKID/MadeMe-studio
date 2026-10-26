@@ -57,5 +57,5 @@ export function getEnv(context: RequestContext): RuntimeEnv {
     runtime?: { env?: RuntimeEnv };
     env?: RuntimeEnv;
   };
-  return l.runtime?.env ?? l.env ?? {};
+  return l.env ?? {};
 }

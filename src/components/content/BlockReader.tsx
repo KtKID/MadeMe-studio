@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { safeUrl } from "../shared/ui";
 type Block = {
   id?: string;
@@ -7,6 +7,49 @@ type Block = {
   content?: unknown;
   children?: Block[];
 };
+const readerPalette = new Set([
+  "gray",
+  "brown",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "blue",
+  "purple",
+  "pink",
+]);
+/** 样式只由固定属性和白名单值组成，绝不拼接用户提供的 CSS 文本。 */
+function safeColor(
+  value: unknown,
+  channel: "text" | "background",
+): string | undefined {
+  if (typeof value !== "string" || value === "default") return undefined;
+  if (readerPalette.has(value)) return `var(--reader-${value}-${channel})`;
+  return /^#(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{4}|[a-fA-F0-9]{6}|[a-fA-F0-9]{8})$/.test(
+    value,
+  )
+    ? value
+    : undefined;
+}
+function safeBlockStyle(
+  props: Record<string, unknown> | undefined,
+): CSSProperties {
+  const alignment = props?.textAlignment;
+  return {
+    textAlign:
+      typeof alignment === "string" &&
+      ["left", "center", "right", "justify"].includes(alignment)
+        ? (alignment as CSSProperties["textAlign"])
+        : undefined,
+    color: safeColor(props?.textColor, "text"),
+    backgroundColor: safeColor(props?.backgroundColor, "background"),
+  };
+}
+function safeImageWidth(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(32, Math.min(4096, Math.round(value)))
+    : undefined;
+}
 function Inline({ value }: { value: unknown }): ReactNode {
   if (typeof value === "string") return value;
   if (!Array.isArray(value)) return null;
@@ -36,7 +79,17 @@ function Inline({ value }: { value: unknown }): ReactNode {
     if (s.italic) text = <em>{text}</em>;
     if (s.underline) text = <u>{text}</u>;
     if (s.strike) text = <s>{text}</s>;
-    return <span key={i}>{text}</span>;
+    return (
+      <span
+        key={i}
+        style={{
+          color: safeColor(s.textColor, "text"),
+          backgroundColor: safeColor(s.backgroundColor, "background"),
+        }}
+      >
+        {text}
+      </span>
+    );
   });
 }
 export function embedUrl(
@@ -166,6 +219,7 @@ function TableBlock({ value }: { value: unknown }) {
           key={index}
           colSpan={colspan}
           rowSpan={rowspan}
+          style={safeBlockStyle(cell?.props)}
           scope={
             headerRow
               ? colspan > 1
@@ -206,6 +260,7 @@ function ListGroup({
       {blocks.map((block, index) => (
         <li
           key={block.id || index}
+          style={safeBlockStyle(block.props)}
           value={
             numbered && index > 0 ? listStart(block.props?.start) : undefined
           }
@@ -289,6 +344,7 @@ function One({ block }: { block: Block }) {
             src={url}
             alt={String(p.caption || p.name || "文章图片")}
             loading="lazy"
+            width={safeImageWidth(p.previewWidth)}
           />
           {!!p.caption && <figcaption>{String(p.caption)}</figcaption>}
         </figure>
@@ -317,7 +373,7 @@ function One({ block }: { block: Block }) {
       element = <p>{content}</p>;
   }
   return (
-    <div className="reader-block">
+    <div className="reader-block" style={safeBlockStyle(p)}>
       {element}
       {Array.isArray(block.children) && block.children.length ? (
         <div className="reader-children">

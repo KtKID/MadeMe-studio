@@ -11,3 +11,7 @@
 ## 测试
 
 `tests/ui-render.test.tsx` 覆盖文本转义、危险链接、白名单嵌入与真实空状态；`tests/e2e/author-flow.spec.ts` 覆盖列表与回收站实际操作。
+
+首页路由使用 `loadPublicPageData`，即使作者已登录也只展示公开发布快照，不显示更新中的标题、摘要或封面。四种首页结构由 `data-layout` 控制，不改变配色或明暗。旧表格缺少 cells 时跳过异常行，保证其他正文仍可读。
+
+连续同级编号/项目列表在 SSR 中分组，编号使用浏览器原生顺序，显式 start 通过起点或 li value 保留；嵌套层级独立分组。表格保留受限的正整数 colspan/rowspan、thead/th 与表头范围。`tests/reader-structure.test.tsx` 覆盖这些富文本保真语义。

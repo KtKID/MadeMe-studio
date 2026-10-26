@@ -2996,3 +2996,71 @@ kbd {
 .reading-prose li > ul {
   margin-top: 10px;
 }
+/* BlockNote默认色以固定tokens映射；自定义内容仅允许合法hex颜色。 */
+:root {
+  --reader-gray-text: #9b9a97;
+  --reader-gray-background: #ebeced;
+  --reader-brown-text: #64473a;
+  --reader-brown-background: #e9e5e3;
+  --reader-red-text: #e03e3e;
+  --reader-red-background: #fbe4e4;
+  --reader-orange-text: #d9730d;
+  --reader-orange-background: #f6e9d9;
+  --reader-yellow-text: #dfab01;
+  --reader-yellow-background: #fbf3db;
+  --reader-green-text: #4d6461;
+  --reader-green-background: #ddedea;
+  --reader-blue-text: #0b6e99;
+  --reader-blue-background: #ddebf1;
+  --reader-purple-text: #6940a5;
+  --reader-purple-background: #eae4f2;
+  --reader-pink-text: #ad1a72;
+  --reader-pink-background: #f4dfeb;
+}
+:root[data-color-mode="dark"],
+:root[data-mode="dark"] {
+  --reader-gray-text: #bebdb8;
+  --reader-gray-background: #9b9a97;
+  --reader-brown-text: #8e6552;
+  --reader-brown-background: #64473a;
+  --reader-red-text: #ec4040;
+  --reader-red-background: #be3434;
+  --reader-orange-text: #e3790d;
+  --reader-orange-background: #b7600a;
+  --reader-yellow-text: #dfab01;
+  --reader-yellow-background: #b58b00;
+  --reader-green-text: #6b8b87;
+  --reader-green-background: #4d6461;
+  --reader-blue-text: #0e87bc;
+  --reader-blue-background: #0b6e99;
+  --reader-purple-text: #8552d7;
+  --reader-purple-background: #6940a5;
+  --reader-pink-text: #da208f;
+  --reader-pink-background: #ad1a72;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-mode="system"]:not([data-color-mode="light"]) {
+    --reader-gray-text: #bebdb8;
+    --reader-gray-background: #9b9a97;
+    --reader-brown-text: #8e6552;
+    --reader-brown-background: #64473a;
+    --reader-red-text: #ec4040;
+    --reader-red-background: #be3434;
+    --reader-orange-text: #e3790d;
+    --reader-orange-background: #b7600a;
+    --reader-yellow-text: #dfab01;
+    --reader-yellow-background: #b58b00;
+    --reader-green-text: #6b8b87;
+    --reader-green-background: #4d6461;
+    --reader-blue-text: #0e87bc;
+    --reader-blue-background: #0b6e99;
+    --reader-purple-text: #8552d7;
+    --reader-purple-background: #6940a5;
+    --reader-pink-text: #da208f;
+    --reader-pink-background: #ad1a72;
+  }
+}
+.reading-prose figure img {
+  height: auto;
+  max-width: 100%;
+}

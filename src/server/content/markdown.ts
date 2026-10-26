@@ -2,7 +2,35 @@ import type { EditorBlock, JSONValue } from "../../shared/contracts";
 type Inline =
   | { type: "text"; text: string; styles: Record<string, boolean> }
   | { type: "link"; href: string; content: Inline[] };
+/** 在识别格式前保护转义标点；代码跨度原样跳过，解析完再还原字面字符。 */
+function protectEscapedPunctuation(text: string) {
+  let marker = "\uE000";
+  while (text.includes(marker)) marker += "\uE000";
+  const escaped: string[] = [];
+  const protectedText = text.replace(
+    /(`+)(.*?)\1|\\([\x21-\x2f\x3a-\x40\x5b-\x60\x7b-\x7e])/g,
+    (
+      match: string,
+      ticks: string | undefined,
+      _code: string | undefined,
+      punctuation: string | undefined,
+    ) => {
+      if (ticks) return match;
+      const index = escaped.push(punctuation!) - 1;
+      return `${marker}${index}${marker}`;
+    },
+  );
+  const restore = (value: string) =>
+    value.replace(
+      new RegExp(`${marker}(\\d+)${marker}`, "g"),
+      (_match: string, index: string) => escaped[Number(index)],
+    );
+  return { text: protectedText, restore };
+}
 function inline(text: string): Inline[] {
+  const protectedInput = protectEscapedPunctuation(text);
+  text = protectedInput.text;
+  const restore = protectedInput.restore;
   const out: Inline[] = [];
   const re =
     /\[([^\]]+)\]\(([^\s)]+)(?:\s+"[^"]*")?\)|(`+)(.*?)\3|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*([^*]+)\*|_([^_]+)_/g;
@@ -11,11 +39,11 @@ function inline(text: string): Inline[] {
     if (match.index! > cursor)
       out.push({
         type: "text",
-        text: text.slice(cursor, match.index),
+        text: restore(text.slice(cursor, match.index)),
         styles: {},
       });
     if (match[1]) {
-      const href = match[2];
+      const href = restore(match[2]);
       if (
         /^https:\/\//i.test(href) ||
         /^\/api\/files\/[a-zA-Z0-9-]+$/.test(href) ||
@@ -24,9 +52,9 @@ function inline(text: string): Inline[] {
         out.push({
           type: "link",
           href,
-          content: [{ type: "text", text: match[1], styles: {} }],
+          content: [{ type: "text", text: restore(match[1]), styles: {} }],
         });
-      else out.push({ type: "text", text: match[1], styles: {} });
+      else out.push({ type: "text", text: restore(match[1]), styles: {} });
     } else {
       const raw =
         match[4] ??
@@ -38,7 +66,7 @@ function inline(text: string): Inline[] {
         "";
       out.push({
         type: "text",
-        text: raw,
+        text: match[3] ? raw : restore(raw),
         styles: match[3]
           ? { code: true }
           : match[5] || match[6]
@@ -51,7 +79,7 @@ function inline(text: string): Inline[] {
     cursor = match.index! + match[0].length;
   }
   if (cursor < text.length)
-    out.push({ type: "text", text: text.slice(cursor), styles: {} });
+    out.push({ type: "text", text: restore(text.slice(cursor)), styles: {} });
   return out;
 }
 function block(
