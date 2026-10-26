@@ -1,17 +1,73 @@
 ---
-import FoundationEditor from '../components/FoundationEditor';
+import Base from "../layouts/Base.astro";
+import PublicFeed from "../components/content/PublicFeed";
+import { Feather, ArrowUpRight } from "lucide-react";
+import { loadPublicPageData } from "../server/page-data";
+const data = await loadPublicPageData(Astro);
+const { settings, capabilities } = data;
+const publicPosts = data.posts.filter(
+  (p) => !p.deletedAt && p.publishedAt && p.visibility === "public",
+);
 ---
-<!doctype html>
-<html lang="zh-CN">
-  <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>MadeMe Studio · 基础框架</title></head>
-  <body>
-    <main><small>MADEME STUDIO</small><h1>把想法写下来。</h1><p>Astro + BlockNote 基础框架已集成。当前编辑内容尚未持久化。</p><FoundationEditor client:only="react"/></main>
-  </body>
-</html>
-<style>
-  :global(body) { margin:0; background:#fff9e9; color:#332d20; font-family:'Microsoft YaHei','微软雅黑','PingFang SC',system-ui,sans-serif; }
-  main { max-width:900px; margin:70px auto; padding:32px; }
-  small { color:#936700; letter-spacing:.18em; }
-  h1 { font-size:44px; }
-  p { color:#776c57; line-height:1.8; margin-bottom:32px; }
-</style>
+
+<Base
+  title={`${settings.siteTitle} · ${settings.tagline}`}
+  description={settings.tagline}
+  theme={settings.theme}
+  mode={settings.mode}
+  skin={settings.skin}
+  font={settings.font}
+  accent={settings.accent}
+>
+  <div class="public-shell">
+    <header class="public-header">
+      <a class="brand" href="/">
+        <span class="brand-icon">
+          <Feather size={22} />
+        </span>
+        {settings.siteTitle}
+      </a>
+      <nav aria-label="站点导航">
+        {settings.navigation.map((n) => (
+          <a href={n.href}>{n.label}</a>
+        ))}
+        <a class="button small" href="/studio">
+          进入工作台 <ArrowUpRight size={14} />
+        </a>
+      </nav>
+    </header>
+    <main id="main">
+      <section class="public-hero">
+        <div class="eyebrow">
+          <span class="status-dot"></span> A PERSONAL JOURNAL
+        </div>
+        <h1>
+          记录所想。
+          <br />
+          <em>分享所见。</em>
+        </h1>
+        <p>{settings.tagline}</p>
+        <div class="hero-decoration" aria-hidden="true">
+          <span class="orbit orbit-one"></span>
+          <span class="orbit orbit-two"></span>
+          <span class="orbit orbit-three"></span>
+          <span class="hero-spark">✳</span>
+          <span class="hero-caption">IDEAS TAKE SHAPE HERE</span>
+        </div>
+      </section>
+      <PublicFeed
+        posts={publicPosts}
+        theme={settings.theme}
+        authenticated={capabilities.authenticated}
+        client:load
+      />
+    </main>
+    <footer class="public-footer">
+      <span>
+        © {new Date().getFullYear()} {settings.siteTitle}
+      </span>
+      <span>独立表达，自由生长。</span>
+      <a href="/rss.xml">RSS ↗</a>
+    </footer>
+  </div>
+</Base>

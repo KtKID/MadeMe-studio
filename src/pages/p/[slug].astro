@@ -1,0 +1,119 @@
+---
+import Base from "../../layouts/Base.astro";
+import BlockReader from "../../components/content/BlockReader";
+import InlineEditor from "../../components/editor/InlineEditor";
+import Unlock from "../../components/content/Unlock";
+import { Feather, ArrowLeft, ArrowUpRight } from "lucide-react";
+import { loadPostPage, loadPageData } from "../../server/page-data";
+import { date } from "../../components/shared/ui";
+const data = await loadPostPage(Astro, Astro.params.slug || "");
+const { settings, post, locked, authenticated } = data;
+if (!post && !locked) Astro.response.status = 404;
+const capabilities = authenticated
+  ? (await loadPageData(Astro)).capabilities
+  : null;
+---
+
+<Base
+  title={`${post?.title || "阅读"} · ${settings.siteTitle}`}
+  description={post?.excerpt || settings.tagline}
+  theme={settings.theme}
+  mode={settings.mode}
+  skin={settings.skin}
+  font={settings.font}
+  accent={settings.accent}
+>
+  <div class="public-shell">
+    <header class="public-header">
+      <a class="brand" href="/">
+        <span class="brand-icon">
+          <Feather size={22} />
+        </span>
+        {settings.siteTitle}
+      </a>
+      <nav>
+        <a href="/">所有文章</a>
+        {authenticated && (
+          <a class="button small" href="/studio">
+            写作台 <ArrowUpRight size={14} />
+          </a>
+        )}
+      </nav>
+    </header>
+    <main id="main" class="reading-main">
+      <a class="back-link" href="/">
+        <ArrowLeft size={15} />
+        回到所有文章
+      </a>
+      {locked ? (
+        <Unlock slug={Astro.params.slug || ""} client:load />
+      ) : post ? (
+        <>
+          {authenticated && capabilities && (
+            <InlineEditor
+              id={post.id}
+              settings={settings}
+              aiConfigured={capabilities.aiConfigured}
+              imageConfigured={capabilities.imageConfigured}
+              client:only="react"
+            />
+          )}
+          <article id="article-reading" class="article-reading">
+            <header class="reading-heading">
+              <div class="eyebrow">{post.category || "PERSONAL JOURNAL"}</div>
+              <h1>{post.title}</h1>
+              {post.excerpt && <p class="reading-excerpt">{post.excerpt}</p>}
+              <div class="reading-meta">
+                <span class="author-avatar">
+                  {settings.siteTitle.charAt(0)}
+                </span>
+                <strong>{settings.siteTitle}</strong>
+                <span>·</span>
+                <time>{date(post.publishedAt || post.updatedAt)}</time>
+                {!post.publishedAt && (
+                  <span class="status-pill">仅作者可见的草稿</span>
+                )}
+              </div>
+            </header>
+            {post.coverImage && (
+              <figure class="reading-cover">
+                <img src={post.coverImage} alt={post.title} />
+              </figure>
+            )}
+            <div class="reading-prose">
+              <BlockReader blocks={post.blocks} />
+            </div>
+            <footer class="article-end">
+              <span class="end-mark">✳</span>
+              <p>谢谢你，读到这里。</p>
+              <div class="article-tags">
+                {post.tags.map((t) => (
+                  <span>#{t}</span>
+                ))}
+              </div>
+              <a class="button" href="/">
+                <ArrowLeft size={15} />
+                发现更多文字
+              </a>
+            </footer>
+          </article>
+        </>
+      ) : (
+        <section class="empty-state">
+          <h1>这一页，暂时留白。</h1>
+          <p>文章可能已移走，或尚未公开。</p>
+          <a class="button" href="/">
+            回到首页
+          </a>
+        </section>
+      )}
+    </main>
+    <footer class="public-footer">
+      <span>
+        © {new Date().getFullYear()} {settings.siteTitle}
+      </span>
+      <span>独立表达，自由生长。</span>
+      <a href="/rss.xml">RSS ↗</a>
+    </footer>
+  </div>
+</Base>
