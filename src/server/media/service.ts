@@ -2,7 +2,10 @@ import { acceptedMediaMimeTypes, type Media } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
 import { AppError, notFound } from "../errors";
 import type { Identity } from "../auth/identity";
-import { D1PostRepository } from "../content/repository";
+import {
+  D1PostRepository,
+  MEDIA_REFERENCE_PAGE_SIZE,
+} from "../content/repository";
 import { canReadPost } from "../auth/access";
 import { referencesMedia } from "../content/validation";
 type MediaRow = {
@@ -177,15 +180,24 @@ export async function serveMedia(
   if (!row) throw notFound();
   if (!identity.owner) {
     let permitted = false;
-    for (const post of await new D1PostRepository(env.DB).list()) {
-      if (
-        post.published &&
-        referencesMedia(post.published, id) &&
-        (await canReadPost(request, env, identity, post))
-      ) {
-        permitted = true;
-        break;
+    const repository = new D1PostRepository(env.DB);
+    let afterId = "";
+    while (!permitted) {
+      const candidates = await repository.publishedMediaCandidates(id, afterId);
+      if (!candidates.length) break;
+      for (const post of candidates) {
+        // 候选查询只缩小范围；实际引用、删除状态和密码授权仍逐篇复核。
+        if (
+          post.published &&
+          referencesMedia(post.published, id) &&
+          (await canReadPost(request, env, identity, post))
+        ) {
+          permitted = true;
+          break;
+        }
       }
+      if (candidates.length < MEDIA_REFERENCE_PAGE_SIZE) break;
+      afterId = candidates[candidates.length - 1].draft.id;
     }
     if (!permitted) throw notFound();
   }

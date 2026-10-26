@@ -7,8 +7,13 @@ export type StoredPost = {
   passwordHash: string | null;
   publishedPasswordHash: string | null;
 };
+export const MEDIA_REFERENCE_PAGE_SIZE = 16;
 export interface PostRepository {
   list(): Promise<StoredPost[]>;
+  publishedMediaCandidates(
+    mediaId: string,
+    afterId?: string,
+  ): Promise<StoredPost[]>;
   get(id: string): Promise<StoredPost | null>;
   bySlug(slug: string): Promise<StoredPost | null>;
   create(post: StoredPost): Promise<void>;
@@ -44,6 +49,17 @@ export class D1PostRepository implements PostRepository {
         )
         .all<Row>()
     ).results.map(decode);
+  }
+  /** 媒体授权查询不复用首页截断列表；按主键分批读取精确已发布引用候选。 */
+  async publishedMediaCandidates(mediaId: string, afterId = "") {
+    const url = `/api/files/${mediaId}`;
+    const result = await this.db
+      .prepare(
+        "SELECT document_json,published_json,password_hash,published_password_hash FROM posts WHERE id > ? AND deleted_at IS NULL AND published_json IS NOT NULL AND EXISTS (SELECT 1 FROM json_tree(posts.published_json) WHERE json_tree.type = 'text' AND json_tree.atom = ?) ORDER BY id ASC LIMIT ?",
+      )
+      .bind(afterId, url, MEDIA_REFERENCE_PAGE_SIZE)
+      .all<Row>();
+    return result.results.map(decode);
   }
   async get(id: string) {
     const row = await this.db
