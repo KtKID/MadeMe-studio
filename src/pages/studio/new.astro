@@ -1,0 +1,20 @@
+---
+import Studio from "../../layouts/Studio.astro";
+import Editor from "../../components/editor/Editor";
+import { loadPageData } from "../../server/page-data";
+const data = await loadPageData(Astro);
+---
+
+<Studio title="写新文章" settings={data.settings}>
+  <Editor
+    settings={data.settings}
+    authenticated={data.capabilities.authenticated}
+    aiConfigured={data.capabilities.aiConfigured}
+    imageConfigured={data.capabilities.imageConfigured}
+    client:only="react"
+  >
+    <div slot="fallback" class="loading-panel">
+      正在打开写作空间…
+    </div>
+  </Editor>
+</Studio>

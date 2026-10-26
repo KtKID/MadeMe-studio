@@ -1,0 +1,42 @@
+---
+import Studio from "../../layouts/Studio.astro";
+import Editor from "../../components/editor/Editor";
+import { loadPageData } from "../../server/page-data";
+const data = await loadPageData(Astro);
+const id = Astro.url.searchParams.get("id");
+const post = data.capabilities.authenticated
+  ? data.posts.find((p) => p.id === id)
+  : undefined;
+if (!post) Astro.response.status = data.capabilities.authenticated ? 404 : 403;
+---
+
+<Studio title="编辑文章" settings={data.settings}>
+  {post ? (
+    <Editor
+      post={post}
+      settings={data.settings}
+      authenticated={data.capabilities.authenticated}
+      aiConfigured={data.capabilities.aiConfigured}
+      imageConfigured={data.capabilities.imageConfigured}
+      client:only="react"
+    >
+      <div slot="fallback" class="loading-panel">
+        正在打开写作空间…
+      </div>
+    </Editor>
+  ) : (
+    <section class="empty-state">
+      <h1>
+        {data.capabilities.authenticated ? "文章不在这里" : "需要作者身份"}
+      </h1>
+      <p>
+        {data.capabilities.authenticated
+          ? "这篇文章可能已被删除，或链接已经改变。"
+          : "请在受信任的站点身份下登录作者账号后继续编辑。"}
+      </p>
+      <a class="button" href="/studio">
+        返回写作台
+      </a>
+    </section>
+  )}
+</Studio>
