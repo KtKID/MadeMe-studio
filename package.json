@@ -10,7 +10,10 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "test:smoke": "node scripts/smoke-local.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:worker": "node scripts/test-worker.mjs",
+    "test:integrations": "node --test integrations/tests/*.node.mjs",
+    "format": "prettier --write src tests scripts docs *.ts *.mjs"
   },
   "dependencies": {
     "astro": "7.4.2",
@@ -38,6 +41,13 @@
     "wrangler": "^4.125.0",
     "@cloudflare/workers-types": "latest",
     "@playwright/test": "^1.64.1",
-    "prettier": "^3.9.10"
+    "prettier": "^3.9.10",
+    "prettier-plugin-astro": "^1.1.2"
+  },
+  "overrides": {
+    "undici@>=7.0.0 <7.30.1": "7.30.1"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

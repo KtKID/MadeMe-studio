@@ -14,9 +14,13 @@
   "exclude": [
     "dist",
     "node_modules",
+    "**/dist/**",
+    "**/node_modules/**",
     "integrations/obsidian-publisher",
     "worker-dist",
     ".astro",
-    ".wrangler"
+    ".wrangler",
+    ".schema-gen",
+    ".schema-baseline"
   ]
 }

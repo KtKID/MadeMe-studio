@@ -14,3 +14,5 @@ playwright-report/
 
 .schema-gen/
 .schema-baseline/
+**/dist/
+**/node_modules/
