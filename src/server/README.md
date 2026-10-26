@@ -30,3 +30,5 @@
 ## 验证
 
 `npm test -- tests/backend` 包含单元、真实 SQLite 迁移/事务、服务端冒烟和真实本地 HTTP E2E。此处 HTTP E2E 不等同于浏览器端 BlockNote 操作测试；浏览器测试由界面模块单独负责。
+
+设置 PATCH 在 D1 单条 UPSERT 内使用 `json_patch` 原子合并，避免并发更新不同字段互相覆盖。相同字段并发更新按数据库写入顺序生效。首页使用 `loadPublicPageData`，即使作者访问也只展示公开发布快照。
