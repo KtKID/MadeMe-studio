@@ -15,6 +15,8 @@
   --tint-strong: #ead597;
   --shadow: 0 12px 50px #292b2808;
   --danger: #b94f45;
+  /* 工作台侧边栏底部（账号入口）到侧边栏下边缘的距离。 */
+  --sidebar-bottom-gap: 10px;
   color-scheme: light;
   font-family: var(--font);
   font-synthesis: none;
@@ -425,7 +427,7 @@ img {
   width: 232px;
   position: fixed;
   inset: 0 auto 0 0;
-  padding: 32px 21px 18px;
+  padding: 32px 21px var(--sidebar-bottom-gap);
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -509,9 +511,6 @@ img {
   padding: 12px 10px;
   font-size: 11px;
 }
-.site-link > svg {
-  margin-left: auto;
-}
 .site-avatar,
 .author-avatar {
   width: 31px;
@@ -531,9 +530,6 @@ img {
   font-size: 9px;
   margin-top: 2px;
 }
-.author-link {
-  margin-top: 8px;
-}
 .author-account {
   min-width: 0;
   flex: 1;
@@ -544,16 +540,6 @@ img {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
-}
-.sidebar-note {
-  margin-top: 18px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
 }
 .studio-body {
   min-width: 0;

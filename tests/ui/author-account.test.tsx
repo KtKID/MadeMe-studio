@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
+import { readFileSync } from "node:fs";
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useEffect: () => {},
@@ -85,6 +86,35 @@ describe("侧边栏作者账号展示", () => {
       expect(html).not.toContain("owner@gmail.com");
       expect(html).not.toContain("author-account-name");
     }
+  });
+  it("侧边栏底部只保留账号入口：去掉“我的站点”卡片与底部标语，右上角保留访问站点", () => {
+    const html = shell(initial(true, "owner@gmail.com", "小明"));
+    expect(html).not.toContain("我的站点");
+    expect(html).not.toContain("看看发布后的样子");
+    expect(html).not.toContain("写作，让想法有迹可循");
+    expect(html).not.toContain("sidebar-note");
+    expect(html).toMatch(/<a class="topbar-site" href="\/">访问站点/);
+    const bottom = html.slice(html.indexOf('class="sidebar-bottom"'));
+    expect(bottom.indexOf("author-link")).toBeGreaterThan(-1);
+    expect(bottom.indexOf("author-link")).toBeLessThan(bottom.indexOf("</aside>"));
+    // 非 Sites 登录模式（无账号入口）时不渲染空的底部容器。
+    const sites = renderToStaticMarkup(
+      createElement(StudioShell, {
+        initial: initial(true, "owner@gmail.com"),
+        initialPath: "/studio",
+      }),
+    );
+    expect(sites).not.toContain("sidebar-bottom");
+  });
+  it("Studio.astro 与 StudioShell 一致，侧边栏底部间距走 CSS 变量", () => {
+    const astro = readFileSync("src/layouts/Studio.astro", "utf8");
+    const css = readFileSync("src/styles/global.css", "utf8");
+    for (const text of ["我的站点", "看看发布后的样子", "写作，让想法有迹可循", "sidebar-note"])
+      expect(astro).not.toContain(text);
+    expect(astro).toContain('class="topbar-site" href="/"');
+    expect(css).toMatch(/--sidebar-bottom-gap:\s*10px/);
+    expect(css).toMatch(/\.studio-sidebar \{[^}]*padding: 32px 21px var\(--sidebar-bottom-gap\)/);
+    expect(css).not.toContain(".sidebar-note");
   });
   it("登录页已登录状态显示账号名", () => {
     const html = renderToStaticMarkup(

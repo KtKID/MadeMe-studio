@@ -340,15 +340,8 @@ export default function StudioShell({
             </a>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <a className="site-link" href="/" target="_blank" rel="noreferrer">
-            <span className="site-avatar">M</span>
-            <span>
-              我的站点<small>看看发布后的样子</small>
-            </span>
-            <ArrowUpRight size={16} />
-          </a>
-          {passwordAuth && (
+        {passwordAuth && (
+          <div className="sidebar-bottom">
             <a
               className={`site-link author-link${signedIn ? " signed" : ""}`}
               href={`/login?returnTo=${encodeURIComponent(active)}`}
@@ -370,12 +363,8 @@ export default function StudioShell({
                 "作者登录 / 账号与退出"
               )}
             </a>
-          )}
-          <div className="sidebar-note">
-            <span className="status-dot" />
-            写作，让想法有迹可循
           </div>
-        </div>
+        )}
       </aside>
       <div className="studio-body">
         <header className="studio-topbar">

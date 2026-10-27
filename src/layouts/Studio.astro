@@ -83,15 +83,8 @@ const links = [
           </a>
         ))}
       </nav>
-      <div class="sidebar-bottom">
-        <a class="site-link" href="/" target="_blank" rel="noreferrer">
-          <span class="site-avatar">M</span>
-          <span>
-            我的站点<small>看看发布后的样子</small>
-          </span>
-          <ArrowUpRight size={16} />
-        </a>
-        {passwordAuth && (
+      {passwordAuth && (
+        <div class="sidebar-bottom">
           <a
             data-astro-reload
             class:list={["site-link", "author-link", { signed: !!signedIn }]}
@@ -112,11 +105,8 @@ const links = [
               "作者登录 / 账号与退出"
             )}
           </a>
-        )}
-        <div class="sidebar-note">
-          <span class="status-dot"></span>写作，让想法有迹可循
         </div>
-      </div>
+      )}
     </aside>
     <div class="studio-body">
       <header class="studio-topbar">
