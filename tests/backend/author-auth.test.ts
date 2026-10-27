@@ -15,7 +15,10 @@ beforeEach(async () => {
   hash ??= await hashAuthorPassword(password);
   env.AUTH_PASSWORD_HASH = hash;
 });
-afterEach(() => env.DB.close());
+afterEach(() => {
+  vi.restoreAllMocks();
+  env.DB.close();
+});
 function call(
   path: string,
   body?: unknown,
@@ -93,6 +96,8 @@ describe("独立单作者登录", () => {
     expect((await call("login", credentials)).status).toBe(503);
   });
   it("不区分不存在邮箱与错误密码，并持久化限流", async () => {
+    // 固定窗口内采样，避免真实时钟跨限流窗口使断言偶发失效。
+    vi.spyOn(Date, "now").mockReturnValue(Date.UTC(2026, 9, 27, 3, 0, 30));
     const a = await call("login", {
       ...credentials,
       email: "other@example.test",
