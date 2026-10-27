@@ -531,6 +531,20 @@ img {
   font-size: 9px;
   margin-top: 2px;
 }
+.author-link {
+  margin-top: 8px;
+}
+.author-account {
+  min-width: 0;
+  flex: 1;
+}
+.author-account-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
 .sidebar-note {
   margin-top: 18px;
   text-align: center;

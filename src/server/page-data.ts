@@ -15,6 +15,7 @@ import type { BootstrapResponse, Post, Settings } from "../shared/contracts";
 import { getEnv, type RequestContext } from "./runtime";
 import { authenticate, ownerConfigured } from "./auth/identity";
 import { canReadPost } from "./auth/access";
+import { ownerAccount } from "./auth/account";
 import { D1PostRepository, type StoredPost } from "./content/repository";
 import { publicPosts } from "./content/service";
 import { readSettings, redactSettings } from "./settings";
@@ -51,12 +52,31 @@ async function loadBasePageData(context: RequestContext, publicOnly = false) {
   };
 }
 
+type PostLoadOptions = { posts: "none" | "single"; id?: string | null };
 export async function loadPageData(
   context: RequestContext,
   publicOnly = false,
-  options:
-    { posts: "none" | "single"; id?: string | null } | undefined = undefined,
+  options: PostLoadOptions | undefined = undefined,
 ): Promise<BootstrapResponse> {
+  return (await loadPageDataWithIdentity(context, publicOnly, options)).data;
+}
+/** 编辑器/新建页：引导数据之外附带仅作者本人可见的账号名，供侧边栏展示。 */
+export async function loadEditorPageData(
+  context: RequestContext,
+  options: PostLoadOptions,
+): Promise<BootstrapResponse & { account: string | null }> {
+  const { env, identity, data } = await loadPageDataWithIdentity(
+    context,
+    false,
+    options,
+  );
+  return { ...data, account: ownerAccount(env, identity) };
+}
+async function loadPageDataWithIdentity(
+  context: RequestContext,
+  publicOnly: boolean,
+  options: PostLoadOptions | undefined,
+) {
   const { env, identity, data } = await loadBasePageData(context, publicOnly);
   let rows: StoredPost[] = [];
   if (env.DB && options?.posts !== "none") {
@@ -69,13 +89,14 @@ export async function loadPageData(
       }
     } else rows = await repository.list();
   }
-  return {
+  const result: BootstrapResponse = {
     posts:
       identity.owner && !publicOnly
         ? rows.map((r) => r.draft)
         : publicPosts(rows),
     ...data,
   };
+  return { env, identity, data: result };
 }
 export async function loadPostPage(
   context: RequestContext,
@@ -177,6 +198,8 @@ export async function loadIntegrationsPageData(context: RequestContext) {
 /** 四个深链共享一次 SSR 引导；数据仅属于当前已授权文档，不持久化。 */
 export type StudioPageData = DashboardBootstrap & {
   trustedIdentity: string | null;
+  /** 已验证作者本人的账号名（邮箱）；未登录或非单作者模式为 null/缺省。 */
+  account?: string | null;
   initialMedia: Media[];
   initialTokens: APIToken[];
   postsError: string;
@@ -191,6 +214,7 @@ export async function loadStudioPageData(
     ...data,
     posts: [],
     trustedIdentity: identity.trustedIdentity,
+    account: ownerAccount(env, identity),
     initialMedia: [],
     initialTokens: [],
     postsError: "",

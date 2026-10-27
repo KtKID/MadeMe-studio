@@ -1,11 +1,11 @@
 ---
 import Studio from "../../layouts/Studio.astro";
 import Editor from "../../components/editor/Editor";
-import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro, false, { posts: "none" });
+import { loadEditorPageData } from "../../server/page-data";
+const data = await loadEditorPageData(Astro, { posts: "none" });
 ---
 
-<Studio title="写新文章" settings={data.settings}>
+<Studio title="写新文章" settings={data.settings} account={data.account}>
   <Editor
     settings={data.settings}
     authenticated={data.capabilities.authenticated}

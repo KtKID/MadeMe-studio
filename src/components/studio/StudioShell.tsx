@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { StudioPageData } from "../../server/page-data";
 import type { Settings } from "../../shared/contracts";
+import { accountInitial } from "../../shared/auth";
 import {
   route,
   type StudioRoute,
@@ -61,6 +62,8 @@ export default function StudioShell({
   const [settings, setSettings] = useState(initial.settings);
   const [visible, setVisible] = useState(true);
   const [valid, setValid] = useState(initial.capabilities.authenticated);
+  // 身份失效（退出/过期/切换）后立即不再展示账号名。
+  const account = valid ? (initial.account ?? null) : null;
   const privateRoot = useRef<HTMLDivElement>(null);
   const activeRef = useRef(initialPath);
   const guard = useRef<Guard>({ dirty: false, discard: () => {} });
@@ -343,10 +346,23 @@ export default function StudioShell({
           </a>
           {passwordAuth && (
             <a
-              className="site-link"
+              className={`site-link author-link${account ? " signed" : ""}`}
               href={`/login?returnTo=${encodeURIComponent(active)}`}
+              title={account ? `已登录：${account}（账号与退出）` : undefined}
             >
-              作者登录 / 账号与退出
+              {account ? (
+                <>
+                  <span className="site-avatar" aria-hidden="true">
+                    {accountInitial(account)}
+                  </span>
+                  <span className="author-account">
+                    <span className="author-account-name">{account}</span>
+                    <small>账号与退出</small>
+                  </span>
+                </>
+              ) : (
+                "作者登录 / 账号与退出"
+              )}
             </a>
           )}
           <div className="sidebar-note">

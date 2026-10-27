@@ -98,11 +98,14 @@ describe("Google 单作者 OAuth 安全边界", () => {
         "oai-authenticated-user-email": env.OWNER_EMAIL!,
       },
     });
-    expect(await session.json()).toMatchObject({
+    const unauthenticated = await session.json();
+    expect(unauthenticated).toEqual({
       mode: "google",
       authenticated: false,
       configured: true,
     });
+    // 伪造身份头不能换来账号名。
+    expect(unauthenticated).not.toHaveProperty("account");
     env.GOOGLE_CLIENT_SECRET = undefined;
     expect(
       (
@@ -142,6 +145,7 @@ describe("Google 单作者 OAuth 安全边界", () => {
     expect(done.headers.get("location")).toBe("/studio");
   });
   it("真实签名成功后仅保存应用token摘要，退出撤销，配置轮换失效", async () => {
+    const logs = captureLogs();
     const flow = await start();
     const done = await finish(flow);
     expect(done.headers.get("location")).toBe("/studio/settings");
@@ -151,7 +155,12 @@ describe("Google 单作者 OAuth 安全边界", () => {
       .split(";")[0];
     expect(
       await (await call("session", { headers: { cookie } })).json(),
-    ).toMatchObject({ authenticated: true });
+    ).toEqual({
+      mode: "google",
+      configured: true,
+      authenticated: true,
+      account: "owner@gmail.com",
+    });
     const rows = env.DB.sqlite
       .prepare("SELECT * FROM google_author_sessions")
       .all();
@@ -170,9 +179,13 @@ describe("Google 单作者 OAuth 安全边界", () => {
         })
       ).status,
     ).toBe(200);
-    expect(
-      await (await call("session", { headers: { cookie } })).json(),
-    ).toMatchObject({ authenticated: false });
+    const afterLogout = await (
+      await call("session", { headers: { cookie } })
+    ).json();
+    expect(afterLogout).toMatchObject({ authenticated: false });
+    expect(afterLogout).not.toHaveProperty("account");
+    // 账号名只返回给作者本人，绝不进入日志。
+    expect(logs.raw()).not.toContain("owner@gmail.com");
   });
   it("浏览器绑定不匹配和重放不能签发会话", async () => {
     const flow = await start();

@@ -4,7 +4,7 @@
 
 - `LoginPanel.tsx`：独立单作者 Google / 邮箱密码表单及显式退出，不开放注册。
 - `client.ts`：同源 POST 与共享 Zod 协议校验。密码不进入 React 状态、日志、URL 或浏览器存储；提交立即清空输入。
-- `/login` 服务端通过 `getAuthPresentation` 只下发 `mode/configured/authenticated`，不下发配置、哈希、密钥或 Cookie。
+- `/login` 服务端通过 `getAuthPresentation` 只下发 `mode/configured/authenticated`，作者本人已登录时再附带 `account`（账号邮箱，显示为“已登录：…”）；不下发配置、哈希、密钥或 Cookie。
 - `AUTH_MODE=sites` 保留平台 SSO，不要求第二遍密码；独立 `password` / `google` 模式缺配置时明确不可用。
 - 登录成功使用共享 `safeReturnTo` 再次清洗服务端回跳地址。失败只显示固定中文提示，不能回显服务器内部错误。
 - Studio 的账号入口是完整导航链接；设置/编辑未保存保护先处理离开，再进入账号页。退出不是导航副作用，必须点击并确认后 POST。
@@ -18,7 +18,7 @@
 - 页面只下发允许的 `google_denied/google_failed` 错误码，分别显示固定授权拒绝/未完成提示；非作者、取消授权不暴露白名单身份。不提供注册。
 - 首次提交交给浏览器原生导航，同帧重复提交阻止；浏览器返回触发 `pageshow` 时恢复按钮。实际 Google 授权与服务端令牌校验不由组件完成。
 - 已认证后复用显式确认退出 `POST /api/auth/logout`；无脚本时退出按钮保持禁用并提示启用 JavaScript。
-- Studio 账号入口对 password/google 显示；默认 Sites 预览不因此变更模式。
+- Studio 账号入口对 password/google 显示；默认 Sites 预览不因此变更模式。未登录显示“作者登录 / 账号与退出”；已登录显示首字母头像、账号名（过长省略，悬停 title 显示全文）与“账号与退出”小字。`StudioShell` 在身份失效后立即隐藏账号名。
 
 ## 可访问性与状态
 

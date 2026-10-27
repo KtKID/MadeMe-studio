@@ -1,6 +1,7 @@
 ---
 import Base from "./Base.astro";
 import { getEnv } from "../server/runtime";
+import { accountInitial } from "../shared/auth";
 const passwordAuth = ["password", "google"].includes(
   getEnv(Astro).AUTH_MODE ?? "",
 );
@@ -13,7 +14,12 @@ import {
   ArrowUpRight,
   Plus,
 } from "lucide-react";
-const { title = "写作台", active = "posts", settings } = Astro.props;
+const {
+  title = "写作台",
+  active = "posts",
+  settings,
+  account = null,
+} = Astro.props;
 // 表单页保留完整导航；编辑器先拦截站内链接显示自定义确认，刷新/关页另有原生兜底。
 const protectedFormPage = [
   "/studio/new",
@@ -86,10 +92,23 @@ const links = [
         {passwordAuth && (
           <a
             data-astro-reload
-            class="site-link"
+            class:list={["site-link", "author-link", { signed: !!account }]}
             href={`/login?returnTo=${encodeURIComponent(Astro.url.pathname)}`}
+            title={account ? `已登录：${account}（账号与退出）` : undefined}
           >
-            作者登录 / 账号与退出
+            {account ? (
+              <>
+                <span class="site-avatar" aria-hidden="true">
+                  {accountInitial(account)}
+                </span>
+                <span class="author-account">
+                  <span class="author-account-name">{account}</span>
+                  <small>账号与退出</small>
+                </span>
+              </>
+            ) : (
+              "作者登录 / 账号与退出"
+            )}
           </a>
         )}
         <div class="sidebar-note">

@@ -24,7 +24,14 @@ export const authSessionResponseSchema = z.object({
   mode: z.enum(["sites", "password", "google", "unconfigured"]),
   configured: z.boolean(),
   authenticated: z.boolean(),
+  /** 仅在已验证作者本人的会话中出现；未登录时不返回该字段。 */
+  account: z.email().max(254).optional(),
 });
+/** 侧边栏头像字母：取账号首个字母或数字，缺省为 "A"。 */
+export function accountInitial(account: string | null | undefined): string {
+  const match = account?.match(/[a-z0-9]/i);
+  return match ? match[0].toUpperCase() : "A";
+}
 export const authLoginResponseSchema = z.object({
   ok: z.literal(true),
   returnTo: z.string(),

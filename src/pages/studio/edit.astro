@@ -1,16 +1,16 @@
 ---
 import Studio from "../../layouts/Studio.astro";
 import Editor from "../../components/editor/Editor";
-import { loadPageData } from "../../server/page-data";
+import { loadEditorPageData } from "../../server/page-data";
 const id = Astro.url.searchParams.get("id");
-const data = await loadPageData(Astro, false, { posts: "single", id });
+const data = await loadEditorPageData(Astro, { posts: "single", id });
 const post = data.capabilities.authenticated
   ? data.posts.find((p) => p.id === id)
   : undefined;
 if (!post) Astro.response.status = data.capabilities.authenticated ? 404 : 403;
 ---
 
-<Studio title="编辑文章" settings={data.settings}>
+<Studio title="编辑文章" settings={data.settings} account={data.account}>
   {post ? (
     <Editor
       post={post}

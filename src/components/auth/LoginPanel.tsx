@@ -128,7 +128,9 @@ export default function LoginPanel({
       <h1>{session.authenticated ? "作者账号" : "登录写作台"}</h1>
       <p>
         {session.authenticated
-          ? "你已通过作者身份验证。"
+          ? session.account
+            ? `已登录：${session.account}`
+            : "你已通过作者身份验证。"
           : "仅供站点作者使用，不开放注册。"}
       </p>
       {(error || (!session.authenticated && callbackError)) && (

@@ -27,7 +27,7 @@
 
 - `src/shared/auth.ts` 是登录请求、登录/退出/会话响应和站内 `returnTo` 校验的单一协议来源。
 - `POST /api/auth/login` 接受 `{email,password,returnTo?}`；返回 `{ok:true,returnTo}`，不返回密码、邮箱配置、哈希或会话令牌正文。
-- `POST /api/auth/logout` 撤销 D1 中当前会话并清空 Cookie；`GET /api/auth/session` 仅返回 `{mode,configured,authenticated}`。
+- `POST /api/auth/logout` 撤销 D1 中当前会话并清空 Cookie；`GET /api/auth/session` 返回 `{mode,configured,authenticated}`；仅当当前请求本身已通过作者验证（password/google 模式）时额外返回 `account`（即配置的 `OWNER_EMAIL`，规范化小写），未登录、伪造身份头、Bearer 令牌均不返回。
 - 登录和退出都强制 HTTPS、同源 Origin、Fetch Metadata；Bearer 不能豁免这两个端点的 CSRF 检查。普通 API 中 Bearer 始终覆盖 Cookie 身份，不能获得作者权限。
 - Cookie 为 `__Host-mm_author`，固定 Path=/，Secure、HttpOnly、SameSite=Strict，不设置 Domain。D1 只保存 256 位随机令牌的 SHA-256 摘要。重新登录原子撤销当前旧会话并颁发新令牌；8 小时绝对过期，无滑动延长。第一版尚不提供独立空闲超时策略。可直接撤销 `author_sessions.revoked_at`，邮箱、密码摘要或 SESSION_SECRET 变更也会使所有旧会话失效。
 - 登录在 KDF 前以 D1 执行全局单作者每 5 分钟最多 5 次尝试限制，不信任请求 IP 或邮箱作为限流键。此策略防止伪造 IP/换邮箱绕过，但攻击者也可能消耗窗口造成短时拒绝服务；独立生产发布前应结合可信边缘 WAF/访问限制评估可用性，不能通过信任任意客户端头修复。
@@ -57,3 +57,10 @@
 - 追加迁移 `0003_google_author_auth.sql`，不修改旧表/旧迁移。切换 AUTH_MODE 和创建真实凭据必须经过独立部署确认，不自动改变线上 Sites 模式。
 
 测试入口 `tests/backend/google-auth.test.ts` 使用隔离 SQLite、真实 RSA 签名与模拟 Google 网络；不会访问真实 OAuth 账号。只有依赖安装及完整测试实际成功后，才能将本模块标记验收通过。
+
+## 作者账号名展示
+
+- `account.ts` 的 `ownerAccount(env, identity)` 是账号名的唯一来源：仅 `identity.owner` 且 `AUTH_MODE` 为 `google` / `password` 时返回 `OWNER_EMAIL`（trim + 小写，必须是合法邮箱），否则 `null`。Sites 与本地开发身份不返回账号名。
+- 不新增 D1 字段：会话只会在登录邮箱与 `OWNER_EMAIL` 一致时颁发（Google 回调校验已验证邮箱，密码模式校验配置邮箱），所以配置值就是当前会话的账号。Google 显示名需要 `profile` scope 与新迁移，目前未启用（见 `reports/2026-10-27-studio-account-name.md`）。
+- 使用方：`/api/auth/session` 与 `/login`（`getAuthPresentation`）、工作台 `loadStudioPageData` 与编辑器 `loadEditorPageData` 的 `account` 字段。账号名属于个人信息，只出现在作者本人的 no-store 响应/页面中，绝不写入日志。
+- 测试：`tests/ui/author-account.test.tsx`（模式矩阵与侧边栏渲染）、`tests/backend/google-auth.test.ts`、`tests/backend/author-auth.test.ts`（会话形状、退出后消失、日志不含邮箱）。

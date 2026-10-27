@@ -8,6 +8,7 @@ import {
   authLogoutResponseSchema,
   authSessionResponseSchema,
 } from "../../shared/auth";
+import { ownerAccount } from "./account";
 import { AppError } from "../errors";
 import { boundedBody, json } from "../http";
 import type { RuntimeEnv } from "../runtime";
@@ -82,10 +83,13 @@ export function getAuthPresentation(
       : mode === "password"
         ? passwordAuthConfigured(env)
         : mode === "sites" && !!(env.OWNER_ID || env.OWNER_EMAIL);
+  const authenticated = configured && identity.owner;
+  const account = authenticated ? ownerAccount(env, identity) : null;
   return authSessionResponseSchema.parse({
     mode,
     configured,
-    authenticated: configured && identity.owner,
+    authenticated,
+    ...(account ? { account } : {}),
   });
 }
 async function configVersion(env: RuntimeEnv) {

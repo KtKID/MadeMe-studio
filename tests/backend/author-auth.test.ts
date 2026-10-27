@@ -61,13 +61,13 @@ describe("独立单作者登录", () => {
       "Path=/",
     ])
       expect(cookie).toContain(flag);
-    expect(
-      await (await call("session", undefined, cookie)).json(),
-    ).toMatchObject({
+    expect(await (await call("session", undefined, cookie)).json()).toEqual({
       authenticated: true,
       mode: "password",
       configured: true,
+      account: "author@example.test",
     });
+    expect(await (await call("session")).json()).not.toHaveProperty("account");
     const next = await call("login", credentials, cookie);
     const nextCookie = next.headers.get("set-cookie")!;
     expect(nextCookie).not.toBe(cookie);
