@@ -1,3 +1,4 @@
+import { MAX_DOCUMENT_CHARS } from "../../modules/config";
 import type { EditorBlock, JSONValue } from "../../shared/contracts";
 import { AppError } from "../errors";
 type Inline =
@@ -130,7 +131,7 @@ function block(
 }
 /** 保守导入 Markdown；原始 HTML 永远作为文字保存，不生成可执行内容。 */
 export function markdownToBlocks(markdown: string): EditorBlock[] {
-  if (markdown.length > 1_000_000)
+  if (markdown.length > MAX_DOCUMENT_CHARS)
     throw new AppError(413, "CONTENT_TOO_LARGE", "Markdown is too large.");
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   const result: EditorBlock[] = [];

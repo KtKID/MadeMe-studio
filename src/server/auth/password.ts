@@ -15,9 +15,12 @@ import type { RuntimeEnv } from "../runtime";
 import { rateLimit } from "../rate-limit";
 import { constantTimeEqual, hmac, randomToken, sha256 } from "./crypto";
 import { assertSameOrigin, authenticate, type Identity } from "./identity";
+import { AUTH_RATE_LIMITS, OPAQUE_TOKEN_PATTERN } from "../../modules/config";
+import { loadConfig } from "../../modules/config/server";
+import { sessionSecretConfigured } from "../../modules/config/env";
 const HASH = /^pbkdf2-sha256:600000:([a-f0-9]{32}):([a-f0-9]{64})$/;
 const COOKIE = "__Host-mm_author";
-const LIFETIME = 8 * 60 * 60;
+
 const encoder = new TextEncoder();
 function hex(bytes: Uint8Array) {
   return [...bytes].map((v) => v.toString(16).padStart(2, "0")).join("");
@@ -62,7 +65,7 @@ export function passwordAuthConfigured(env: RuntimeEnv): boolean {
     !!env.DB &&
     z.email().safeParse(env.OWNER_EMAIL?.trim()).success &&
     HASH.test(env.AUTH_PASSWORD_HASH || "") &&
-    (env.SESSION_SECRET?.length ?? 0) >= 32
+    sessionSecretConfigured(env)
   );
 }
 export function getAuthPresentation(
@@ -110,7 +113,7 @@ function sessionToken(request: Request) {
     .filter((v) => v.startsWith(`${COOKIE}=`));
   if (pairs.length !== 1) return null;
   const value = pairs[0].slice(COOKIE.length + 1);
-  return /^mm_[a-f0-9]{64}$/.test(value) ? value : null;
+  return OPAQUE_TOKEN_PATTERN.test(value) ? value : null;
 }
 export async function passwordSessionOwner(request: Request, env: RuntimeEnv) {
   if (
@@ -178,7 +181,12 @@ export async function handleAuth(
     });
   }
   // 单作者全局窗口：不信任可伪造 IP 头，避免换邮箱或 IP 绕过限制。
-  await rateLimit(env, "author-login", 5, 300);
+  await rateLimit(
+    env,
+    "author-login",
+    AUTH_RATE_LIMITS.authorLogin.limit,
+    AUTH_RATE_LIMITS.authorLogin.windowSeconds,
+  );
   if (!request.headers.get("content-type")?.includes("application/json"))
     throw new AppError(
       415,
@@ -207,6 +215,8 @@ export async function handleAuth(
       "INVALID_CREDENTIALS",
       "Email or password is incorrect.",
     );
+  // 会话时长来自设置页“账号与安全 → 登录会话时长”，只影响本次新登录。
+  const lifetime = (await loadConfig(env)).security.sessionHours * 60 * 60;
   const token = randomToken();
   const now = Date.now();
   const statements = [
@@ -233,13 +243,13 @@ export async function handleAuth(
         await sha256(token),
         await configVersion(env),
         now,
-        now + LIFETIME * 1000,
+        now + lifetime * 1000,
       ),
   );
   await env.DB!.batch(statements);
   return json(
     authLoginResponseSchema.parse({ ok: true, returnTo: input.returnTo }),
     200,
-    { "Set-Cookie": cookie(token, LIFETIME) },
+    { "Set-Cookie": cookie(token, lifetime) },
   );
 }

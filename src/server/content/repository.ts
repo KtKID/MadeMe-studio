@@ -6,6 +6,13 @@ import {
 } from "../../shared/contracts";
 import type { D1Database } from "../runtime";
 import { AppError } from "../errors";
+import { logger } from "../../modules/log/server";
+import { DEFAULT_CONFIG, QUERY_SAFETY_LIMIT } from "../../modules/config";
+/** 一次性列表命中安全上限时写 warn：说明有文章没被列出（首页 / RSS / 工作台），需要分页。 */
+function warnIfTruncated(count: number, query: string) {
+  if (count >= QUERY_SAFETY_LIMIT)
+    logger.warn("content.list_truncated", { query, limit: QUERY_SAFETY_LIMIT });
+}
 export type StoredPost = {
   draft: Post;
   published: Post | null;
@@ -27,7 +34,7 @@ export interface PostRepository {
     expectedVersion: number,
     reason: Revision["reason"],
   ): Promise<boolean>;
-  revisions(id: string): Promise<Revision[]>;
+  revisions(id: string, limit?: number): Promise<Revision[]>;
   revision(id: string, version: number): Promise<Post | null>;
 }
 type Row = {
@@ -54,9 +61,11 @@ export class D1PostRepository implements PostRepository {
       .join(",");
     const { results } = await this.db
       .prepare(
-        `SELECT ${projection} FROM posts ORDER BY updated_at DESC LIMIT 1000`,
+        `SELECT ${projection} FROM posts ORDER BY updated_at DESC LIMIT ?`,
       )
+      .bind(QUERY_SAFETY_LIMIT)
       .all<Record<string, unknown>>();
+    warnIfTruncated(results.length, "summaries");
     return results.map((row) =>
       postSummarySchema.parse({
         ...row,
@@ -66,13 +75,14 @@ export class D1PostRepository implements PostRepository {
     );
   }
   async list() {
-    return (
-      await this.db
-        .prepare(
-          "SELECT document_json,published_json,password_hash,published_password_hash FROM posts ORDER BY updated_at DESC LIMIT 1000",
-        )
-        .all<Row>()
-    ).results.map(decode);
+    const { results } = await this.db
+      .prepare(
+        "SELECT document_json,published_json,password_hash,published_password_hash FROM posts ORDER BY updated_at DESC LIMIT ?",
+      )
+      .bind(QUERY_SAFETY_LIMIT)
+      .all<Row>();
+    warnIfTruncated(results.length, "posts");
+    return results.map(decode);
   }
   /** 媒体授权查询不复用首页截断列表；按主键分批读取精确已发布引用候选。 */
   async publishedMediaCandidates(mediaId: string, afterId = "") {
@@ -169,12 +179,12 @@ export class D1PostRepository implements PostRepository {
       this.mapError(error);
     }
   }
-  async revisions(id: string) {
+  async revisions(id: string, limit = DEFAULT_CONFIG.media.revisionsLimit) {
     const result = await this.db
       .prepare(
-        "SELECT version,document_json,created_at,reason FROM revisions WHERE post_id=? ORDER BY version DESC LIMIT 100",
+        "SELECT version,document_json,created_at,reason FROM revisions WHERE post_id=? ORDER BY version DESC LIMIT ?",
       )
-      .bind(id)
+      .bind(id, limit)
       .all<{
         version: number;
         document_json: string;

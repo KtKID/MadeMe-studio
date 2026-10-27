@@ -7,20 +7,28 @@ import {
 } from "../../shared/auth";
 import { AppError } from "../errors";
 import { logger, requestLogContext } from "../../modules/log/server";
+import { SAFE_CODE } from "../../modules/log/redact";
 import { boundedBody, json } from "../http";
 import { rateLimit } from "../rate-limit";
 import type { RuntimeEnv } from "../runtime";
 import { constantTimeEqual, hmac, randomToken, sha256 } from "./crypto";
 import { assertSameOrigin } from "./identity";
-const AUTHORIZATION = "https://accounts.google.com/o/oauth2/v2/auth";
-const TOKEN = "https://oauth2.googleapis.com/token";
-const JWKS = "https://www.googleapis.com/oauth2/v3/certs";
+import {
+  AUTH_RATE_LIMITS,
+  GOOGLE_FLOW_SECONDS,
+  GOOGLE_OAUTH_ENDPOINTS,
+  OPAQUE_TOKEN_PATTERN,
+} from "../../modules/config";
+import { loadConfig } from "../../modules/config/server";
+import { sessionSecretConfigured } from "../../modules/config/env";
+const AUTHORIZATION = GOOGLE_OAUTH_ENDPOINTS.authorization;
+const TOKEN = GOOGLE_OAUTH_ENDPOINTS.token;
+const JWKS = GOOGLE_OAUTH_ENDPOINTS.jwks;
 const CALLBACK = "/api/auth/google/callback";
 const FLOW_COOKIE = "__Host-mm_google_oauth";
 const SESSION_COOKIE = "__Host-mm_google_author";
-const FLOW_SECONDS = 600;
-const SESSION_SECONDS = 8 * 60 * 60;
-const opaque = /^mm_[a-f0-9]{64}$/;
+const FLOW_SECONDS = GOOGLE_FLOW_SECONDS;
+const opaque = OPAQUE_TOKEN_PATTERN;
 function validOrigin(value?: string): boolean {
   try {
     const u = new URL(value!);
@@ -48,7 +56,7 @@ export function googleAuthConfigured(env: RuntimeEnv): boolean {
     ) &&
     !!env.GOOGLE_CLIENT_SECRET &&
     env.GOOGLE_CLIENT_SECRET.length <= 4096 &&
-    (env.SESSION_SECRET?.length ?? 0) >= 32 &&
+    sessionSecretConfigured(env) &&
     (env.OWNER_GOOGLE_SUB === undefined ||
       /^[a-zA-Z0-9_-]{1,255}$/.test(env.OWNER_GOOGLE_SUB))
   );
@@ -158,7 +166,12 @@ async function start(request: Request, env: RuntimeEnv) {
   });
   configured(env);
   checkOrigin(request, env);
-  await rateLimit(env, "google-login", 20, 300);
+  await rateLimit(
+    env,
+    "google-login",
+    AUTH_RATE_LIMITS.googleLogin.limit,
+    AUTH_RATE_LIMITS.googleLogin.windowSeconds,
+  );
   if (
     !request.headers
       .get("content-type")
@@ -305,7 +318,7 @@ async function callback(request: Request, env: RuntimeEnv) {
       createLocalJWKSet(keys as JSONWebKeySet),
       {
         algorithms: ["RS256"],
-        issuer: ["https://accounts.google.com", "accounts.google.com"],
+        issuer: [...GOOGLE_OAUTH_ENDPOINTS.issuers],
         audience: env.GOOGLE_CLIENT_ID!,
         requiredClaims: [
           "sub",
@@ -342,6 +355,9 @@ async function callback(request: Request, env: RuntimeEnv) {
       throw new Error("not author");
     }
     stage = "session";
+    // 会话时长来自设置页“账号与安全 → 登录会话时长”，只影响本次新登录。
+    const sessionSeconds =
+      (await loadConfig(env)).security.sessionHours * 60 * 60;
     const session = randomToken(),
       now = Date.now(),
       old = readCookie(request, SESSION_COOKIE);
@@ -369,7 +385,7 @@ async function callback(request: Request, env: RuntimeEnv) {
           await sha256(session),
           await version(env),
           now,
-          now + SESSION_SECONDS * 1000,
+          now + sessionSeconds * 1000,
           // 昵称只用于作者本人界面展示；不写日志。
           sanitizeDisplayName(identity.name),
         ),
@@ -377,7 +393,7 @@ async function callback(request: Request, env: RuntimeEnv) {
     await env.DB!.batch(statements);
     return redirect(flow.return_to, [
       cookie(FLOW_COOKIE, "", 0),
-      cookie(SESSION_COOKIE, session, SESSION_SECONDS),
+      cookie(SESSION_COOKIE, session, sessionSeconds),
     ]);
   } catch (error) {
     // 固定错误码，不将提供方描述、邮箱、code 或 token 回传浏览器或日志；
@@ -396,7 +412,7 @@ async function callback(request: Request, env: RuntimeEnv) {
       stage,
       outcome: denied ? "google_denied" : "google_failed",
       errorName: typeof e?.name === "string" ? e.name : typeof error,
-      ...(typeof e?.code === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(e.code)
+      ...(typeof e?.code === "string" && SAFE_CODE.test(e.code)
         ? { errorCode: e.code }
         : {}),
     });

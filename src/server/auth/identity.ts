@@ -1,3 +1,4 @@
+import { OPAQUE_TOKEN_PATTERN } from "../../modules/config";
 import { googleAuthConfigured, googleSession } from "./google";
 import type { TokenScope } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
@@ -72,7 +73,7 @@ export async function authenticate(
   if (!auth.startsWith("Bearer ") || !env.DB)
     throw new AppError(401, "INVALID_TOKEN", "Invalid API token.");
   const token = auth.slice(7);
-  if (!/^mm_[a-f0-9]{64}$/.test(token))
+  if (!OPAQUE_TOKEN_PATTERN.test(token))
     throw new AppError(401, "INVALID_TOKEN", "Invalid API token.");
   const row = await env.DB.prepare(
     "SELECT id, scopes_json, expires_at FROM api_tokens WHERE token_hash = ? AND revoked_at IS NULL",

@@ -9,7 +9,7 @@ const SENSITIVE_KEY =
   /secret|token|passw|authorization|cookie|^code$|auth_?code|state$|^state|nonce|verifier|challenge|session|api_?key|apikey|credential|private|signature|email|^body$|^raw|response_?body|provider_?body|^sub$|ticket|jwt|bearer|hash/i;
 
 // AppError / jose 等错误码是固定大写常量，可安全记录；OAuth 授权码等任意值不匹配此格式。
-const SAFE_CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
+export const SAFE_CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
 
 const PATTERNS: [RegExp, string][] = [
   [/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]"],

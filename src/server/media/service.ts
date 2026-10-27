@@ -1,9 +1,11 @@
 import { logCaught } from "../../modules/log/server";
+import type { Media } from "../../shared/contracts";
 import {
-  acceptedMediaMimeTypes,
-  MAX_MEDIA_BYTES,
-  type Media,
-} from "../../shared/contracts";
+  DEFAULT_CONFIG,
+  MEDIA_FILENAME_MAX,
+  uploadProblem,
+  type UploadConfig,
+} from "../../modules/config";
 import type { RuntimeEnv } from "../runtime";
 import { AppError, notFound } from "../errors";
 import type { Identity } from "../auth/identity";
@@ -24,8 +26,6 @@ type MediaRow = {
   prompt: string | null;
   created_at: string;
 };
-const MAX_BYTES = MAX_MEDIA_BYTES;
-const allowed = new Set<string>(acceptedMediaMimeTypes);
 /** QuickTime 文件可能不带 ftyp 而直接以这些原子开头（旧版 QuickTime / 部分录屏工具）。 */
 const quickTimeLeadingAtoms = new Set([
   "moov",
@@ -50,19 +50,17 @@ export function isQuickTime(bytes: Uint8Array): boolean {
   if (size === 0 || size === 1) return type === "mdat" || size === 1;
   return size >= 8 && size <= bytes.length;
 }
-export function validateMedia(bytes: Uint8Array, mime: string) {
-  if (!bytes.length || bytes.length > MAX_BYTES)
-    throw new AppError(
-      413,
-      "FILE_TOO_LARGE",
-      "Files must be between 1 byte and 25 MB.",
-    );
-  if (!allowed.has(mime))
-    throw new AppError(
-      415,
-      "UNSUPPORTED_MEDIA",
-      "This file type is not supported. SVG and HTML files are not accepted.",
-    );
+/**
+ * 服务端媒体校验。大小与类型规则与浏览器上传前检查是同一个函数（src/modules/config uploadProblem），
+ * policy 来自本请求读取的设置页配置；AI 生成图片传 GENERATED_MEDIA_POLICY（只受硬上限约束）。
+ */
+export function validateMedia(
+  bytes: Uint8Array,
+  mime: string,
+  policy: UploadConfig = DEFAULT_CONFIG.upload,
+) {
+  const problem = uploadProblem({ size: bytes.length, type: mime }, policy);
+  if (problem) throw new AppError(problem.status, problem.code, problem.message);
   const start = String.fromCharCode(...bytes.slice(0, 16));
   const match =
     mime === "image/png"
@@ -128,6 +126,8 @@ export async function saveMedia(
     postId?: string;
     source?: "upload" | "generated";
     prompt?: string;
+    /** 上传策略（本请求的设置页配置）；省略时为默认值。 */
+    policy?: UploadConfig;
   },
 ) {
   if (!env.DB || !env.BUCKET)
@@ -136,12 +136,12 @@ export async function saveMedia(
       "MEDIA_NOT_CONFIGURED",
       "D1 and R2 bindings are required for media storage.",
     );
-  validateMedia(bytes, input.mime);
+  validateMedia(bytes, input.mime, input.policy);
   if (input.postId && !(await new D1PostRepository(env.DB).get(input.postId)))
     throw notFound();
   const id = crypto.randomUUID();
   const name =
-    input.name.replace(/[\x00-\x1f\x7f/\\"]/g, "_").slice(0, 200) || "file";
+    input.name.replace(/[\x00-\x1f\x7f/\\"]/g, "_").slice(0, MEDIA_FILENAME_MAX) || "file";
   const row: MediaRow = {
     id,
     object_key: `media/${id}`,
@@ -189,13 +189,14 @@ export async function listMedia(
   env: RuntimeEnv,
   query: string,
   source: string | null,
+  limit = DEFAULT_CONFIG.media.listLimit,
 ) {
   const rows = (
     await env
       .DB!.prepare(
-        "SELECT * FROM media WHERE (? IS NULL OR source=?) ORDER BY created_at DESC LIMIT 100",
+        "SELECT * FROM media WHERE (? IS NULL OR source=?) ORDER BY created_at DESC LIMIT ?",
       )
-      .bind(source, source)
+      .bind(source, source, limit)
       .all<MediaRow>()
   ).results;
   const q = query.toLowerCase();

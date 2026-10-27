@@ -1,4 +1,19 @@
 import { z } from "zod";
+// 显式写 .ts 文件路径：integrations/ 下的 Node 工具直接用 Node 类型剥离加载本文件，
+// 不支持目录导入或省略扩展名。
+import {
+  AI_PARAMS,
+  HARD_MAX_TOKEN_DAYS,
+  MAX_DOCUMENT_CHARS,
+  MEDIA_MIME_LIST,
+  OPAQUE_TOKEN_PATTERN,
+  TEXT_LIMITS,
+} from "../modules/config/limits.ts";
+import {
+  runtimeConfigPatchSchema,
+  runtimeConfigSchema,
+} from "../modules/config/schema.ts";
+import { uploadProblem, type UploadProblem } from "../modules/config/public.ts";
 
 export type JSONValue =
   null | boolean | number | string | JSONValue[] | { [key: string]: JSONValue };
@@ -34,7 +49,7 @@ const textStyleSchema = z
 const styledTextSchema = z
   .object({
     type: z.literal("text"),
-    text: z.string().max(1_000_000),
+    text: z.string().max(MAX_DOCUMENT_CHARS),
     styles: textStyleSchema.optional(),
   })
   .strict();
@@ -49,7 +64,7 @@ const inlineElementSchema = z.union([
     .strict(),
 ]);
 const inlineContentSchema = z.union([
-  z.string().max(1_000_000),
+  z.string().max(MAX_DOCUMENT_CHARS),
   z.array(inlineElementSchema).max(20000),
 ]);
 const tableCellSchema = z.union([
@@ -166,16 +181,18 @@ const localOrHttps = z
     "Use an uploaded file or an HTTPS URL",
   );
 export const editablePostSchema = z.object({
-  title: z.string().trim().min(1).max(240),
+  title: z.string().trim().min(1).max(TEXT_LIMITS.postTitle),
   slug: z
     .string()
     .trim()
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-    .max(160),
-  excerpt: z.string().max(1000),
+    .max(TEXT_LIMITS.slug),
+  excerpt: z.string().max(TEXT_LIMITS.excerpt),
   blocks: blocksSchema,
-  category: z.string().trim().max(100),
-  tags: z.array(z.string().trim().min(1).max(60)).max(20),
+  category: z.string().trim().max(TEXT_LIMITS.category),
+  tags: z
+    .array(z.string().trim().min(1).max(TEXT_LIMITS.tag))
+    .max(TEXT_LIMITS.tags),
   coverImage: localOrHttps,
   visibility: visibilitySchema,
   pinned: z.boolean(),
@@ -218,15 +235,15 @@ export const createPostSchema = editablePostSchema
   .extend({
     title: editablePostSchema.shape.title,
     blocks: blocksSchema.default([]),
-    markdown: z.string().max(1_000_000).optional(),
-    password: z.string().min(8).max(128).optional(),
+    markdown: z.string().max(MAX_DOCUMENT_CHARS).optional(),
+    password: z.string().min(TEXT_LIMITS.postPasswordMin).max(TEXT_LIMITS.postPasswordMax).optional(),
   })
   .strict();
 export const patchPostSchema = editablePostSchema
   .partial()
   .extend({
     version: z.number().int().positive(),
-    password: z.string().min(8).max(128).optional(),
+    password: z.string().min(TEXT_LIMITS.postPasswordMin).max(TEXT_LIMITS.postPasswordMax).optional(),
   })
   .strict();
 export type CreatePostInput = z.infer<typeof createPostSchema>;
@@ -237,11 +254,11 @@ export const versionInputSchema = z
 export const publishInputSchema = versionInputSchema
   .extend({
     visibility: z.enum(["public", "password", "unlisted"]).optional(),
-    password: z.string().min(8).max(128).optional(),
+    password: z.string().min(TEXT_LIMITS.postPasswordMin).max(TEXT_LIMITS.postPasswordMax).optional(),
   })
   .strict();
 export const unlockInputSchema = z
-  .object({ password: z.string().max(128) })
+  .object({ password: z.string().max(TEXT_LIMITS.postPasswordMax) })
   .strict();
 
 export const aiActionSchema = z.enum([
@@ -260,12 +277,21 @@ export const providerSchema = z.object({
     .string()
     .regex(/^[a-zA-Z0-9_-]+$/)
     .max(64),
-  name: z.string().min(1).max(80),
+  name: z.string().min(1).max(TEXT_LIMITS.providerName),
   kind: z.enum(["openai", "openrouter", "siliconflow", "cloudflare", "gemini"]),
-  model: z.string().min(1).max(160),
-  imageModel: z.string().trim().min(1).max(160).optional(),
-  temperature: z.number().min(0).max(2).default(0.7),
-  maxTokens: z.number().int().min(16).max(16384).default(2048),
+  model: z.string().min(1).max(TEXT_LIMITS.modelId),
+  imageModel: z.string().trim().min(1).max(TEXT_LIMITS.modelId).optional(),
+  temperature: z
+    .number()
+    .min(AI_PARAMS.temperature.min)
+    .max(AI_PARAMS.temperature.max)
+    .default(AI_PARAMS.temperature.default),
+  maxTokens: z
+    .number()
+    .int()
+    .min(AI_PARAMS.maxTokens.min)
+    .max(AI_PARAMS.maxTokens.max)
+    .default(AI_PARAMS.maxTokens.default),
   configured: z.boolean().default(false),
   textConfigured: z.boolean().optional(),
   imageConfigured: z.boolean().optional(),
@@ -281,8 +307,8 @@ export const promptSchema = z.object({
 export const modeSchema = z.enum(["light", "dark", "system"]);
 export const skinSchema = z.enum(["amber", "sage", "rose", "ocean", "mono"]);
 export const settingsSchema = z.object({
-  siteTitle: z.string().trim().min(1).max(80),
-  tagline: z.string().max(240),
+  siteTitle: z.string().trim().min(1).max(TEXT_LIMITS.siteTitle),
+  tagline: z.string().max(TEXT_LIMITS.tagline),
   theme: z.enum(["paper", "ink", "garden", "mono"]),
   mode: modeSchema.default("system"),
   skin: skinSchema.default("amber"),
@@ -295,20 +321,28 @@ export const settingsSchema = z.object({
   navigation: z
     .array(
       z.object({
-        label: z.string().min(1).max(40),
+        label: z.string().min(1).max(TEXT_LIMITS.navLabel),
         href: z
           .string()
-          .max(2048)
+          .max(TEXT_LIMITS.url)
           .refine(
             (v) => /^\/(?!\/)/.test(v) || /^https:\/\//i.test(v),
             "Use a root-relative or HTTPS URL",
           ),
       }),
     )
-    .max(12),
-  prompts: z.array(promptSchema).max(40),
-  providers: z.array(providerSchema).max(12),
-  customCode: z.string().max(20000),
+    .max(TEXT_LIMITS.navItems),
+  prompts: z.array(promptSchema).max(TEXT_LIMITS.prompts),
+  providers: z.array(providerSchema).max(TEXT_LIMITS.providers),
+  customCode: z.string().max(TEXT_LIMITS.customCode),
+  /**
+   * A 级可调配置（src/modules/config）：宽松读取，缺失/越界逐字段回退或夹紧，永不让读取失败。
+   * D1 只保存作者改过的字段。
+   */
+  // 旧数据没有 limits：Zod 4 把 transform 字段当必填，所以先 optional 再补默认值。
+  limits: runtimeConfigSchema
+    .optional()
+    .transform((value) => value ?? runtimeConfigSchema.parse({})),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 export const patchSettingsSchema = settingsSchema
@@ -321,6 +355,8 @@ export const patchSettingsSchema = settingsSchema
       .regex(/^#[0-9a-fA-F]{6}$/)
       .nullable()
       .optional(),
+    /** 严格校验：越界直接 422 并返回中文原因；null 表示恢复默认。 */
+    limits: runtimeConfigPatchSchema.optional(),
   })
   .strict();
 export const defaultSettings: Settings = {
@@ -335,6 +371,7 @@ export const defaultSettings: Settings = {
   prompts: [],
   providers: [],
   customCode: "",
+  limits: runtimeConfigSchema.parse({}),
 };
 export const mediaSchema = z.object({
   id: z.string(),
@@ -353,7 +390,7 @@ export type Media = z.infer<typeof mediaSchema>;
 export const aiInputSchema = z
   .object({
     action: aiActionSchema,
-    selection: z.string().min(1).max(40000),
+    selection: z.string().min(1).max(TEXT_LIMITS.aiSelection),
     postId: z.string().optional(),
     promptId: z.string().optional(),
     providerId: z.string().optional(),
@@ -362,7 +399,7 @@ export const aiInputSchema = z
   .strict();
 export const imageInputSchema = z
   .object({
-    prompt: z.string().min(1).max(4000),
+    prompt: z.string().min(1).max(TEXT_LIMITS.imagePrompt),
     postId: z.string().optional(),
     providerId: z.string().optional(),
   })
@@ -376,9 +413,10 @@ export const tokenScopeSchema = z.enum([
 export type TokenScope = z.infer<typeof tokenScopeSchema>;
 export const createTokenSchema = z
   .object({
-    name: z.string().trim().min(1).max(80),
+    name: z.string().trim().min(1).max(TEXT_LIMITS.tokenName),
     scopes: z.array(tokenScopeSchema).min(1).max(4),
-    expiresInDays: z.number().int().min(1).max(365).default(90),
+    /** 省略时使用设置页“API 令牌默认有效期”；上限由设置页“最长有效期”在服务端再检查。 */
+    expiresInDays: z.number().int().min(1).max(HARD_MAX_TOKEN_DAYS).optional(),
   })
   .strict();
 export const tokenSchema = z
@@ -443,6 +481,24 @@ export const postsResponseSchema = z
 export const settingsResponseSchema = z
   .object({ settings: settingsSchema })
   .strict();
+/** GET /api/deployment：部署配置只读状态，只有“是否已配置”，绝不含密钥值。 */
+export const deploymentResponseSchema = z
+  .object({
+    deployment: z.array(
+      z
+        .object({
+          key: z.string().max(40),
+          label: z.string().max(80),
+          configured: z.boolean(),
+          note: z.string().max(80).optional(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type DeploymentItemView = z.infer<
+  typeof deploymentResponseSchema
+>["deployment"][number];
 export const mediaResponseSchema = z.object({ media: mediaSchema }).strict();
 export const mediaListResponseSchema = z
   .object({ media: z.array(mediaSchema) })
@@ -455,7 +511,7 @@ export const tokensResponseSchema = z
   .object({ tokens: z.array(tokenSchema) })
   .strict();
 export const tokenCreatedResponseSchema = tokenSchema
-  .extend({ token: z.string().regex(/^mm_[a-f0-9]{64}$/) })
+  .extend({ token: z.string().regex(OPAQUE_TOKEN_PATTERN) })
   .strict();
 export const revisionsResponseSchema = z
   .object({ revisions: z.array(revisionSchema) })
@@ -477,61 +533,11 @@ export const ackResponseSchema = z.union([
   unlockResponseSchema,
   revokeTokenResponseSchema,
 ]);
-/** 上传界面与服务端共用 MIME 清单；SVG/HTML 不在允许范围内。 */
-export const acceptedMediaMimeTypes = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "image/avif",
-  "audio/mpeg",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/ogg",
-  "audio/mp4",
-  "video/mp4",
-  "video/webm",
-  // macOS 录屏 / iPhone 的 .mov。按原 MIME 存储与返回；能否播放取决于编码（H.264 可在 Chrome、Safari 播放）。
-  "video/quicktime",
-  "application/pdf",
-  "application/epub+zip",
-  "application/zip",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "text/plain",
-  "text/markdown",
-  "text/csv",
-] as const;
+/** 上传界面与服务端共用 MIME 清单（来源：src/modules/config/limits.ts MEDIA_TYPES）；SVG/HTML 不在允许范围内。 */
+export const acceptedMediaMimeTypes = MEDIA_MIME_LIST;
+export type MediaUploadProblem = UploadProblem;
 /**
- * 面向作者的视频格式文案，与上方 MIME 清单同处维护（单一来源；下一步将整体改为可配置）。
+ * 上传前检查：浏览器（编辑器、媒体库）与服务端 validateMedia 共用 src/modules/config 的 uploadProblem，
+ * 大小上限与禁用类型来自设置页配置（未传入时为默认值）。
  */
-export const acceptedVideoFormatsLabel = "MP4、WebM、MOV";
-/** 单个媒体文件上限；服务端 validateMedia 与编辑器上传前检查共用。 */
-export const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
-const acceptedMediaMimeSet = new Set<string>(acceptedMediaMimeTypes);
-export type MediaUploadProblem = {
-  reason: "empty" | "too_large" | "unsupported_type";
-  message: string;
-};
-/**
- * 上传前在浏览器端给出可读的拒绝原因。BlockNote 上传面板只会显示通用的
- * “上传失败”，因此必须由编辑器自己把原因展示出来；服务端仍会再次校验。
- */
-export function mediaUploadProblem(file: {
-  size: number;
-  type: string;
-}): MediaUploadProblem | null {
-  if (!file.size) return { reason: "empty", message: "文件为空，无法上传。" };
-  if (file.size > MAX_MEDIA_BYTES)
-    return {
-      reason: "too_large",
-      message: `文件大小 ${(file.size / 1024 / 1024).toFixed(1)} MB，超过 25 MB 上限。视频请压缩后再上传，或改用“嵌入”插入 YouTube / Bilibili 链接。`,
-    };
-  if (!acceptedMediaMimeSet.has(file.type))
-    return {
-      reason: "unsupported_type",
-      message: `暂不支持该文件格式（${file.type || "未知类型"}）。视频仅支持 ${acceptedVideoFormatsLabel}，音频支持 MP3、WAV、OGG、M4A。`,
-    };
-  return null;
-}
+export const mediaUploadProblem = uploadProblem;

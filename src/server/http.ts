@@ -5,6 +5,7 @@ import {
 } from "../modules/log/server";
 import { ZodError, type ZodType } from "zod";
 import { AppError } from "./errors";
+import { MAX_JSON_BODY_BYTES } from "../modules/config";
 export function json(data: unknown, status = 200, headers: HeadersInit = {}) {
   return new Response(JSON.stringify(data), {
     status,
@@ -52,7 +53,7 @@ export async function readJSON<T>(
       "JSON_REQUIRED",
       "Use Content-Type: application/json.",
     );
-  const body = await boundedBody(request, 1_100_000);
+  const body = await boundedBody(request, MAX_JSON_BODY_BYTES);
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder().decode(body));

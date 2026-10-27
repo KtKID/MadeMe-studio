@@ -1,3 +1,4 @@
+import { sessionSecretConfigured } from "../modules/config/env";
 import {
   postSummarySchema,
   mediaListResponseSchema,
@@ -43,8 +44,7 @@ async function loadBasePageData(context: RequestContext, publicOnly = false) {
           identity.owner && hasConfiguredImageProvider(settings.providers, env),
         passwordConfigured:
           identity.owner &&
-          !!env.SESSION_SECRET &&
-          env.SESSION_SECRET.length >= 32,
+          sessionSecretConfigured(env),
         storageConfigured: !!(env.DB && env.BUCKET),
         ownerConfigured: ownerConfigured(env),
       },

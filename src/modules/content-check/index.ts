@@ -1,3 +1,4 @@
+import { MAX_CONTENT_DEPTH } from "../config/limits";
 import {
   type EmbedParseResult,
   embedRejectMessage,
@@ -113,7 +114,7 @@ export function findContentProblems(blocks: unknown): ContentProblem[] {
     depth: number,
     key = "",
   ) {
-    if (depth > 40) return; // 深度上限由服务端 validateContent 负责报错。
+    if (depth > MAX_CONTENT_DEPTH) return; // 深度上限由服务端 validateContent 负责报错（同一常量）。
     if (typeof value === "string") {
       if (LINK_KEYS.has(key) && value && !isAllowedLink(key, value))
         problems.push({
@@ -134,7 +135,7 @@ export function findContentProblems(blocks: unknown): ContentProblem[] {
         scanFields(v, block, depth + 1, k);
   }
   function visit(list: unknown, depth: number) {
-    if (!Array.isArray(list) || depth > 40) return;
+    if (!Array.isArray(list) || depth > MAX_CONTENT_DEPTH) return;
     for (const raw of list) {
       if (!raw || typeof raw !== "object") continue;
       const b = raw as Block;

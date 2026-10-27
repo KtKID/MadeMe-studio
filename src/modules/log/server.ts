@@ -9,6 +9,7 @@
  * - 预期的 4xx 用 info/warn 且只记错误码；意外异常、5xx、上游失败用 error。
  */
 import { redact, serializeError } from "./redact";
+import { parseLogLevel } from "../config/env";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 export type LogFields = Record<string, unknown>;
@@ -20,7 +21,29 @@ const sink: Record<LogLevel, (line: string) => void> = {
   error: (line) => console.error(line),
 };
 
+const rank: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+/** 未调用 configureLogLevel 时不过滤（单元测试、脚本）；Worker 请求入口会按 LOG_LEVEL 设置。 */
+let threshold: LogLevel = "debug";
+let reportedInvalid: string | undefined;
+/**
+ * 按环境变量 LOG_LEVEL 设置最低输出级别（debug / info / warn / error，默认 info）。
+ * 由 src/middleware.ts 在每个请求开始时调用；取值无效时按 info 处理并写一条 warn（每个取值只写一次）。
+ * error 级别永远输出。
+ */
+export function configureLogLevel(value: string | undefined) {
+  const parsed = parseLogLevel(value);
+  threshold = parsed.level;
+  if (!parsed.valid && reportedInvalid !== value) {
+    reportedInvalid = value;
+    log("warn", "log.invalid_level", { fallback: parsed.level });
+  }
+}
+export function currentLogLevel(): LogLevel {
+  return threshold;
+}
+
 export function log(level: LogLevel, event: string, fields: LogFields = {}) {
+  if (rank[level] < rank[threshold]) return;
   try {
     const { error, ...rest } = fields;
     const record: Record<string, unknown> = {

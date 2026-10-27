@@ -1,4 +1,10 @@
 import { logCaught } from "../../modules/log/server";
+import {
+  OPAQUE_TOKEN_BYTES,
+  OPAQUE_TOKEN_PREFIX,
+  POST_PASSWORD_KDF_ACCEPTED,
+  POST_PASSWORD_KDF_ITERATIONS,
+} from "../../modules/config";
 const encoder = new TextEncoder();
 function hex(bytes: Uint8Array) {
   return [...bytes].map((v) => v.toString(16).padStart(2, "0")).join("");
@@ -15,7 +21,15 @@ export async function sha256(value: string) {
     ),
   );
 }
-export async function hashPassword(value: string) {
+/**
+ * 文章密码摘要：`pbkdf2:<迭代次数>:<盐>:<摘要>`。
+ * 迭代次数见 POST_PASSWORD_KDF_ITERATIONS（Cloudflare 生产 Workers 上限 100000）；
+ * 校验按 POST_PASSWORD_KDF_ACCEPTED 白名单读取存量摘要里的次数，以后提高次数时旧摘要仍可校验。
+ */
+export async function hashPassword(
+  value: string,
+  iterations: number = POST_PASSWORD_KDF_ITERATIONS,
+) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
     "raw",
@@ -25,16 +39,22 @@ export async function hashPassword(value: string) {
     ["deriveBits"],
   );
   const hash = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
     key,
     256,
   );
-  return `pbkdf2:100000:${hex(salt)}:${hex(new Uint8Array(hash))}`;
+  return `pbkdf2:${iterations}:${hex(salt)}:${hex(new Uint8Array(hash))}`;
 }
 export async function verifyPassword(value: string, stored: string) {
   try {
     const [scheme, iterations, salt, expected] = stored.split(":");
-    if (scheme !== "pbkdf2" || iterations !== "100000") return false;
+    const rounds = Number(iterations);
+    if (
+      scheme !== "pbkdf2" ||
+      !/^\d+$/.test(iterations ?? "") ||
+      !(POST_PASSWORD_KDF_ACCEPTED as readonly number[]).includes(rounds)
+    )
+      return false;
     const key = await crypto.subtle.importKey(
       "raw",
       encoder.encode(value),
@@ -46,7 +66,7 @@ export async function verifyPassword(value: string, stored: string) {
       {
         name: "PBKDF2",
         salt: unhex(salt),
-        iterations: 100000,
+        iterations: rounds,
         hash: "SHA-256",
       },
       key,
@@ -66,7 +86,7 @@ export function constantTimeEqual(a: string, b: string) {
   return difference === 0;
 }
 export function randomToken() {
-  return `mm_${hex(crypto.getRandomValues(new Uint8Array(32)))}`;
+  return `${OPAQUE_TOKEN_PREFIX}${hex(crypto.getRandomValues(new Uint8Array(OPAQUE_TOKEN_BYTES)))}`;
 }
 export async function hmac(message: string, secret: string) {
   const key = await crypto.subtle.importKey(

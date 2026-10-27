@@ -8,6 +8,8 @@ export {
   logger,
   logCaught,
   requestLogContext,
+  configureLogLevel,
+  currentLogLevel,
   type LogLevel,
   type LogFields,
   type RequestLogContext,
@@ -19,5 +21,6 @@ export {
   serializeError,
   isSensitiveKey,
   REDACTED,
+  SAFE_CODE,
   type SerializedError,
 } from "./redact";

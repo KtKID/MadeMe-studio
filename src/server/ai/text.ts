@@ -1,4 +1,5 @@
 import { providerCapabilities } from "./capabilities";
+import { AI_ENDPOINTS, AI_OUTPUT_MAX_CHARS } from "../../modules/config";
 import { z } from "zod";
 import {
   aiInputSchema,
@@ -28,11 +29,11 @@ const instructions: Record<AIAction, string> = {
 export function chatEndpoint(provider: Provider, env: RuntimeEnv) {
   switch (provider.kind) {
     case "openai":
-      return "https://api.openai.com/v1/chat/completions";
+      return AI_ENDPOINTS.openai.chat;
     case "openrouter":
-      return "https://openrouter.ai/api/v1/chat/completions";
+      return AI_ENDPOINTS.openrouter.chat;
     case "siliconflow":
-      return "https://api.siliconflow.cn/v1/chat/completions";
+      return AI_ENDPOINTS.siliconflow.chat;
     case "cloudflare":
       return `${cloudflareBase(env)}/v1/chat/completions`;
     case "gemini":
@@ -42,8 +43,11 @@ export function chatEndpoint(provider: Provider, env: RuntimeEnv) {
 export async function runAI(
   env: RuntimeEnv,
   input: z.infer<typeof aiInputSchema>,
+  options: { timeoutMs?: number } = {},
 ) {
   const settings = await readSettings(env);
+  const timeoutMs =
+    options.timeoutMs ?? settings.limits.ai.requestTimeoutSeconds * 1000;
   const prompt = input.promptId
     ? settings.prompts.find((p) => p.id === input.promptId)
     : undefined;
@@ -78,6 +82,7 @@ export async function runAI(
   if (provider.kind === "gemini") {
     const response = await providerRequest(geminiURL(provider.model), key, {
       google: true,
+      timeoutMs,
       body: {
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: "user", parts: [{ text: selection }] }],
@@ -94,6 +99,7 @@ export async function runAI(
       .join("\n");
   } else {
     const response = await providerRequest(chatEndpoint(provider, env), key, {
+      timeoutMs,
       body: {
         model: provider.model,
         temperature: provider.temperature,
@@ -113,5 +119,5 @@ export async function runAI(
       "EMPTY_PROVIDER_RESPONSE",
       "The provider returned no usable text.",
     );
-  return { text: text.slice(0, 100000) };
+  return { text: text.slice(0, AI_OUTPUT_MAX_CHARS) };
 }

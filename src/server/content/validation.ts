@@ -11,9 +11,16 @@ import {
   type Post,
 } from "../../shared/contracts";
 import { AppError } from "../errors";
+import {
+  MAX_CONTENT_DEPTH,
+  MAX_CONTENT_NODES,
+  MAX_DOCUMENT_CHARS,
+  SLUG_SUFFIX_LENGTH,
+  TEXT_LIMITS,
+} from "../../modules/config";
 export function validateContent(blocks: EditorBlock[]) {
   blocksSchema.parse(blocks);
-  if (JSON.stringify(blocks).length > 1_000_000)
+  if (JSON.stringify(blocks).length > MAX_DOCUMENT_CHARS)
     throw new AppError(
       413,
       "CONTENT_TOO_LARGE",
@@ -46,7 +53,7 @@ export function validateContent(blocks: EditorBlock[]) {
   }
   let count = 0;
   function visit(value: unknown, depth: number, key = "") {
-    if (++count > 50000 || depth > 30)
+    if (++count > MAX_CONTENT_NODES || depth > MAX_CONTENT_DEPTH)
       throw new AppError(
         422,
         "INVALID_CONTENT",
@@ -82,6 +89,11 @@ export function referencesMedia(post: Post, id: string) {
     post.coverImage === url || JSON.stringify(post.blocks).includes(`"${url}"`)
   );
 }
+/**
+ * 由标题生成 slug 主体。服务端会再追加 “-” + 6 位 ID，所以主体最长
+ * TEXT_LIMITS.slug - SLUG_SUFFIX_LENGTH，保证结果不超过 slug 契约上限（原来写死 100，与契约 160 不一致）。
+ * 截断后去掉末尾连字符，避免出现 “--” 不符合 slug 正则。
+ */
 export function slugify(title: string) {
   return (
     title
@@ -90,6 +102,7 @@ export function slugify(title: string) {
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
-      .slice(0, 100) || "untitled"
+      .slice(0, TEXT_LIMITS.slug - SLUG_SUFFIX_LENGTH)
+      .replace(/-+$/, "") || "untitled"
   );
 }

@@ -2,14 +2,17 @@ import { z } from "zod";
 import { AppError } from "../errors";
 import { logCaught, logger } from "../../modules/log/server";
 import type { RuntimeEnv } from "../runtime";
+import {
+  AI_ENDPOINTS,
+  AI_PROVIDER_HOSTS,
+  DEFAULT_CONFIG,
+  PROVIDER_RESPONSE_MAX_BYTES,
+} from "../../modules/config";
 
-const providerHosts = new Set([
-  "api.openai.com",
-  "openrouter.ai",
-  "api.siliconflow.cn",
-  "api.cloudflare.com",
-  "generativelanguage.googleapis.com",
-]);
+/** 出站白名单由 src/modules/config/endpoints.ts 的端点表推导，不单独维护。 */
+const providerHosts = AI_PROVIDER_HOSTS;
+/** 未显式传入时的超时；正常调用会传入设置页“AI 请求超时”。 */
+const DEFAULT_TIMEOUT_MS = DEFAULT_CONFIG.ai.requestTimeoutSeconds * 1000;
 /**
  * 模型端点仅来自代码内官方白名单，任何调用都禁止携带凭据重定向。
  * Workers 的 fetch 只支持 redirect "follow" | "manual"（"error" 会直接抛 TypeError），
@@ -50,7 +53,7 @@ export async function providerRequest(
         : { body: JSON.stringify(options.body) }),
       redirect: "manual",
       credentials: "omit",
-      signal: AbortSignal.timeout(options.timeoutMs ?? 90000),
+      signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
   } catch (error) {
     // 只记录主机名与异常类型/消息（已脱敏）；绝不记录密钥、请求体或完整 URL 查询串。
@@ -86,7 +89,7 @@ export async function providerRequest(
   }
   return response;
 }
-export async function readProviderBytes(response: Response, max = 35_000_000) {
+export async function readProviderBytes(response: Response, max = PROVIDER_RESPONSE_MAX_BYTES) {
   if (Number(response.headers.get("content-length") ?? 0) > max)
     throw new AppError(
       502,
@@ -152,11 +155,11 @@ export function cloudflareBase(env: RuntimeEnv) {
       "AI_NOT_CONFIGURED",
       "A valid Cloudflare account ID must be securely configured.",
     );
-  return `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai`;
+  return AI_ENDPOINTS.cloudflare.accountBase(env.CLOUDFLARE_ACCOUNT_ID!);
 }
 export function geminiURL(model: string) {
   const name = model.replace(/^models\//, "");
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/.test(name))
     throw new AppError(422, "INVALID_MODEL", "Choose a valid Gemini model ID.");
-  return `https://generativelanguage.googleapis.com/v1beta/models/${name}:generateContent`;
+  return AI_ENDPOINTS.gemini.generate(name);
 }

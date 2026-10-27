@@ -7,6 +7,15 @@ import { logCaught, logger } from "../../modules/log/server";
 import { providerKey, readSettings } from "../settings";
 import { saveMedia, validateMedia } from "../media/service";
 import {
+  AI_ENDPOINTS,
+  AI_IMAGE_DEFAULTS,
+  AI_PARAMS,
+  GENERATED_IMAGE_MAX_BYTES,
+  GENERATED_MEDIA_POLICY,
+  IMAGE_DOWNLOAD_TIMEOUT_MS,
+  SILICONFLOW_IMAGE_DOWNLOAD_HOST,
+} from "../../modules/config";
+import {
   cloudflareBase,
   geminiURL,
   providerRequest,
@@ -76,11 +85,11 @@ function decodeImage(value: string, mime?: string): ImagePayload {
       "INVALID_IMAGE_RESPONSE",
       "The provider returned an unsupported image format.",
     );
-  validateMedia(bytes, actual);
+  validateMedia(bytes, actual, GENERATED_MEDIA_POLICY);
   return { bytes, mime: actual };
 }
 function safeDownloadURL(value: string, env: RuntimeEnv) {
-  const hosts = new Set(["sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com"]);
+  const hosts = new Set<string>([SILICONFLOW_IMAGE_DOWNLOAD_HOST]);
   for (const raw of (env.SILICONFLOW_IMAGE_HOSTS ?? "").split(",")) {
     const host = raw.trim().toLowerCase();
     if (
@@ -126,7 +135,7 @@ async function downloadImage(
     response = await fetch(url, {
       redirect: "manual",
       credentials: "omit",
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS),
     });
   } catch (error) {
     logCaught("ai.image_download_failed", error, {
@@ -150,9 +159,9 @@ async function downloadImage(
       "The generated image could not be downloaded.",
     );
   }
-  const bytes = await readProviderBytes(response, 25 * 1024 * 1024);
+  const bytes = await readProviderBytes(response, GENERATED_IMAGE_MAX_BYTES);
   const mime = mimeFromBytes(bytes);
-  validateMedia(bytes, mime);
+  validateMedia(bytes, mime, GENERATED_MEDIA_POLICY);
   return { bytes, mime };
 }
 async function generatePayload(
@@ -160,11 +169,13 @@ async function generatePayload(
   provider: Provider,
   key: string,
   prompt: string,
+  timeoutMs: number,
 ): Promise<ImagePayload> {
   if (provider.kind === "gemini") {
-    const model = provider.imageModel || "gemini-2.5-flash-image";
+    const model = provider.imageModel || AI_IMAGE_DEFAULTS.geminiModel;
     const response = await providerRequest(geminiURL(model), key, {
       google: true,
+      timeoutMs,
       body: {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
@@ -183,28 +194,28 @@ async function generatePayload(
     return decodeImage(part.data, part.mimeType);
   }
   if (provider.kind === "cloudflare") {
-    const model = provider.imageModel || "@cf/black-forest-labs/flux-1-schnell";
+    const model = provider.imageModel || AI_IMAGE_DEFAULTS.cloudflareModel;
     if (!/^@(cf|hf)\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(model))
       throw new AppError(
         422,
         "INVALID_MODEL",
         "Choose a valid Cloudflare image model ID.",
       );
-    if (prompt.length > 2048)
+    if (prompt.length > AI_IMAGE_DEFAULTS.cloudflarePromptMax)
       throw new AppError(
         422,
         "IMAGE_PROMPT_TOO_LONG",
-        "Cloudflare image prompts support at most 2048 characters.",
+        `Cloudflare image prompts support at most ${AI_IMAGE_DEFAULTS.cloudflarePromptMax} characters.`,
       );
     const response = await providerRequest(
       `${cloudflareBase(env)}/run/${model}`,
       key,
-      { body: { prompt } },
+      { body: { prompt }, timeoutMs },
     );
     if (response.headers.get("content-type")?.startsWith("image/")) {
-      const bytes = await readProviderBytes(response, 25 * 1024 * 1024);
+      const bytes = await readProviderBytes(response, GENERATED_IMAGE_MAX_BYTES);
       const mime = mimeFromBytes(bytes);
-      validateMedia(bytes, mime);
+      validateMedia(bytes, mime, GENERATED_MEDIA_POLICY);
       return { bytes, mime };
     }
     const data = await readProviderJSON(response, cloudflareImageSchema);
@@ -219,13 +230,14 @@ async function generatePayload(
   }
   if (provider.kind === "siliconflow") {
     const response = await providerRequest(
-      "https://api.siliconflow.cn/v1/images/generations",
+      AI_ENDPOINTS.siliconflow.images,
       key,
       {
+        timeoutMs,
         body: {
-          model: provider.imageModel || "black-forest-labs/FLUX.1-schnell",
+          model: provider.imageModel || AI_IMAGE_DEFAULTS.siliconflowModel,
           prompt,
-          image_size: "1024x1024",
+          image_size: AI_IMAGE_DEFAULTS.size,
           batch_size: 1,
         },
       },
@@ -236,18 +248,19 @@ async function generatePayload(
   const model =
     provider.imageModel ||
     (provider.kind === "openrouter"
-      ? "google/gemini-2.5-flash-image"
-      : env.IMAGE_MODEL || "gpt-image-2");
+      ? AI_IMAGE_DEFAULTS.openrouterModel
+      : env.IMAGE_MODEL || AI_IMAGE_DEFAULTS.openaiModel);
   const endpoint =
     provider.kind === "openrouter"
-      ? "https://openrouter.ai/api/v1/images"
-      : "https://api.openai.com/v1/images/generations";
+      ? AI_ENDPOINTS.openrouter.images
+      : AI_ENDPOINTS.openai.images;
   const response = await providerRequest(endpoint, key, {
+    timeoutMs,
     body: {
       model,
       prompt,
       n: 1,
-      size: "1024x1024",
+      size: AI_IMAGE_DEFAULTS.size,
       ...(provider.kind === "openai" && model.startsWith("dall-e")
         ? { response_format: "b64_json" }
         : { output_format: "png" }),
@@ -281,8 +294,8 @@ export async function generateImage(
       name: "Runtime OpenAI",
       kind: "openai",
       model: "",
-      temperature: 0.7,
-      maxTokens: 2048,
+      temperature: AI_PARAMS.temperature.default,
+      maxTokens: AI_PARAMS.maxTokens.default,
       configured: false,
     };
   const key =
@@ -301,7 +314,13 @@ export async function generateImage(
       "MEDIA_NOT_CONFIGURED",
       "Configure D1 and R2 before generating images.",
     );
-  const payload = await generatePayload(env, provider, key, input.prompt);
+  const payload = await generatePayload(
+    env,
+    provider,
+    key,
+    input.prompt,
+    settings.limits.ai.requestTimeoutSeconds * 1000,
+  );
   const ext =
     payload.mime === "image/jpeg" ? "jpg" : payload.mime.split("/")[1];
   return saveMedia(env, payload.bytes, {
@@ -310,5 +329,6 @@ export async function generateImage(
     postId: input.postId,
     source: "generated",
     prompt: input.prompt,
+    policy: GENERATED_MEDIA_POLICY,
   });
 }

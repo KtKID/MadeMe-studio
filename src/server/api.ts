@@ -35,6 +35,16 @@ import { listMedia, saveMedia, serveMedia } from "./media/service";
 import { runAI, generateImage, listModels } from "./ai/service";
 import { createToken, listTokens, revokeToken } from "./tokens";
 import { rateLimit } from "./rate-limit";
+import {
+  AUTH_RATE_LIMITS,
+  MULTIPART_OVERHEAD_BYTES,
+  largestUploadBytes,
+} from "../modules/config";
+import { requestConfig } from "../modules/config/server";
+import {
+  deploymentStatus,
+  sessionSecretConfigured,
+} from "../modules/config/env";
 export async function handleAPI(context: RequestContext): Promise<Response> {
   const { request } = context;
   const url = new URL(request.url);
@@ -95,6 +105,11 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
             await readJSON(request, patchSettingsSchema),
           ),
         });
+    }
+    // 设置页“部署信息”卡片：只返回已配置 / 未配置与白名单说明，绝不返回任何环境变量的值。
+    if (path[0] === "deployment" && path.length === 1 && method === "GET") {
+      requireOwner(identity, env);
+      return json({ deployment: deploymentStatus(env) });
     }
     if (!env.DB)
       throw new AppError(
@@ -176,7 +191,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
         const row = await posts.mustGet(id);
         if (
           (input.visibility ?? row.draft.visibility) === "password" &&
-          (!env.SESSION_SECRET || env.SESSION_SECRET.length < 32)
+          !sessionSecretConfigured(env)
         )
           throw new AppError(
             503,
@@ -226,7 +241,12 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
       if (path[2] === "revisions") {
         requireOwner(identity, env);
         if (path.length === 3 && method === "GET")
-          return json({ revisions: await repo.revisions(id) });
+          return json({
+            revisions: await repo.revisions(
+              id,
+              (await requestConfig(context)).media.revisionsLimit,
+            ),
+          });
         if (path.length === 5 && path[4] === "restore" && method === "POST") {
           const revision = Number(path[3]);
           if (!Number.isSafeInteger(revision) || revision < 1) throw notFound();
@@ -251,7 +271,12 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
         const ip = await sha256(
           request.headers.get("cf-connecting-ip") ?? "anonymous",
         );
-        await rateLimit(env, `unlock:${row.draft.id}:${ip}`, 8, 300);
+        await rateLimit(
+          env,
+          `unlock:${row.draft.id}:${ip}`,
+          AUTH_RATE_LIMITS.unlock.limit,
+          AUTH_RATE_LIMITS.unlock.windowSeconds,
+        );
         const input = await readJSON(request, unlockInputSchema);
         if (!(await verifyPassword(input.password, row.publishedPasswordHash)))
           throw new AppError(
@@ -260,7 +285,12 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
             "That password is not correct.",
           );
         return json({ unlocked: true }, 200, {
-          "Set-Cookie": await makeAccessCookie(request, env, row),
+          "Set-Cookie": await makeAccessCookie(
+            request,
+            env,
+            row,
+            (await requestConfig(context)).security.unlockMinutes,
+          ),
         });
       }
     }
@@ -278,6 +308,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
             env,
             url.searchParams.get("q") ?? "",
             url.searchParams.get("source"),
+            (await requestConfig(context)).media.listLimit,
           ),
         });
       }
@@ -293,7 +324,12 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
             "MULTIPART_REQUIRED",
             "Use multipart/form-data to upload files.",
           );
-        const body = await boundedBody(request, 26 * 1024 * 1024);
+        // 请求体上限 = 设置页里最大的一类文件上限 + multipart 包装余量；按类别的精确检查在 saveMedia。
+        const upload = (await requestConfig(context)).upload;
+        const body = await boundedBody(
+          request,
+          largestUploadBytes(upload) + MULTIPART_OVERHEAD_BYTES,
+        );
         const form = await new Request(request.url, {
           method: "POST",
           headers: { "Content-Type": request.headers.get("content-type")! },
@@ -314,6 +350,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
                   mime: file.type,
                   postId:
                     typeof postId === "string" && postId ? postId : undefined,
+                  policy: upload,
                 },
               ),
             },
@@ -326,14 +363,18 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
     }
     if (path[0] === "ai" && path.length === 1 && method === "POST") {
       requireOwner(identity, env);
-      await rateLimit(env, `ai:owner`, 20);
+      const { ai } = await requestConfig(context);
+      await rateLimit(env, `ai:owner`, ai.textPerMinute, 60);
       const input = await readJSON(request, aiInputSchema);
       if (input.postId) await posts.mustGet(input.postId);
-      return json(await runAI(env, input));
+      return json(
+        await runAI(env, input, { timeoutMs: ai.requestTimeoutSeconds * 1000 }),
+      );
     }
     if (path[0] === "images" && path[1] === "generate" && method === "POST") {
       requireOwner(identity, env);
-      await rateLimit(env, `images:owner`, 5, 300);
+      const { ai } = await requestConfig(context);
+      await rateLimit(env, `images:owner`, ai.imagesPer5Minutes, 300);
       const input = await readJSON(request, imageInputSchema);
       if (input.postId) await posts.mustGet(input.postId);
       return json({ media: await generateImage(env, input) }, 201);
@@ -355,11 +396,18 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
       requireOwner(identity, env);
       if (method === "GET" && path.length === 1)
         return json({ tokens: await listTokens(env) });
-      if (method === "POST" && path.length === 1)
-        return json(
-          await createToken(env, await readJSON(request, createTokenSchema)),
-          201,
-        );
+      if (method === "POST" && path.length === 1) {
+        const input = await readJSON(request, createTokenSchema);
+        const { security } = await requestConfig(context);
+        const expiresInDays = input.expiresInDays ?? security.tokenDefaultDays;
+        if (expiresInDays > security.tokenMaxDays)
+          throw new AppError(
+            422,
+            "TOKEN_EXPIRY_TOO_LONG",
+            `令牌有效期最长 ${security.tokenMaxDays} 天（可在“设置 → 账号与安全”调整）。`,
+          );
+        return json(await createToken(env, { ...input, expiresInDays }), 201);
+      }
       if (method === "DELETE") {
         const id = path[1] ?? url.searchParams.get("id");
         if (!id)

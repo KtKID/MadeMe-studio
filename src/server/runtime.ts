@@ -56,6 +56,7 @@ export interface RuntimeEnv {
   IMAGE_API_KEY?: string;
   IMAGE_MODEL?: string;
   SESSION_SECRET?: string;
+  LOG_LEVEL?: string;
 }
 export interface RequestContext {
   request: Request;

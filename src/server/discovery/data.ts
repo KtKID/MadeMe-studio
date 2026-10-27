@@ -12,6 +12,8 @@ export async function discover(context: RequestContext) {
   return {
     posts,
     title: settings.siteTitle,
+    /** 设置页“嵌入与阅读 → RSS 条目数”。 */
+    rssItems: settings.limits.reading.rssItems,
     origin: new URL(context.request.url).origin,
   };
 }
