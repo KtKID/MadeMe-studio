@@ -60,6 +60,6 @@ node integrations/agent-publisher/publish.mjs publish \
 
 ## E. 证据与清理
 
-记录时间、版本/commit、目标 origin、文章 ID、通过项/失败项、HTTP 状态、是否完成清理。证据中不保存 Token，不录制含凭据的设置页。清理包括在 Studio 撤下并移除测试文章、撤销测试 Token、Chrome Forget connection、Obsidian Forget token；已发出的请求不能靠关闭工具撤销。
+记录时间、版本/commit、目标 origin、文章 ID、通过项/失败项、HTTP 状态与保留状态。证据中不保存 Token，不录制含凭据的设置页。**当前版本开发结束前保留测试文章，不撤下或删除；已获准发布的测试文章使用仅链接可见（unlisted）。版本完成后先交付用户验收，只有验收后另获明确授权才清理指定文章。** 不把本检查表当作删除授权。测试连接和凭据按授权范围撤销：Studio 撤销测试 Token、Chrome Forget connection、Obsidian Forget token；这些动作不能撤回已经发送的请求。
 
 本次云端已完成的是本地协议夹具 E2E；真实目标 API、Chrome 扩展宿主和 Obsidian 宿主的状态须根据实际执行另行填写。

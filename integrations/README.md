@@ -36,3 +36,7 @@ Node CLI / 测试要求 Node 22.18+（原生 TypeScript 类型擦除）以及根
 已验证：首轮 15 项单元/CLI 冒烟/本地 HTTP 协议 E2E 通过；最小写入回执安全更新先补 4 项回归并确认旧客户端失败，再实现共同协议适配，现共 **19 项全部通过**。Chrome 与 Obsidian 重新打包通过，shared strict tsc 与 Obsidian 官方 SDK 完整类型检查通过。真实 API 的操作步骤见 [LIVE_API_E2E.md](tests/LIVE_API_E2E.md)；未在真实用户站点写入、安装扩展或访问私人 vault。
 
 开发顺序如实记录：shared 与 Chrome 的首版实现先于本目录测试；新增要求后先补测试和说明，再实现 CLI 与 Obsidian。不能将前者声称为严格 TDD。真实浏览器/Obsidian/已部署 Token 联调必须按 [检查表](tests/README.md) 另行验证。
+
+## 离线交付
+
+见 [中文安装与交付说明](INSTALL.md)。已有依赖环境运行 `node integrations/scripts/package.mjs /tmp/mademe-integrations-delivery`，仅构建独立集成并生成 ZIP、精确版本/源码哈希 manifest 与 SHA256SUMS，不打包整个网站或任何用户数据。目标目录须为空。
