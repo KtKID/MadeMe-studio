@@ -110,9 +110,14 @@ export default function SettingsPanel({
   const [modelLists, setModelLists] = useState<
     Record<string, { id: string }[]>
   >({});
-  const [loadingModels, setLoadingModels] = useState("");
+  const [loadingModels, setLoadingModels] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const pendingModels = useRef(new Set<string>());
   async function loadModels(id: string) {
-    setLoadingModels(id);
+    if (!authenticated || pendingModels.current.has(id)) return;
+    pendingModels.current.add(id);
+    setLoadingModels(new Set(pendingModels.current));
     setError("");
     try {
       const result = await api<{ models: { id: string }[] }>(
@@ -122,7 +127,8 @@ export default function SettingsPanel({
     } catch (error) {
       setError((error as Error).message);
     } finally {
-      setLoadingModels("");
+      pendingModels.current.delete(id);
+      setLoadingModels(new Set(pendingModels.current));
     }
   }
   useEffect(() => {
@@ -535,10 +541,10 @@ export default function SettingsPanel({
                       <button
                         type="button"
                         className="text-button"
-                        disabled={loadingModels === p.id || !p.configured}
+                        disabled={loadingModels.has(p.id) || !p.configured}
                         onClick={() => loadModels(p.id)}
                       >
-                        {loadingModels === p.id
+                        {loadingModels.has(p.id)
                           ? "读取中…"
                           : "获取已保存配置的模型列表"}
                       </button>
