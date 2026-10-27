@@ -1,10 +1,15 @@
 ---
 import Studio from "../../layouts/Studio.astro";
 import Integrations from "../../components/integrations/Integrations";
-import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro, false, { posts: "none" });
+import { loadIntegrationsPageData } from "../../server/page-data";
+const data = await loadIntegrationsPageData(Astro);
 ---
 
 <Studio title="连接与发布" active="integrations" settings={data.settings}>
-  <Integrations authenticated={data.capabilities.authenticated} client:load />
+  <Integrations
+    initialTokens={data.initialTokens}
+    initialError={data.initialError}
+    authenticated={data.capabilities.authenticated}
+    client:load
+  />
 </Studio>

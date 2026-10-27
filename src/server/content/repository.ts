@@ -1,4 +1,9 @@
-import type { Post, Revision } from "../../shared/contracts";
+import {
+  postSummarySchema,
+  type PostSummary,
+  type Post,
+  type Revision,
+} from "../../shared/contracts";
 import type { D1Database } from "../runtime";
 import { AppError } from "../errors";
 export type StoredPost = {
@@ -41,6 +46,25 @@ function decode(row: Row): StoredPost {
 }
 export class D1PostRepository implements PostRepository {
   constructor(private db: D1Database) {}
+  /** 仅作者工作台使用；SQL 提取轻量字段，不传输完整正文或发布快照。 */
+  async listSummaries(): Promise<PostSummary[]> {
+    const fields = Object.keys(postSummarySchema.shape);
+    const projection = fields
+      .map((key) => `json_extract(document_json, '$.${key}') AS "${key}"`)
+      .join(",");
+    const { results } = await this.db
+      .prepare(
+        `SELECT ${projection} FROM posts ORDER BY updated_at DESC LIMIT 1000`,
+      )
+      .all<Record<string, unknown>>();
+    return results.map((row) =>
+      postSummarySchema.parse({
+        ...row,
+        tags: JSON.parse(row.tags as string),
+        pinned: row.pinned === 1,
+      }),
+    );
+  }
   async list() {
     return (
       await this.db

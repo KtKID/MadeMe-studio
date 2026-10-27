@@ -68,7 +68,7 @@ export function begin(
   to: StudioRoute,
   now: number,
   kind: z.infer<typeof Sample>["kind"],
-  label: "baseline" | "optimized" = "baseline",
+  label: "baseline" | "optimized" = "optimized",
 ) {
   finish(state, "superseded", now);
   for (const sample of state.samples) {

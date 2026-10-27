@@ -11,3 +11,7 @@
 上传控件的 accept 来自 `src/shared/contracts.ts` 的 `acceptedMediaMimeTypes`，与服务器同一来源，包含 AVIF、Office OpenXML、ZIP、EPUB、CSV。生成图片对话框允许明确选择已配置服务商及其独立图像模型。
 
 `crop-state.ts` 验证源图已成功解码且当前比例/缩放/位置版本已绘制。未载入、404、零尺寸或过期回调均不能导出；保存函数自身再次校验，不能只依赖按钮禁用。浏览器 Canvas 完整管线验收见 `tests/e2e/media.spec.ts`，其真实执行状态单独报告。
+
+## SSR 初始列表
+
+独立媒体页接收授权后读取的 `initialMedia` 与 `initialError`。`[]` 表示成功加载空列表，挂载不再请求；未传 `initialMedia` 的编辑器弹窗保留原 GET 行为。SSR 错误直接显示并记录导航失败，不能作为空列表 ready。上传与裁剪仍更新本地列表，不增加共享缓存。

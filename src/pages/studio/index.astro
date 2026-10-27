@@ -1,8 +1,8 @@
 ---
 import Studio from "../../layouts/Studio.astro";
 import Dashboard from "../../components/content/Dashboard";
-import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro);
+import { loadDashboardPageData } from "../../server/page-data";
+const data = await loadDashboardPageData(Astro);
 ---
 
 <Studio title="所有文章" settings={data.settings}>

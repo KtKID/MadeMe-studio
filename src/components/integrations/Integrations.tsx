@@ -17,12 +17,18 @@ import { api, Notice, Busy, Modal, date } from "../shared/ui";
 import type { APIToken, TokenScope } from "../../shared/contracts";
 export default function Integrations({
   authenticated,
+  initialTokens,
+  initialError = "",
 }: {
   authenticated: boolean;
+  initialTokens?: APIToken[];
+  initialError?: string;
 }) {
-  const [initialLoading, setInitialLoading] = useState(authenticated);
-  const [tokens, setTokens] = useState<APIToken[]>([]);
-  const [error, setError] = useState("");
+  const [initialLoading, setInitialLoading] = useState(
+    authenticated && initialTokens === undefined && !initialError,
+  );
+  const [tokens, setTokens] = useState<APIToken[]>(initialTokens ?? []);
+  const [error, setError] = useState(initialError);
   const [open, setOpen] = useState(false);
   const [secret, setSecret] = useState("");
   const [name, setName] = useState("");
@@ -37,12 +43,12 @@ export default function Integrations({
   useNavigationReady("/studio/integrations", !initialLoading, !!error);
   useEffect(() => {
     setOrigin(location.origin);
-    if (authenticated)
+    if (authenticated && initialTokens === undefined && !initialError)
       api<{ tokens: APIToken[] }>("/api/tokens")
         .then((r) => setTokens(r.tokens))
         .catch((e) => setError(e.message))
         .finally(() => setInitialLoading(false));
-  }, [authenticated]);
+  }, [authenticated, initialTokens, initialError]);
   async function create() {
     setBusy(true);
     setError("");

@@ -216,18 +216,24 @@ export default function MediaLibrary({
   postId,
   imageConfigured = false,
   providers = [],
+  initialMedia,
+  initialError = "",
 }: {
   onInsert?: (media: Media) => void;
   onCover?: (media: Media) => void;
   postId?: string;
   imageConfigured?: boolean;
   providers?: Provider[];
+  initialMedia?: Media[];
+  initialError?: string;
 }) {
-  const [media, setMedia] = useState<Media[]>([]);
+  const [media, setMedia] = useState<Media[]>(initialMedia ?? []);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(
+    initialMedia === undefined && !initialError,
+  );
+  const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [providerId, setProviderId] = useState("");
@@ -236,11 +242,12 @@ export default function MediaLibrary({
   useNavigationReady("/studio/media", !loading, !!error);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    if (initialMedia !== undefined || initialError) return;
     api<{ media: Media[] }>("/api/media")
       .then((r) => setMedia(r.media))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [initialMedia, initialError]);
   async function upload(files: FileList | null) {
     if (!files?.length) return;
     setBusy(true);

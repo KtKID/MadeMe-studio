@@ -1,3 +1,11 @@
+import {
+  postSummarySchema,
+  mediaListResponseSchema,
+  tokensResponseSchema,
+  type DashboardBootstrap,
+} from "../shared/contracts";
+import { listMedia } from "./media/service";
+import { listTokens } from "./tokens";
 import { providerCapabilities } from "./ai/capabilities";
 import { hasConfiguredImageProvider } from "./ai/images";
 import type { BootstrapResponse, Post, Settings } from "../shared/contracts";
@@ -87,4 +95,56 @@ export async function loadPostPage(
 /** 首页始终读取公开发布快照；作者身份只用于显示进入工作台的能力。 */
 export function loadPublicPageData(context: RequestContext) {
   return loadPageData(context, true);
+}
+
+/** 授权后才读取草稿摘要；访客继续使用既有公开发布快照语义。 */
+export async function loadDashboardPageData(
+  context: RequestContext,
+): Promise<DashboardBootstrap> {
+  const data = await loadPageData(context, false, { posts: "none" });
+  const env = getEnv(context);
+  const posts = !env.DB
+    ? []
+    : data.capabilities.authenticated
+      ? await new D1PostRepository(env.DB).listSummaries()
+      : publicPosts(await new D1PostRepository(env.DB).list()).map((post) =>
+          postSummarySchema.parse(post),
+        );
+  return { ...data, posts };
+}
+
+/** 私有资源在身份核验之后 SSR 读取；错误不会伪装成空列表已就绪。 */
+export async function loadMediaPageData(context: RequestContext) {
+  const data = await loadPageData(context, false, { posts: "none" });
+  let initialMedia: import("../shared/contracts").Media[] = [];
+  let initialError = "";
+  if (data.capabilities.authenticated) {
+    try {
+      const env = getEnv(context);
+      if (!env.DB) throw new Error("Storage unavailable");
+      initialMedia = mediaListResponseSchema.parse({
+        media: await listMedia(env, "", null),
+      }).media;
+    } catch {
+      initialError = "媒体加载失败，请刷新后重试。";
+    }
+  }
+  return { ...data, initialMedia, initialError };
+}
+export async function loadIntegrationsPageData(context: RequestContext) {
+  const data = await loadPageData(context, false, { posts: "none" });
+  let initialTokens: import("../shared/contracts").APIToken[] = [];
+  let initialError = "";
+  if (data.capabilities.authenticated) {
+    try {
+      const env = getEnv(context);
+      if (!env.DB) throw new Error("Storage unavailable");
+      initialTokens = tokensResponseSchema.parse({
+        tokens: await listTokens(env),
+      }).tokens;
+    } catch {
+      initialError = "令牌列表加载失败，请刷新后重试。";
+    }
+  }
+  return { ...data, initialTokens, initialError };
 }

@@ -67,6 +67,26 @@ const uploaded = await fetch(base + "/api/media", {
 });
 assert.equal(uploaded.status, 201);
 const { media } = await uploaded.json();
+// 工作台 SSR 列表契约：正文不再进入列表岛屿，私有资源首屏已有数据。
+const dashboardResponse = await fetch(base + "/studio");
+assert.equal(dashboardResponse.status, 200);
+assert.match(
+  dashboardResponse.headers.get("Cache-Control"),
+  /private.*no-store/,
+);
+const dashboardHTML = await dashboardResponse.text();
+assert.ok(dashboardHTML.includes("不应出现在阅读页的草稿标题"));
+assert.ok(!dashboardHTML.includes("已发布正文"));
+const mediaPage = await fetch(base + "/studio/media");
+assert.equal(mediaPage.status, 200);
+const mediaHTML = await mediaPage.text();
+assert.ok(mediaHTML.includes("valid-image.png"));
+assert.ok(mediaHTML.includes("initialMedia"));
+const integrationPage = await fetch(base + "/studio/integrations");
+assert.equal(integrationPage.status, 200);
+assert.ok((await integrationPage.text()).includes("initialTokens"));
+const readerMedia = await fetch("http://127.0.0.1:4322/studio/media");
+assert.ok(!(await readerMedia.text()).includes("valid-image.png"));
 const original = readFileSync(
   new URL("../fixtures/valid-image.png", import.meta.url),
 );

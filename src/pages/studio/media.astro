@@ -1,8 +1,8 @@
 ---
 import Studio from "../../layouts/Studio.astro";
 import MediaLibrary from "../../components/media/MediaLibrary";
-import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro, false, { posts: "none" });
+import { loadMediaPageData } from "../../server/page-data";
+const data = await loadMediaPageData(Astro);
 ---
 
 <Studio title="媒体库" active="media" settings={data.settings}>
@@ -16,6 +16,8 @@ const data = await loadPageData(Astro, false, { posts: "none" });
   <section class="content-panel media-panel">
     {data.capabilities.authenticated ? (
       <MediaLibrary
+        initialMedia={data.initialMedia}
+        initialError={data.initialError}
         imageConfigured={data.capabilities.imageConfigured}
         providers={data.settings.providers}
         client:load

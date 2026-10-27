@@ -1,3 +1,8 @@
+import {
+  postSummarySchema,
+  type PostSummary,
+  type DashboardBootstrap,
+} from "../../shared/contracts";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { useMemo, useState } from "react";
 import {
@@ -14,7 +19,6 @@ import {
 } from "lucide-react";
 import {
   api,
-  type Bootstrap,
   type Post,
   date,
   visibilityLabels,
@@ -23,7 +27,11 @@ import {
   Empty,
   Busy,
 } from "../shared/ui";
-export default function Dashboard({ initial }: { initial: Bootstrap }) {
+export default function Dashboard({
+  initial,
+}: {
+  initial: DashboardBootstrap;
+}) {
   useNavigationReady("/studio");
   const [posts, setPosts] = useState(initial.posts);
   const [tab, setTab] = useState("all");
@@ -52,7 +60,10 @@ export default function Dashboard({ initial }: { initial: Bootstrap }) {
         Number(b.pinned) - Number(a.pinned) ||
         b.updatedAt.localeCompare(a.updatedAt),
     );
-  async function update(post: Post, action: "pin" | "trash" | "restore") {
+  async function update(
+    post: PostSummary,
+    action: "pin" | "trash" | "restore",
+  ) {
     if (
       action === "trash" &&
       !confirm(
@@ -69,7 +80,9 @@ export default function Dashboard({ initial }: { initial: Bootstrap }) {
           body: JSON.stringify({ version: post.version }),
         });
         setPosts((previous) =>
-          previous.map((p) => (p.id === post.id ? result.post : p)),
+          previous.map((p) =>
+            p.id === post.id ? postSummarySchema.parse(result.post) : p,
+          ),
         );
       } else {
         const { post: next } = await api<{ post: Post }>(
@@ -84,7 +97,9 @@ export default function Dashboard({ initial }: { initial: Bootstrap }) {
           },
         );
         setPosts((previous) =>
-          previous.map((p) => (p.id === post.id ? next : p)),
+          previous.map((p) =>
+            p.id === post.id ? postSummarySchema.parse(next) : p,
+          ),
         );
       }
     } catch (e) {

@@ -45,16 +45,15 @@ export async function api<T>(
     );
   }
 }
+// 模块内复用 formatter，保持 SSR / 浏览器一致的作者时区。
+const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+});
 export function date(value: string | null | undefined) {
-  return value
-    ? new Intl.DateTimeFormat("zh-CN", {
-        // SSR 与浏览器使用同一作者时区，避免 hydration 日期不同而重建整块界面。
-        timeZone: "Asia/Shanghai",
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      }).format(new Date(value))
-    : "尚未发布";
+  return value ? dateFormatter.format(new Date(value)) : "尚未发布";
 }
 export const visibilityLabels = {
   public: "公开",

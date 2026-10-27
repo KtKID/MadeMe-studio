@@ -188,6 +188,22 @@ export const postSchema = editablePostSchema.extend({
   deletedAt: z.string().nullable(),
 });
 export type Post = z.infer<typeof postSchema>;
+/** 工作台列表只携带展示字段，正文与发布快照留在按需编辑/阅读路径。 */
+export const postSummarySchema = postSchema.pick({
+  id: true,
+  version: true,
+  title: true,
+  excerpt: true,
+  category: true,
+  tags: true,
+  coverImage: true,
+  visibility: true,
+  pinned: true,
+  publishedAt: true,
+  updatedAt: true,
+  deletedAt: true,
+});
+export type PostSummary = z.infer<typeof postSummarySchema>;
 /** 无读取权限的发布客户端仅获得操作回执，不能通过写接口读出既有正文。 */
 export const postReceiptSchema = postSchema
   .pick({ id: true, version: true })
@@ -404,6 +420,10 @@ export const bootstrapResponseSchema = z
   })
   .strict();
 export type BootstrapResponse = z.infer<typeof bootstrapResponseSchema>;
+export const dashboardBootstrapSchema = bootstrapResponseSchema.extend({
+  posts: z.array(postSummarySchema),
+});
+export type DashboardBootstrap = z.infer<typeof dashboardBootstrapSchema>;
 export const apiErrorSchema = z
   .object({
     error: z

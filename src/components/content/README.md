@@ -15,3 +15,7 @@
 首页路由使用 `loadPublicPageData`，即使作者已登录也只展示公开发布快照，不显示更新中的标题、摘要或封面。四种首页结构由 `data-layout` 控制，不改变配色或明暗。旧表格缺少 cells 时跳过异常行，保证其他正文仍可读。
 
 连续同级编号/项目列表在 SSR 中分组，编号使用浏览器原生顺序，显式 start 通过起点或 li value 保留；嵌套层级独立分组。表格保留受限的正整数 colspan/rowspan、thead/th 与表头范围。`tests/reader-structure.test.tsx` 覆盖这些富文本保真语义。
+
+## 文章工作台摘要
+
+Dashboard 使用由 `postSchema.pick` 派生的 `PostSummary`，正文仅在编辑/阅读按需查询。置顶、删除、恢复返回完整文章后也通过同一 schema 投影，避免意外将正文留在列表状态。日期格式器模块内复用并固定上海时区。没有增加共享私有 HTML 缓存，也未改变设置/编辑页的完整导航与未保存保护。
