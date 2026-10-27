@@ -1,3 +1,4 @@
+import { integrationSourceLinks } from "./source-links";
 import { useEffect, useState } from "react";
 import {
   KeyRound,
@@ -89,7 +90,7 @@ export default function Integrations({
           <p>选中文字、保留来源，整理为一篇待编辑的草稿。</p>
           <a
             className="text-button"
-            href="https://github.com/KtKID/MadeMe-studio/tree/main/integrations/chrome-clipper"
+            href={integrationSourceLinks.chromeClipper}
             target="_blank"
             rel="noreferrer"
           >
@@ -105,7 +106,7 @@ export default function Integrations({
           <p>只发布你明确选择的笔记，不读取或同步整个知识库。</p>
           <a
             className="text-button"
-            href="https://github.com/KtKID/MadeMe-studio/tree/main/integrations/obsidian-publisher"
+            href={integrationSourceLinks.obsidianPublisher}
             target="_blank"
             rel="noreferrer"
           >
@@ -121,7 +122,7 @@ export default function Integrations({
           <p>用受限 API 把你的自动化流程接入草稿与发布。</p>
           <a
             className="text-button"
-            href="https://github.com/KtKID/MadeMe-studio/tree/main/integrations"
+            href={integrationSourceLinks.guide}
             target="_blank"
             rel="noreferrer"
           >
