@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 
-it("后台使用客户端路由，编辑器入口明确完整导航", () => {
-  const base = readFileSync("src/layouts/Base.astro", "utf8");
+it("设置和编辑页不启用客户端路由，设置入口强制完整导航", () => {
   const studio = readFileSync("src/layouts/Studio.astro", "utf8");
-  expect(base).toContain("ClientRouter");
-  expect(studio).toContain("clientNavigation={!editingPage}");
-  expect(studio).toContain("data-astro-reload");
+  expect(studio).toContain('"/studio/settings"');
+  expect(studio).toContain("clientNavigation={!protectedFormPage}");
+  expect(studio).toContain('data-astro-reload={item.key === "settings"}');
 });
 it("设置在客户端切页前保护未保存输入", () => {
   const source = readFileSync(
@@ -17,27 +16,22 @@ it("设置在客户端切页前保护未保存输入", () => {
 });
 
 import { installUnsavedGuard } from "../../src/components/shared/unsaved-guard";
-it("取消切页保留输入，确认允许导航，卸载移除拦截", () => {
+it("未保存保护使用原生卸载，不使用会触发整页 fallback 的 Astro 事件", () => {
   const target = new EventTarget();
-  const cleanup = installUnsavedGuard(target, () => false);
-  const event = new Event("astro:before-preparation", { cancelable: true });
+  const cleanup = installUnsavedGuard(target);
+  const event = new Event("beforeunload", { cancelable: true });
+  Object.defineProperty(event, "returnValue", {
+    value: undefined,
+    writable: true,
+  });
   expect(target.dispatchEvent(event)).toBe(false);
-  expect(
-    target.dispatchEvent(new Event("beforeunload", { cancelable: true })),
-  ).toBe(false);
+  expect(event.returnValue).toBe("");
   cleanup();
   expect(
-    target.dispatchEvent(
-      new Event("astro:before-preparation", { cancelable: true }),
-    ),
+    target.dispatchEvent(new Event("beforeunload", { cancelable: true })),
   ).toBe(true);
-  const cleanup2 = installUnsavedGuard(target, () => true);
-  expect(
-    target.dispatchEvent(
-      new Event("astro:before-preparation", { cancelable: true }),
-    ),
-  ).toBe(true);
-  cleanup2();
+  const source = readFileSync("src/components/shared/unsaved-guard.ts", "utf8");
+  expect(source).not.toContain('addEventListener("astro:before-preparation"');
 });
 
 it("阅读页只获取能力且编辑入口不静态加载整个编辑器", () => {

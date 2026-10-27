@@ -10,10 +10,12 @@ import {
   Plus,
 } from "lucide-react";
 const { title = "写作台", active = "posts", settings } = Astro.props;
-// 编辑器保留浏览器原生离开保护；其余后台页复用客户端路由。
-const editingPage = ["/studio/new", "/studio/edit"].includes(
-  Astro.url.pathname.replace(/\/$/, ""),
-);
+// 表单页完整导航，确保链接、历史回退和地址跳转都经过原生离开保护。
+const protectedFormPage = [
+  "/studio/new",
+  "/studio/edit",
+  "/studio/settings",
+].includes(Astro.url.pathname.replace(/\/$/, ""));
 const links = [
   { key: "posts", label: "所有文章", href: "/studio", icon: FileText },
   { key: "media", label: "媒体库", href: "/studio/media", icon: Image },
@@ -33,7 +35,7 @@ const links = [
 ---
 
 <Base
-  clientNavigation={!editingPage}
+  clientNavigation={!protectedFormPage}
   title={`${title} · ${settings?.siteTitle || "MadeMe"}`}
   theme={settings?.theme}
   mode={settings?.mode}
@@ -59,7 +61,11 @@ const links = [
       <div class="nav-label">工作空间</div>
       <nav class="studio-nav" aria-label="创作后台">
         {links.map((item) => (
-          <a href={item.href} class:list={[{ active: active === item.key }]}>
+          <a
+            data-astro-reload={item.key === "settings"}
+            href={item.href}
+            class:list={[{ active: active === item.key }]}
+          >
             <item.icon size={18} />
             {item.label}
           </a>

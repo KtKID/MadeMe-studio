@@ -1,17 +1,10 @@
-/** 同时保护整页离开与 Astro 客户端导航；卸载时移除监听，避免跨页残留。 */
-export function installUnsavedGuard(
-  target: EventTarget,
-  confirmLeave: () => boolean,
-  windowTarget: EventTarget = target,
-) {
-  const beforeUnload = (event: Event) => event.preventDefault();
-  const beforeNavigation = (event: Event) => {
-    if (!confirmLeave()) event.preventDefault();
+/** 表单页禁用客户端路由，统一由浏览器原生离开确认保护未保存输入。 */
+export function installUnsavedGuard(windowTarget: EventTarget) {
+  const beforeUnload = (event: Event) => {
+    event.preventDefault();
+    // 兼容仍依赖 returnValue 的浏览器；提示文字由浏览器决定。
+    (event as BeforeUnloadEvent).returnValue = "";
   };
   windowTarget.addEventListener("beforeunload", beforeUnload);
-  target.addEventListener("astro:before-preparation", beforeNavigation);
-  return () => {
-    windowTarget.removeEventListener("beforeunload", beforeUnload);
-    target.removeEventListener("astro:before-preparation", beforeNavigation);
-  };
+  return () => windowTarget.removeEventListener("beforeunload", beforeUnload);
 }

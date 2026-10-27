@@ -12,4 +12,4 @@
 
 日期展示显式使用 `Asia/Shanghai`，使 SSR 和浏览器在不同宿主时区下保持同一日期，避免 hydration 不匹配引起界面重建。当前是作者时区的固定默认值，不宣称已支持可配置时区。
 
-`unsaved-guard.ts` 同时监听窗口离开与 Astro 客户端导航；取消导航保留输入，组件卸载后释放全部监听。
+`unsaved-guard.ts` 仅用于禁用客户端路由的表单页，监听原生 `beforeunload`，同时设置兼容性 `returnValue`。浏览器决定提示文案；取消后保留输入，组件卸载后释放监听。不使用 Astro preparation 的 preventDefault，因为它会触发整页 fallback，而非取消导航。
