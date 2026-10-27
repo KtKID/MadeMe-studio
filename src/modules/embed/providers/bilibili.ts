@@ -1,5 +1,5 @@
-import type { EmbedProvider } from "../types";
-import { parseStartSeconds } from "./time";
+import type { EmbedProvider } from "../types.ts";
+import { parseStartSeconds } from "./time.ts";
 
 /** BV 号：固定 "BV1" + 9 位 base58 字符（不含 0、I、O、l）。 */
 const BVID = /^BV1[1-9A-HJ-NP-Za-km-z]{9}$/;

@@ -1,5 +1,5 @@
-import type { EmbedProvider } from "../types";
-import { parseStartSeconds } from "./time";
+import type { EmbedProvider } from "../types.ts";
+import { parseStartSeconds } from "./time.ts";
 
 const ID = /^[\w-]{11}$/;
 /** /embed/ID、/shorts/ID、/live/ID、/v/ID 这几种路径的第二段是视频 id。 */

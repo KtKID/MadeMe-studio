@@ -1,7 +1,7 @@
-import { bilibili } from "./providers/bilibili";
-import { x } from "./providers/x";
-import { youtube } from "./providers/youtube";
-import type { EmbedParseResult, EmbedProvider } from "./types";
+import { bilibili } from "./providers/bilibili.ts";
+import { x } from "./providers/x.ts";
+import { youtube } from "./providers/youtube.ts";
+import type { EmbedParseResult, EmbedProvider } from "./types.ts";
 
 /**
  * 嵌入提供方注册表：编辑器、服务端内容校验、阅读页渲染与 CSP frame-src 的唯一来源。

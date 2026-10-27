@@ -1,4 +1,5 @@
-import type { EmbedProvider } from "../types";
+import { DEFAULT_CONFIG } from "../../config/defaults.ts";
+import type { EmbedProvider } from "../types.ts";
 
 /** /用户名/status/数字，可带 /photo/1、/video/1 后缀；用户名最多 15 位。 */
 const STATUS_PATH =
@@ -33,7 +34,8 @@ export const x: EmbedProvider = {
     sandbox:
       "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox",
     referrerPolicy: "strict-origin-when-cross-origin",
-    initialHeight: 360,
+    // 默认初始高度；阅读页按设置页“X 动态初始高度”覆盖。
+    initialHeight: DEFAULT_CONFIG.reading.xInitialHeight,
   },
   linkLabel: "在 X 查看",
   parse(u) {
