@@ -40,6 +40,8 @@ npm run test:integrations
 
 - [开发清单与执行约定](docs/DEVELOPMENT.md)
 - [验证证据与未验收项](docs/VERIFICATION.md)
+- [全站交互链路与覆盖矩阵](docs/INTERACTION-COVERAGE.md)
+- [组件点击回归测试](tests/ui/README.md)
 - [部署与运行](docs/DEPLOYMENT.md)
 - [安全边界与限制](docs/SECURITY.md)
 - [工程脚本](scripts/README.md)
