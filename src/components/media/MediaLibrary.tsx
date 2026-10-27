@@ -2,7 +2,14 @@ import { MediaOperation } from "./media-operation";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { CropRenderGuard, cropGeometry } from "./crop-state";
-import { acceptedMediaMimeTypes, type Provider } from "../../shared/contracts";
+import { mediaUploadProblem, type Provider } from "../../shared/contracts";
+import {
+  DEFAULT_CONFIG,
+  TEXT_LIMITS,
+  enabledMediaMimes,
+  type RuntimeConfig,
+} from "../../modules/config";
+import { clientLog } from "../../modules/log/client";
 import { useEffect, useRef, useState } from "react";
 import {
   Upload,
@@ -28,11 +35,13 @@ function CropImage({
   onClose,
   onSaved,
   postId,
+  options = DEFAULT_CONFIG.media,
 }: {
   media: Media;
   onClose: () => void;
   onSaved: (media: Media) => void;
   postId?: string;
+  options?: RuntimeConfig["media"];
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [ratio, setRatio] = useState("1.7778");
@@ -65,6 +74,7 @@ function CropImage({
           zoom,
           x,
           y,
+          options.cropOutputWidth,
         );
         c.width = geometry.width;
         c.height = geometry.height;
@@ -102,7 +112,7 @@ function CropImage({
       img.onload = null;
       img.onerror = null;
     };
-  }, [cropKey, media.url, ratio, zoom, x, y]);
+  }, [cropKey, media.url, ratio, zoom, x, y, options.cropOutputWidth]);
   async function save() {
     if (!operation.current.begin()) return;
     setBusy(true);
@@ -117,7 +127,7 @@ function CropImage({
           target.toBlob(
             (b) => (b ? resolve(b) : reject(new Error("无法导出图片"))),
             "image/jpeg",
-            0.92,
+            options.cropJpegQuality / 100,
           );
         } catch (e) {
           reject(e);
@@ -235,7 +245,10 @@ export default function MediaLibrary({
   providers = [],
   initialMedia,
   initialError = "",
+  config = DEFAULT_CONFIG,
 }: {
+  /** 设置页配置：上传上限/类型、列表条数、裁剪参数。 */
+  config?: RuntimeConfig;
   onInsert?: (media: Media) => void;
   onCover?: (media: Media) => void;
   postId?: string;
@@ -284,6 +297,16 @@ export default function MediaLibrary({
     setError("");
     try {
       for (const file of Array.from(files)) {
+        // 与服务端同一个检查函数（src/modules/config uploadProblem），上传前就给出中文原因。
+        const problem = mediaUploadProblem(file, config.upload);
+        if (problem) {
+          clientLog("warn", "media.upload_rejected", {
+            reason: problem.reason,
+            mime: file.type || "unknown",
+            size: file.size,
+          });
+          throw new Error(problem.message);
+        }
         const form = new FormData();
         form.append("file", file);
         if (postId) form.append("postId", postId);
@@ -340,7 +363,7 @@ export default function MediaLibrary({
           .toLowerCase()
           .includes(query.toLowerCase()),
     )
-    .slice(0, 100);
+    .slice(0, config.media.listLimit);
   return (
     <>
       <div className="media-tools">
@@ -390,7 +413,7 @@ export default function MediaLibrary({
           multiple
           hidden
           onChange={(e) => upload(e.target.files)}
-          accept={acceptedMediaMimeTypes.join(",")}
+          accept={enabledMediaMimes(config.upload).join(",")}
         />
       </div>
       {error && <Notice kind="error">{error}</Notice>}
@@ -470,8 +493,8 @@ export default function MediaLibrary({
         </Empty>
       )}
       <p className="form-hint">
-        最多展示 100
-        项匹配结果。媒体访问权限由服务器校验，未发布文章的附件不会成为公开资源。
+        最多展示 {config.media.listLimit}{" "}
+        项匹配结果（可在“设置 → 上传与媒体”调整）。媒体访问权限由服务器校验，未发布文章的附件不会成为公开资源。
       </p>
       {crop && (
         <CropImage
@@ -479,6 +502,7 @@ export default function MediaLibrary({
           onClose={() => setCrop(null)}
           onSaved={(m) => setMedia((prev) => [m, ...prev])}
           postId={postId}
+          options={config.media}
         />
       )}{" "}
       {generate && (
@@ -522,6 +546,7 @@ export default function MediaLibrary({
             <textarea
               rows={5}
               value={prompt}
+              maxLength={TEXT_LIMITS.imagePrompt}
               disabled={busy}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="例如：安静的书房，午后斜照的阳光，低饱和度胶片摄影…"

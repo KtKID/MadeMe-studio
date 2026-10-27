@@ -16,8 +16,12 @@ import {
   Code2,
   Globe2,
   LockKeyhole,
+  Upload,
+  Gauge,
+  ShieldCheck,
+  BookOpen,
 } from "lucide-react";
-import { api, type Settings, Notice, Busy } from "../shared/ui";
+import { api, ApiError, type Settings, Notice, Busy } from "../shared/ui";
 import {
   patchSettingsSchema,
   type AIAction,
@@ -25,6 +29,46 @@ import {
 } from "../../shared/contracts";
 import { settingsPatch, reconcileSettingsResponse } from "./settings-state";
 import { providerLabels, normalizeImageModel } from "./model-options";
+import { ConfigSection, configProblems } from "./ConfigSection";
+import {
+  AI_PARAMS,
+  CONFIG_TABS,
+  DEFAULT_CONFIG,
+  TEXT_LIMITS,
+  type SettingsConfigTab,
+} from "../../modules/config";
+import { clientLog } from "../../modules/log/client";
+const configTabIcons: Record<SettingsConfigTab, typeof Upload> = {
+  media: Upload,
+  ai: Gauge,
+  security: ShieldCheck,
+  reading: BookOpen,
+};
+/** 把服务端 422 的 details（字段路径 + 中文原因）展开成一句可读的提示。 */
+function saveErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.details) {
+    const details = error.details as {
+      problems?: unknown;
+      [key: string]: unknown;
+    };
+    const list = Array.isArray(details)
+      ? details
+      : Array.isArray(details.problems)
+        ? details.problems
+        : [];
+    const messages = list
+      .map((item) =>
+        typeof item === "string"
+          ? item
+          : typeof (item as { message?: unknown })?.message === "string"
+            ? (item as { message: string }).message
+            : "",
+      )
+      .filter(Boolean);
+    if (messages.length) return `保存失败：${messages.join("；")}`;
+  }
+  return (error as Error).message;
+}
 const skins = [
   {
     id: "amber",
@@ -70,6 +114,8 @@ export default function SettingsPanel({
 }) {
   useNavigationReady("/studio/settings");
   const { active, navigationKey } = useStudioPane();
+  // 旧服务端/测试数据缺少 limits 时按默认值补齐，避免配置页崩溃。
+  initial = initial.limits ? initial : { ...initial, limits: DEFAULT_CONFIG };
   const [settings, setSettings] = useState(initial);
   const baseline = useRef(initial);
   const draftRef = useRef(initial);
@@ -147,10 +193,28 @@ export default function SettingsPanel({
       providers: captured.providers.map(normalizeImageModel),
     };
     setError("");
+    const limitProblems = configProblems(submitted.limits);
+    if (Object.keys(limitProblems).length) {
+      // 不静默修正：直接告诉作者哪一项、为什么不能保存。
+      clientLog("info", "settings.config_invalid", {
+        fields: Object.keys(limitProblems).join(","),
+      });
+      setError(`无法保存：${Object.values(limitProblems).join("；")}`);
+      return;
+    }
     try {
-      const patch = patchSettingsSchema.parse(
+      const checked = patchSettingsSchema.safeParse(
         settingsPatch(baseline.current, submitted),
       );
+      if (!checked.success) {
+        setError(
+          `无法保存：${checked.error.issues
+            .map((issue) => `${issue.path.join(".") || "设置"}：${issue.message}`)
+            .join("；")}`,
+        );
+        return;
+      }
+      const patch = checked.data;
       if (!Object.keys(patch).length) {
         setMessage("没有未保存的设置。");
         return;
@@ -187,7 +251,7 @@ export default function SettingsPanel({
           : "设置已保存，站点已使用新配置。",
       );
     } catch (error) {
-      setError((error as Error).message);
+      setError(saveErrorMessage(error));
     } finally {
       saveLock.current = false;
       setBusy(false);
@@ -239,6 +303,11 @@ export default function SettingsPanel({
             { id: "models", name: "AI 模型", icon: SlidersHorizontal },
             { id: "prompts", name: "提示词", icon: Sparkles },
             { id: "code", name: "自定义代码", icon: Code2 },
+            ...CONFIG_TABS.map((t) => ({
+              id: t.id,
+              name: t.label,
+              icon: configTabIcons[t.id],
+            })),
           ].map((t) => (
             <button
               key={t.id}
@@ -263,7 +332,7 @@ export default function SettingsPanel({
                   <input
                     value={settings.siteTitle}
                     onChange={(e) => change("siteTitle", e.target.value)}
-                    maxLength={80}
+                    maxLength={TEXT_LIMITS.siteTitle}
                   />
                 </label>
                 <label>
@@ -272,7 +341,7 @@ export default function SettingsPanel({
                     rows={3}
                     value={settings.tagline}
                     onChange={(e) => change("tagline", e.target.value)}
-                    maxLength={240}
+                    maxLength={TEXT_LIMITS.tagline}
                   />
                 </label>
                 <div className="field-heading">
@@ -566,9 +635,9 @@ export default function SettingsPanel({
                       Temperature
                       <input
                         type="number"
-                        min="0"
-                        max="2"
-                        step="0.1"
+                        min={AI_PARAMS.temperature.min}
+                        max={AI_PARAMS.temperature.max}
+                        step={AI_PARAMS.temperature.step}
                         value={p.temperature}
                         onChange={(e) =>
                           provider(i, { temperature: +e.target.value })
@@ -579,8 +648,8 @@ export default function SettingsPanel({
                       最大输出 Token
                       <input
                         type="number"
-                        min="16"
-                        max="16384"
+                        min={AI_PARAMS.maxTokens.min}
+                        max={AI_PARAMS.maxTokens.max}
                         value={p.maxTokens}
                         onChange={(e) =>
                           provider(i, { maxTokens: +e.target.value })
@@ -600,8 +669,8 @@ export default function SettingsPanel({
                       name: "新的写作模型",
                       kind: "openai",
                       model: "",
-                      temperature: 0.7,
-                      maxTokens: 2048,
+                      temperature: AI_PARAMS.temperature.default,
+                      maxTokens: AI_PARAMS.maxTokens.default,
                       configured: false,
                     },
                   ])
@@ -748,6 +817,14 @@ export default function SettingsPanel({
                 />
               )}
             </>
+          )}
+          {CONFIG_TABS.some((t) => t.id === tab) && (
+            <ConfigSection
+              tab={tab as SettingsConfigTab}
+              config={settings.limits}
+              problems={configProblems(settings.limits)}
+              onChange={(limits) => change("limits", limits)}
+            />
           )}
         </section>
       </div>

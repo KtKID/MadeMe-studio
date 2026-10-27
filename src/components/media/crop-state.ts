@@ -1,3 +1,4 @@
+import { DEFAULT_CONFIG } from "../../modules/config/defaults";
 /** 只有当前配置下已解码并绘制的图像能导出，防止空白画布与过期加载误报成功。 */
 export class CropRenderGuard {
   private currentKey: string | null = null;
@@ -47,6 +48,8 @@ export function cropGeometry(
   zoom: number,
   x: number,
   y: number,
+  /** 输出宽度，来自设置页“上传与媒体 → 裁剪输出宽度”。 */
+  outputWidth = DEFAULT_CONFIG.media.cropOutputWidth,
 ) {
   if (width <= 0 || height <= 0 || !Number.isFinite(width + height))
     throw new Error("图片尺寸无效。");
@@ -63,7 +66,7 @@ export function cropGeometry(
     sy: ((height - sh) * Math.max(0, Math.min(y, 100))) / 100,
     sw,
     sh,
-    width: 1200,
-    height: Math.round(1200 / r),
+    width: outputWidth,
+    height: Math.round(outputWidth / r),
   };
 }

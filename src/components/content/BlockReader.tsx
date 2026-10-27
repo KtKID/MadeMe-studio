@@ -1,4 +1,5 @@
-import type { CSSProperties, ReactNode } from "react";
+import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
+import { DEFAULT_CONFIG, type ReadingConfig } from "../../modules/config";
 import { safeUrl } from "../shared/ui";
 import {
   parseEmbed,
@@ -109,6 +110,9 @@ export function embedUrl(
     embed: result.match.playerUrl,
   };
 }
+/** 阅读相关配置（设置页“嵌入与阅读”）；未提供时使用默认值。 */
+export type ReaderOptions = Pick<ReadingConfig, "disabledEmbeds" | "xInitialHeight">;
+const ReaderConfig = createContext<ReaderOptions>(DEFAULT_CONFIG.reading);
 /**
  * 按 src/modules/embed 注册表渲染嵌入：iframe 类用提供方配置的属性，link 类渲染安全跳转卡片。
  * silent 用于编辑器弹窗的实时预览，避免每次按键都写拒绝日志。
@@ -120,6 +124,7 @@ export function SafeEmbed({
   url: unknown;
   silent?: boolean;
 }) {
+  const options = useContext(ReaderConfig);
   const result = parseEmbed(url);
   if (!result.ok) {
     if (!silent) reportEmbedRejection("reader", result);
@@ -130,6 +135,25 @@ export function SafeEmbed({
     );
   }
   const { provider, playerUrl, url: href, canonicalUrl, target } = result.match;
+  // 设置页关闭的平台：已有文章里的嵌入不加载第三方 iframe，降级为跳转卡片。
+  if (options.disabledEmbeds.includes(provider.id))
+    return (
+      <a
+        className="x-embed"
+        data-embed={provider.id}
+        data-embed-disabled=""
+        href={canonicalUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <span className="x-logo">↗</span>
+        <span>
+          {`在 ${provider.name} 查看`}
+          <small>{canonicalUrl}</small>
+        </span>
+        <span>↗</span>
+      </a>
+    );
   if (provider.kind === "iframe" && provider.frame && playerUrl) {
     const frame = provider.frame;
     if (frame.initialHeight)
@@ -146,7 +170,7 @@ export function SafeEmbed({
             referrerPolicy={frame.referrerPolicy}
             data-auto-height=""
             data-provider={provider.id}
-            style={{ height: frame.initialHeight }}
+            style={{ height: options.xInitialHeight }}
           />
           <figcaption>
             <a href={canonicalUrl} target="_blank" rel="noopener noreferrer">
@@ -468,7 +492,20 @@ function One({ block }: { block: Block }) {
     </div>
   );
 }
-export default function BlockReader({ blocks }: { blocks: unknown[] }) {
+export default function BlockReader({
+  blocks,
+  reading,
+}: {
+  blocks: unknown[];
+  /** 只在最外层传入；嵌套的子块通过 context 继承。 */
+  reading?: ReaderOptions;
+}) {
+  if (reading)
+    return (
+      <ReaderConfig.Provider value={reading}>
+        <BlockReader blocks={blocks} />
+      </ReaderConfig.Provider>
+    );
   const valid = blocks.filter(
     (block): block is Block =>
       !!block && typeof block === "object" && !Array.isArray(block),

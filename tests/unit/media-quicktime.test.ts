@@ -6,10 +6,15 @@ import BlockReader from "../../src/components/content/BlockReader";
 import { isQuickTime, validateMedia } from "../../src/server/media/service";
 import {
   acceptedMediaMimeTypes,
-  acceptedVideoFormatsLabel,
-  MAX_MEDIA_BYTES,
   mediaUploadProblem,
 } from "../../src/shared/contracts";
+import {
+  DEFAULT_CONFIG,
+  formatsLabel,
+  uploadLimitBytes,
+} from "../../src/modules/config";
+const MAX_MEDIA_BYTES = uploadLimitBytes(DEFAULT_CONFIG.upload, "video");
+const acceptedVideoFormatsLabel = formatsLabel(DEFAULT_CONFIG.upload, "video");
 
 const fixture = new Uint8Array(
   readFileSync(new URL("../fixtures/screen-recording.mov", import.meta.url)),

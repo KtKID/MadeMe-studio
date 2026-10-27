@@ -1,5 +1,7 @@
 import { clientLog } from "../log/client";
 import { embedProviders } from "./registry";
+import { EMBED_HEIGHT_RANGE } from "../config/limits";
+import { DEFAULT_CONFIG } from "../config/defaults";
 
 /** 需要按内容调整高度的提供方来源（目前只有 X：https://platform.twitter.com）。 */
 const autoHeightOrigins = new Set(
@@ -7,8 +9,8 @@ const autoHeightOrigins = new Set(
     .filter((p) => p.frame?.initialHeight)
     .flatMap((p) => p.frameOrigins),
 );
-const MIN_HEIGHT = 80;
-const MAX_HEIGHT = 4000;
+const MIN_HEIGHT = EMBED_HEIGHT_RANGE.min;
+const MAX_HEIGHT = EMBED_HEIGHT_RANGE.max;
 const installed = new WeakSet<Window>();
 
 /**
@@ -46,7 +48,10 @@ export function readResizeMessage(data: unknown): number | null {
  */
 export function installEmbedAutoHeight(
   win: Window = window,
-  { fallbackMs = 12_000 }: { fallbackMs?: number } = {},
+  // 默认值来自设置页“嵌入与阅读 → X 动态加载等待”；阅读页会传入当前配置。
+  {
+    fallbackMs = DEFAULT_CONFIG.reading.xFallbackSeconds * 1000,
+  }: { fallbackMs?: number } = {},
 ) {
   if (!installed.has(win)) {
     installed.add(win);

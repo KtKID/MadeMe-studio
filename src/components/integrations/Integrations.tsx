@@ -22,11 +22,19 @@ import {
   type APIToken,
   type TokenScope,
 } from "../../shared/contracts";
+import {
+  DEFAULT_CONFIG,
+  TEXT_LIMITS,
+  type SecurityConfig,
+} from "../../modules/config";
 export default function Integrations({
   authenticated,
   initialTokens,
   initialError = "",
+  security = DEFAULT_CONFIG.security,
 }: {
+  /** 设置页“账号与安全”：令牌默认/最长有效天数。 */
+  security?: SecurityConfig;
   authenticated: boolean;
   initialTokens?: APIToken[];
   initialError?: string;
@@ -70,7 +78,7 @@ export default function Integrations({
     "posts:read",
     "posts:write",
   ]);
-  const [days, setDays] = useState(90);
+  const [days, setDays] = useState(security.tokenDefaultDays);
   const [busy, setBusy] = useState(false);
   const mutationLock = useRef(false);
   const [copied, setCopied] = useState(false);
@@ -91,9 +99,9 @@ export default function Integrations({
       scopes,
       expiresInDays: days,
     });
-    if (!input.success) {
+    if (!input.success || days > security.tokenMaxDays) {
       setError(
-        "请填写 1–80 字用途名称、至少一种权限，以及 1–365 的整数有效天数。",
+        `请填写 1–${TEXT_LIMITS.tokenName} 字用途名称、至少一种权限，以及 1–${security.tokenMaxDays} 的整数有效天数。`,
       );
       return;
     }
@@ -302,6 +310,7 @@ export default function Integrations({
             用途名称
             <input
               value={name}
+              maxLength={TEXT_LIMITS.tokenName}
               onChange={(e) => setName(e.target.value)}
               placeholder="例如：我的 Obsidian"
             />
@@ -311,7 +320,7 @@ export default function Integrations({
             <input
               type="number"
               min="1"
-              max="365"
+              max={security.tokenMaxDays}
               value={days}
               onChange={(e) => setDays(+e.target.value)}
             />

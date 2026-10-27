@@ -1,3 +1,4 @@
+import { TEXT_LIMITS } from "../../modules/config/limits";
 import { useEffect, useRef, useState, type SubmitEvent } from "react";
 import type { z } from "zod";
 import { authSessionResponseSchema, safeReturnTo } from "../../shared/auth";
@@ -176,7 +177,7 @@ export default function LoginPanel({
             name="email"
             type="email"
             autoComplete="username"
-            maxLength={254}
+            maxLength={TEXT_LIMITS.email}
             required
             disabled={busy || !ready}
           />
@@ -187,7 +188,7 @@ export default function LoginPanel({
             name="password"
             type="password"
             autoComplete="current-password"
-            maxLength={1024}
+            maxLength={TEXT_LIMITS.loginPassword}
             required
             disabled={busy || !ready}
           />

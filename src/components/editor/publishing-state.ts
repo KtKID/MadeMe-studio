@@ -1,3 +1,4 @@
+import { SESSION_SECRET_MIN_LENGTH } from "../../modules/config/limits";
 import type { Visibility } from "../../shared/contracts";
 export function initialPublishVisibility(
   visibility: Visibility | undefined,
@@ -17,7 +18,7 @@ export function publicationAvailability(
     ? {
         allowed: false,
         message:
-          "密码发布尚未配置：请在服务器 Secrets 中安全设置至少 32 字符的 SESSION_SECRET。现有草稿仍可保存；不会自动改为公开。",
+          `密码发布尚未配置：请在服务器 Secrets 中安全设置至少 ${SESSION_SECRET_MIN_LENGTH} 字符的 SESSION_SECRET。现有草稿仍可保存；不会自动改为公开。`,
       }
     : { allowed: true, message: "" };
 }

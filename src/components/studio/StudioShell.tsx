@@ -282,6 +282,7 @@ export default function StudioShell({
           </div>
           <section className="content-panel media-panel">
             <MediaLibrary
+              config={settings.limits}
               initialMedia={initial.initialMedia}
               initialError={initial.mediaError}
               imageConfigured={settings.providers.some(
@@ -298,6 +299,7 @@ export default function StudioShell({
           onSaved={onSaved}
         />,
         <Integrations
+          security={settings.limits?.security}
           authenticated
           initialTokens={initial.initialTokens}
           initialError={initial.tokensError}

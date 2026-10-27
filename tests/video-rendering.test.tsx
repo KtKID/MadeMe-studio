@@ -4,7 +4,9 @@ import BlockReader, {
   videoSource,
 } from "../src/components/content/BlockReader";
 import { safeUrl } from "../src/components/shared/ui";
-import { MAX_MEDIA_BYTES, mediaUploadProblem } from "../src/shared/contracts";
+import { mediaUploadProblem } from "../src/shared/contracts";
+import { DEFAULT_CONFIG, uploadLimitBytes } from "../src/modules/config";
+const MAX_MEDIA_BYTES = uploadLimitBytes(DEFAULT_CONFIG.upload, "video");
 
 const render = (url: string) =>
   renderToStaticMarkup(

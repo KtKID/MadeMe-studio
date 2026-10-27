@@ -62,7 +62,11 @@ const capabilities = authenticated
               client:load
             />
           )}
-          <article id="article-reading" class="article-reading">
+          <article
+            id="article-reading"
+            class="article-reading"
+            data-embed-fallback-ms={settings.limits.reading.xFallbackSeconds * 1000}
+          >
             <header class="reading-heading">
               <div class="eyebrow">{post.category || "PERSONAL JOURNAL"}</div>
               <h1>{post.title}</h1>
@@ -85,7 +89,7 @@ const capabilities = authenticated
               </figure>
             )}
             <div class="reading-prose">
-              <BlockReader blocks={post.blocks} />
+              <BlockReader blocks={post.blocks} reading={settings.limits.reading} />
             </div>
             <footer class="article-end">
               <span class="end-mark">✳</span>
@@ -124,6 +128,17 @@ const capabilities = authenticated
 <script>
   // X 等嵌入的高度自适应与加载失败降级（只是第一方脚本，不加载第三方脚本）。
   import { installEmbedAutoHeight } from "../../modules/embed/autoHeight";
-  installEmbedAutoHeight();
-  document.addEventListener("astro:page-load", () => installEmbedAutoHeight());
+  // 等待时长来自设置页“嵌入与阅读 → X 动态加载等待”，由服务端写在文章元素的 data 属性上。
+  const install = () => {
+    const value = Number(
+      document.querySelector<HTMLElement>("[data-embed-fallback-ms]")?.dataset
+        .embedFallbackMs,
+    );
+    installEmbedAutoHeight(
+      window,
+      Number.isFinite(value) && value > 0 ? { fallbackMs: value } : {},
+    );
+  };
+  install();
+  document.addEventListener("astro:page-load", install);
 </script>

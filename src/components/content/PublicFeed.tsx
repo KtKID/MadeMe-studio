@@ -1,14 +1,18 @@
 import { useState } from "react";
 import { ArrowUpRight, Pin, Feather } from "lucide-react";
 import { type Post, SearchBox, date, Empty } from "../shared/ui";
+import { DEFAULT_CONFIG } from "../../modules/config/defaults";
 export default function PublicFeed({
   posts,
   authenticated,
   theme = "paper",
+  cardTags = DEFAULT_CONFIG.reading.cardTags,
 }: {
   posts: Post[];
   authenticated: boolean;
   theme?: "paper" | "ink" | "garden" | "mono";
+  /** 设置页“嵌入与阅读 → 文章卡片显示标签数”。 */
+  cardTags?: number;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
@@ -95,7 +99,7 @@ export default function PublicFeed({
                 </p>
                 <div className="article-card-bottom">
                   <div>
-                    {post.tags.slice(0, 3).map((t) => (
+                    {post.tags.slice(0, cardTags).map((t) => (
                       <span key={t}>#{t}</span>
                     ))}
                   </div>

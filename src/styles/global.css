@@ -3120,3 +3120,56 @@ kbd {
   outline-offset: 4px;
   border-radius: 6px;
 }
+/* 设置页：配置项分组（src/modules/config）。 */
+.config-group {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin-top: 18px;
+}
+.config-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.config-group-heading h3 {
+  margin: 0;
+}
+.config-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.config-input input {
+  max-width: 160px;
+}
+.config-error {
+  color: var(--danger, #b3261e);
+  font-size: 12px;
+}
+.config-field input[aria-invalid="true"] {
+  border-color: var(--danger, #b3261e);
+}
+.config-mime-group {
+  margin: 8px 0 12px;
+}
+.config-mime-group strong {
+  font-size: 12px;
+}
+.deployment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.deployment-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.deployment-list li[data-configured="false"] strong {
+  color: var(--muted);
+  font-weight: 400;
+}

@@ -4,6 +4,7 @@ import {
   postResponseSchema,
   postsResponseSchema,
   settingsResponseSchema,
+  deploymentResponseSchema,
   mediaResponseSchema,
   mediaListResponseSchema,
   aiResponseSchema,
@@ -29,6 +30,8 @@ export function parseApiResponse(
     return identityResponseSchema.parse(data);
   if (path === "/api/settings" && ["GET", "PATCH"].includes(verb))
     return settingsResponseSchema.parse(data);
+  if (path === "/api/deployment" && verb === "GET")
+    return deploymentResponseSchema.parse(data);
   if (path === "/api/posts")
     return (verb === "GET" ? postsResponseSchema : postResponseSchema).parse(
       data,

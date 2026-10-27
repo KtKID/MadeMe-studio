@@ -40,10 +40,15 @@ import {
   date,
 } from "../shared/ui";
 import type { EditorBlock, AIAction, Revision } from "../../shared/contracts";
+import { mediaUploadProblem } from "../../shared/contracts";
 import {
-  acceptedVideoFormatsLabel,
-  mediaUploadProblem,
-} from "../../shared/contracts";
+  DEFAULT_CONFIG,
+  KiB,
+  MAX_DOCUMENT_CHARS,
+  formatBytes,
+  uploadHint,
+  type UploadConfig,
+} from "../../modules/config";
 import { clientCaught, clientLog } from "../../modules/log/client";
 import { SafeEmbed } from "../content/BlockReader";
 import {
@@ -86,18 +91,19 @@ const schema = BlockNoteSchema.create({
  * 媒体块面板文案：视频块同时支持“从电脑上传”和“粘贴链接”（直链文件或嵌入注册表中的平台）。
  * 只覆盖 file_panel，其余沿用 BlockNote 英文默认。
  */
-const blockNoteDictionary = {
+const blockNoteDictionary = (upload: UploadConfig) => ({
   ...blockNoteEn,
   file_panel: {
     upload: {
       ...blockNoteEn.file_panel.upload,
       title: "从电脑上传",
+      // 格式与大小文案由设置页配置生成（src/modules/config uploadHint），不在这里写死数值。
       file_placeholder: {
         ...blockNoteEn.file_panel.upload.file_placeholder,
-        image: "选择图片",
-        video: `选择视频文件（${acceptedVideoFormatsLabel}，≤ 25 MB）`,
-        audio: "选择音频文件",
-        file: "选择文件",
+        image: `选择图片（${uploadHint(upload, "image")}）`,
+        video: `选择视频文件（${uploadHint(upload, "video")}）`,
+        audio: `选择音频文件（${uploadHint(upload, "audio")}）`,
+        file: `选择文件（${uploadHint(upload, "document")}）`,
       },
       upload_error: "上传失败，原因见编辑器顶部提示",
     },
@@ -114,7 +120,7 @@ const blockNoteDictionary = {
       url_placeholder: `文件直链，或 ${videoEmbedProviderNames().join(" / ")} 视频页链接`,
     },
   },
-};
+});
 const actionNames: Record<AIAction, string> = {
   rewrite: "换一种说法",
   polish: "润色文字",
@@ -147,6 +153,8 @@ export default function Editor({
   onClose,
   onPublished,
 }: Props) {
+  // 设置页配置（上传上限、Markdown 导入上限、关闭的嵌入平台等）；旧客户端缺字段时回退默认值。
+  const limits = settings.limits ?? DEFAULT_CONFIG;
   const [current, setCurrent] = useState(post);
   const currentRef = useRef(post);
   const editClock = useRef(new EditClock());
@@ -208,6 +216,10 @@ export default function Editor({
       ? embedCheck.match.canonicalUrl
       : embedCheck.match.url
     : "";
+  // 设置页“嵌入与阅读”里关闭的平台：不允许新插入（已有文章仍可保存，阅读页显示为跳转卡片）。
+  const embedDisabled =
+    embedCheck.ok &&
+    limits.reading.disabledEmbeds.includes(embedCheck.match.provider.id);
   const [videoAdvice, setVideoAdvice] = useState<
     Exclude<VideoAdvice, { action: "normalize" }>[]
   >([]);
@@ -234,14 +246,14 @@ export default function Editor({
   const leaveGuard = leaveGuardRef.current;
   const editor = useCreateBlockNote({
     schema,
-    dictionary: blockNoteDictionary,
+    dictionary: blockNoteDictionary(limits.upload),
     initialContent: post?.blocks.length
       ? (post.blocks as unknown as PartialBlock<typeof schema.blockSchema>[])
       : undefined,
     uploadFile: async (file) => {
       // BlockNote 上传面板吞掉异常、只显示通用“上传失败”，块会以空 url 留在正文里；
       // 因此拒绝原因必须由这里写日志并显示到编辑器提示栏，避免失败静默。
-      const problem = mediaUploadProblem(file);
+      const problem = mediaUploadProblem(file, limits.upload);
       if (problem) {
         clientLog("warn", "editor.upload_rejected", {
           reason: problem.reason,
@@ -585,8 +597,16 @@ export default function Editor({
   }
   async function importMarkdown(file: File | undefined) {
     if (!file || lock.current) return;
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Markdown 文件请小于 2 MB。");
+    // 上限来自设置页“上传与媒体 → Markdown 导入上限”（硬上限与服务端正文字符上限一致）。
+    const importMax = limits.upload.markdownImportMaxKB * KiB;
+    if (file.size > importMax) {
+      clientLog("warn", "editor.import_rejected", {
+        reason: "too_large",
+        size: file.size,
+      });
+      setError(
+        `Markdown 文件请小于 ${formatBytes(importMax)}（可在“设置 → 上传与媒体”调整）。`,
+      );
       if (importInput.current) importInput.current.value = "";
       return;
     }
@@ -603,6 +623,17 @@ export default function Editor({
     try {
       const text = await file.text();
       const parsed = editor.tryParseMarkdownToBlocks(text);
+      // 转换后的正文 JSON 会比 Markdown 大；超过服务端正文上限时现在就提示，而不是保存时才失败。
+      if (JSON.stringify(parsed).length > MAX_DOCUMENT_CHARS) {
+        clientLog("warn", "editor.import_rejected", {
+          reason: "content_too_large",
+          size: file.size,
+        });
+        setError(
+          "这份 Markdown 转换后超过了单篇文章的正文上限，请拆成几篇再导入。",
+        );
+        return;
+      }
       const applied = applyEditorReplacement(
         editClock.current,
         sequence,
@@ -1108,6 +1139,7 @@ export default function Editor({
       {panel === "media" && (
         <Modal title="选一份合适的素材" wide onClose={() => setPanel(null)}>
           <MediaLibrary
+            config={limits}
             postId={current?.id}
             imageConfigured={imageConfigured}
             providers={settings.providers}
@@ -1381,6 +1413,12 @@ export default function Editor({
             </p>
           )}
           {embedCheck.ok && <SafeEmbed url={embedInsertUrl} silent />}
+          {embedDisabled && (
+            <p className="muted" role="status">
+              {embedCheck.ok && embedCheck.match.provider.name}
+              嵌入已在“设置 → 嵌入与阅读”中关闭，不能插入。
+            </p>
+          )}
           {embedValue.trim() && !embedCheck.ok && (
             <p className="muted" role="status">
               {embedRejectMessage(embedCheck.reason)}
@@ -1392,10 +1430,16 @@ export default function Editor({
             </button>
             <button
               className="button primary"
-              disabled={!embedCheck.ok}
+              disabled={!embedCheck.ok || embedDisabled}
               onClick={() => {
                 if (!embedCheck.ok) {
                   reportEmbedRejection("editor", embedCheck);
+                  return;
+                }
+                if (embedDisabled) {
+                  clientLog("info", "editor.embed_disabled", {
+                    provider: embedCheck.match.provider.id,
+                  });
                   return;
                 }
                 editor.insertBlocks(
