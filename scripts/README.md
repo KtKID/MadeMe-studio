@@ -16,3 +16,5 @@ npm run test:worker
 ```
 
 后两条命令自动建表及启动服务，必须串行执行并预留回环端口 4321/4322，不需提前启动开发服务；不会使用远程数据库或复用开发存储。详见 [Worker 测试](../tests/worker/README.md)。浏览器 E2E 的执行条件与结果另见 [浏览器测试](../tests/e2e/README.md)。
+
+- `test-author-auth-worker.mjs`：构建后通过 `node scripts/test-author-auth-worker.mjs` 运行隔离认证回归；不配置真实凭据，不等同生产身份分发或 HTTPS 浏览器验收。

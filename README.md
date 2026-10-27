@@ -76,3 +76,5 @@ npm run test:integrations
 - [Obsidian 插件](integrations/obsidian-publisher/README.md)
 - [Agent Skill 与 CLI](integrations/agent-publisher/README.md)
 - [集成测试与人工联调清单](integrations/tests/README.md)
+
+- [独立作者登录界面](src/components/auth/README.md)

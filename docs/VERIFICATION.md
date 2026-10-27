@@ -45,3 +45,10 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## 复验入口
 
 见根目录 `package.json` 的 `test`、`check`、`build`、`test:smoke`、`test:worker`、`test:e2e`、`test:integrations`。运行条件见 [部署与运行](DEPLOYMENT.md)，浏览器断言见 [E2E 说明](../tests/e2e/README.md)。请在隔离存储中运行写入型测试，不能指向真实文章或媒体库。
+
+## 独立作者认证增量（2026-10-27）
+
+- 33 个测试文件、177 项自动测试通过；类型检查无错误，生产构建通过。
+- 原真实 Worker/D1/R2 流程、HTTP 冒烟与新增 `node scripts/test-author-auth-worker.mjs` 通过，追加迁移 0002 在隔离本地库应用成功。
+- 新回归覆盖登录/退出、过期与配置轮换、会话撤销、CSRF、限流、Bearer 权限隔离、未配置/不支持 KDF 失败关闭、HTTP 不显示密码表单、SSR 表单显式 POST 与水合前禁用。
+- 本地 Sites 身份夹具只验证应用协议，不证明生产身份分发器安全。独立 HTTPS 浏览器登录、生产 KDF/CPU 验收尚未完成，真实凭据与线上认证模式未配置或切换。
