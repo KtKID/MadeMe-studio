@@ -238,11 +238,15 @@ export function downloadText(
   URL.revokeObjectURL(url);
 }
 export function safeUrl(value: unknown): string | undefined {
-  if (typeof value !== "string") return;
+  // 空串或纯空白不是链接：此前会被解析成占位基址 https://local.invalid/，
+  // 让未完成上传的视频块渲染出一个永远 0:00 的播放器。
+  if (typeof value !== "string" || !value.trim()) return;
   try {
     const u = new URL(value, "https://local.invalid");
     if (!["http:", "https:"].includes(u.protocol)) return;
     if (value.startsWith("/") && !value.startsWith("//")) return value;
+    // 相对路径（如 "foo"）同样只会落到占位基址，视为无效。
+    if (u.origin === "https://local.invalid") return;
     return u.href;
   } catch {
     return;

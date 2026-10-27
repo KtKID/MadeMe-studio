@@ -40,6 +40,8 @@ import {
   date,
 } from "../shared/ui";
 import type { EditorBlock, AIAction, Revision } from "../../shared/contracts";
+import { mediaUploadProblem } from "../../shared/contracts";
+import { clientLog } from "../../modules/log/client";
 import { embedUrl, SafeEmbed } from "../content/BlockReader";
 import MediaLibrary from "../media/MediaLibrary";
 import { resolveMode } from "../shared/appearance";
@@ -173,14 +175,32 @@ export default function Editor({
       ? (post.blocks as unknown as PartialBlock<typeof schema.blockSchema>[])
       : undefined,
     uploadFile: async (file) => {
+      // BlockNote 上传面板吞掉异常、只显示通用“上传失败”，块会以空 url 留在正文里；
+      // 因此拒绝原因必须由这里写日志并显示到编辑器提示栏，避免失败静默。
+      const problem = mediaUploadProblem(file);
+      if (problem) {
+        clientLog("warn", "editor.upload_rejected", {
+          reason: problem.reason,
+          mime: file.type || "unknown",
+          size: file.size,
+        });
+        setError(problem.message);
+        throw new Error(problem.message);
+      }
       const form = new FormData();
       form.append("file", file);
       if (current?.id) form.append("postId", current.id);
-      const { media } = await api<{ media: Media }>("/api/media", {
-        method: "POST",
-        body: form,
-      });
-      return media.url;
+      try {
+        const { media } = await api<{ media: Media }>("/api/media", {
+          method: "POST",
+          body: form,
+        });
+        return media.url;
+      } catch (e) {
+        // api() 已经记录 api.request_failed / api.network_failed，这里只负责展示。
+        setError(`上传失败：${(e as Error).message}`);
+        throw e;
+      }
     },
   });
   useEffect(() => {

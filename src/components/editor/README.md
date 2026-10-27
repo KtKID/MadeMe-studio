@@ -30,3 +30,7 @@
 载入最新版本、历史恢复和 Markdown 文件读取都捕获请求开始时的编辑序号。响应迟到且期间有新输入时，不替换本地正文/标题，不清 dirty；历史恢复已写入服务器时，仅跟进新的 CAS 版本。保存、发布、恢复、载入、导入、撤下发布与 AI 请求共用同步事务锁，避免同一事件批次重复写入。发布过程的可见性/密码选择固定，不能显示已经切换、实际仍发布旧选项。
 
 AI 面板关闭/重开使旧请求的建议失效；改变处理动作会清除旧建议，禁止把旧操作的结果应用到新目标。单测见 `editor-replacement.test.ts`、`ai-request-state.test.ts`；真实 DOM 点击由 `tests/ui/editor-clicks.test.tsx` 覆盖，BlockNote 和网络在该层为隔离替身，不等于真实供应商或浏览器排版验收。
+
+## 媒体上传失败提示
+
+BlockNote 上传面板会吞掉 `uploadFile` 抛出的异常、只显示通用“上传失败”，块以空 url 留在正文里。`uploadFile` 因此先用共享的 `mediaUploadProblem()`（`src/shared/contracts.ts`，与服务端共用 `MAX_MEDIA_BYTES` = 25 MB 与 MIME 清单）做上传前检查：拒绝时写 `editor.upload_rejected` 日志（只含 reason/mime/size，不含文件名）并在编辑器提示栏显示中文原因；服务端拒绝或网络失败由 `api()` 记录 `api.request_failed` / `api.network_failed`，编辑器显示“上传失败：<原因>”。视频只支持 MP4/WebM，MOV/MKV 需先转码。

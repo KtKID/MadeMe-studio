@@ -501,3 +501,31 @@ export const acceptedMediaMimeTypes = [
   "text/markdown",
   "text/csv",
 ] as const;
+/** 单个媒体文件上限；服务端 validateMedia 与编辑器上传前检查共用。 */
+export const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
+const acceptedMediaMimeSet = new Set<string>(acceptedMediaMimeTypes);
+export type MediaUploadProblem = {
+  reason: "empty" | "too_large" | "unsupported_type";
+  message: string;
+};
+/**
+ * 上传前在浏览器端给出可读的拒绝原因。BlockNote 上传面板只会显示通用的
+ * “上传失败”，因此必须由编辑器自己把原因展示出来；服务端仍会再次校验。
+ */
+export function mediaUploadProblem(file: {
+  size: number;
+  type: string;
+}): MediaUploadProblem | null {
+  if (!file.size) return { reason: "empty", message: "文件为空，无法上传。" };
+  if (file.size > MAX_MEDIA_BYTES)
+    return {
+      reason: "too_large",
+      message: `文件大小 ${(file.size / 1024 / 1024).toFixed(1)} MB，超过 25 MB 上限。视频请压缩后再上传，或改用“嵌入”插入 YouTube 链接。`,
+    };
+  if (!acceptedMediaMimeSet.has(file.type))
+    return {
+      reason: "unsupported_type",
+      message: `暂不支持该文件格式（${file.type || "未知类型"}）。视频仅支持 MP4、WebM，音频支持 MP3、WAV、OGG、M4A。`,
+    };
+  return null;
+}

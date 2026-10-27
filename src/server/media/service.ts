@@ -1,5 +1,9 @@
 import { logCaught } from "../../modules/log/server";
-import { acceptedMediaMimeTypes, type Media } from "../../shared/contracts";
+import {
+  acceptedMediaMimeTypes,
+  MAX_MEDIA_BYTES,
+  type Media,
+} from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
 import { AppError, notFound } from "../errors";
 import type { Identity } from "../auth/identity";
@@ -20,7 +24,7 @@ type MediaRow = {
   prompt: string | null;
   created_at: string;
 };
-const MAX_BYTES = 25 * 1024 * 1024;
+const MAX_BYTES = MAX_MEDIA_BYTES;
 const allowed = new Set<string>(acceptedMediaMimeTypes);
 export function validateMedia(bytes: Uint8Array, mime: string) {
   if (!bytes.length || bytes.length > MAX_BYTES)

@@ -23,3 +23,7 @@
 协议依据：[RFC 9110 §14](https://www.rfc-editor.org/rfc/rfc9110.html#section-14)、[Cloudflare R2 Workers 范围读取](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/#ranged-reads)。`tests/backend/media-range.test.ts` 使用生成的非用户音频头字节，覆盖范围字节、权限顺序、真实长度、并发大小变化与回退语义。
 
 `HEAD /api/files/:id` 与 GET 使用相同权限判断，只读取 R2 元数据，忽略 Range 并返回完整长度、无正文。
+
+## 上限常量
+
+`MAX_BYTES` 取自 `src/shared/contracts.ts` 的 `MAX_MEDIA_BYTES`，编辑器上传前检查（`mediaUploadProblem`）与服务端 `validateMedia` 共用同一上限与 MIME 清单，修改时只改一处。

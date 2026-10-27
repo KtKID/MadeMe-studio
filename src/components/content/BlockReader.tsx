@@ -157,6 +157,51 @@ export function SafeEmbed({ url }: { url: unknown }) {
     </a>
   );
 }
+const directVideoPath = /\.(mp4|m4v|webm|ogv|ogg|mov)$/i;
+/**
+ * BlockNote 视频块的“嵌入”页签接受任意链接。只有站内媒体或直链视频文件交给
+ * <video>；YouTube 页面改用 SafeEmbed；其他网页（如 Bilibili 播放页）无法被
+ * <video> 播放，降级为跳转卡片，而不是渲染一个永远 0:00 的播放器。
+ */
+export function videoSource(
+  url: string | undefined,
+):
+  | { kind: "file"; src: string }
+  | { kind: "embed"; url: string }
+  | { kind: "link"; url: string; host: string }
+  | null {
+  if (!url) return null;
+  if (url.startsWith("/")) return { kind: "file", src: url };
+  if (embedUrl(url)?.type === "youtube") return { kind: "embed", url };
+  try {
+    const u = new URL(url);
+    if (directVideoPath.test(u.pathname)) return { kind: "file", src: url };
+    return { kind: "link", url: u.href, host: u.hostname };
+  } catch {
+    return null;
+  }
+}
+function VideoBlock({ url }: { url: string | undefined }) {
+  const source = videoSource(url);
+  if (!source) return null;
+  if (source.kind === "file")
+    return <video src={source.src} controls preload="metadata" />;
+  if (source.kind === "embed") return <SafeEmbed url={source.url} />;
+  return (
+    <a
+      className="x-embed video-link"
+      href={source.url}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <span className="x-logo">▶</span>
+      <span>
+        在 {source.host} 观看视频<small>{source.url}</small>
+      </span>
+      <span>↗</span>
+    </a>
+  );
+}
 function safeSpan(value: unknown) {
   return typeof value === "number" &&
     Number.isInteger(value) &&
@@ -351,7 +396,7 @@ function One({ block }: { block: Block }) {
       ) : null;
       break;
     case "video":
-      element = url ? <video src={url} controls preload="metadata" /> : null;
+      element = <VideoBlock url={url} />;
       break;
     case "audio":
       element = url ? <audio src={url} controls preload="metadata" /> : null;
