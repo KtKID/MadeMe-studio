@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { PenLine } from "lucide-react";
-import Editor from "./Editor";
+// 阅读页先呈现轻量作者入口，点击后才加载完整编辑器。
+const Editor = lazy(() => import("./Editor"));
 import { api, type Post, type Settings, Notice, Busy } from "../shared/ui";
 /** 阅读始终保留服务端生成的快照；只有作者主动编辑时才请求最新草稿。 */
 export default function InlineEditor({
@@ -47,19 +48,23 @@ export default function InlineEditor({
     <>
       {error && <Notice kind="error">{error}</Notice>}
       {post ? (
-        <Editor
-          post={post}
-          settings={settings}
-          authenticated
-          aiConfigured={aiConfigured}
-          imageConfigured={imageConfigured}
-          passwordConfigured={passwordConfigured}
-          inline
-          onClose={close}
-          onPublished={(value) => {
-            publishedSlug.current = value.slug;
-          }}
-        />
+        <Suspense
+          fallback={<div className="loading-panel">正在打开编辑器…</div>}
+        >
+          <Editor
+            post={post}
+            settings={settings}
+            authenticated
+            aiConfigured={aiConfigured}
+            imageConfigured={imageConfigured}
+            passwordConfigured={passwordConfigured}
+            inline
+            onClose={close}
+            onPublished={(value) => {
+              publishedSlug.current = value.slug;
+            }}
+          />
+        </Suspense>
       ) : (
         <div className="author-reading-bar">
           <span>你正在查看读者看到的版本</span>

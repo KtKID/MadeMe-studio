@@ -3,17 +3,32 @@ import type { BootstrapResponse, Post, Settings } from "../shared/contracts";
 import { getEnv, type RequestContext } from "./runtime";
 import { authenticate, ownerConfigured } from "./auth/identity";
 import { canReadPost } from "./auth/access";
-import { D1PostRepository } from "./content/repository";
+import { D1PostRepository, type StoredPost } from "./content/repository";
 import { publicPosts } from "./content/service";
 import { readSettings, redactSettings, providerKey } from "./settings";
 export async function loadPageData(
   context: RequestContext,
   publicOnly = false,
+  options:
+    { posts: "none" | "single"; id?: string | null } | undefined = undefined,
 ): Promise<BootstrapResponse> {
   const env = getEnv(context);
-  const identity = await authenticate(context.request, env);
-  const settings = await readSettings(env);
-  const rows = env.DB ? await new D1PostRepository(env.DB).list() : [];
+  // 身份与站点设置互不依赖；避免每次导航串行等待数据库。
+  const [identity, settings] = await Promise.all([
+    authenticate(context.request, env),
+    readSettings(env),
+  ]);
+  let rows: StoredPost[] = [];
+  if (env.DB && options?.posts !== "none") {
+    const repository = new D1PostRepository(env.DB);
+    if (options?.posts === "single") {
+      // 后台编辑仅查询目标文章，不为未授权访问读取草稿。
+      if (identity.owner && options.id) {
+        const row = await repository.get(options.id);
+        if (row) rows = [row];
+      }
+    } else rows = await repository.list();
+  }
   return {
     posts:
       identity.owner && !publicOnly

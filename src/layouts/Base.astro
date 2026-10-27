@@ -1,7 +1,9 @@
 ---
 import "../styles/global.css";
+import { ClientRouter } from "astro:transitions";
 import { accentOverrideStyle } from "../components/shared/appearance";
 interface Props {
+  clientNavigation?: boolean;
   title?: string;
   description?: string;
   theme?: string;
@@ -11,6 +13,7 @@ interface Props {
   accent?: string | null;
 }
 const {
+  clientNavigation = false,
   title = "MadeMe · 写作与发布",
   description = "一个安静的地方，写下值得分享的事。",
   theme = "paper",
@@ -33,29 +36,41 @@ const accentStyle = accentOverrideStyle(accent);
 >
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, interactive-widget=resizes-content"
+    />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#f8f7f3" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
-    <script is:inline>
+    {clientNavigation && <ClientRouter fallback="swap" />}
+    <script is:inline data-astro-rerun>
       // 首屏与系统模式保持一致；不保存身份或敏感信息。
-      const root = document.documentElement;
-      const preference = window.matchMedia("(prefers-color-scheme: dark)");
-      const applyMode = () => {
-        root.dataset.colorMode =
-          root.dataset.mode === "system"
-            ? preference.matches
-              ? "dark"
-              : "light"
-            : root.dataset.mode;
-      };
-      applyMode();
-      preference.addEventListener("change", applyMode);
-      new MutationObserver(applyMode).observe(root, {
-        attributes: true,
-        attributeFilter: ["data-mode"],
-      });
+      (() => {
+        window.__mademeModeCleanup?.();
+        const root = document.documentElement;
+        const preference = window.matchMedia("(prefers-color-scheme: dark)");
+        const applyMode = () => {
+          root.dataset.colorMode =
+            root.dataset.mode === "system"
+              ? preference.matches
+                ? "dark"
+                : "light"
+              : root.dataset.mode;
+        };
+        applyMode();
+        preference.addEventListener("change", applyMode);
+        const observer = new MutationObserver(applyMode);
+        observer.observe(root, {
+          attributes: true,
+          attributeFilter: ["data-mode"],
+        });
+        window.__mademeModeCleanup = () => {
+          preference.removeEventListener("change", applyMode);
+          observer.disconnect();
+        };
+      })();
     </script>
   </head>
   <body>

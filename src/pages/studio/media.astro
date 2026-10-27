@@ -2,7 +2,7 @@
 import Studio from "../../layouts/Studio.astro";
 import MediaLibrary from "../../components/media/MediaLibrary";
 import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro);
+const data = await loadPageData(Astro, false, { posts: "none" });
 ---
 
 <Studio title="媒体库" active="media" settings={data.settings}>

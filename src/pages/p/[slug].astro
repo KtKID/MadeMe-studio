@@ -13,7 +13,7 @@ if (!canIndexPost(post))
   Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
 if (!post && !locked) Astro.response.status = 404;
 const capabilities = authenticated
-  ? (await loadPageData(Astro)).capabilities
+  ? (await loadPageData(Astro, false, { posts: "none" })).capabilities
   : null;
 ---
 
@@ -59,7 +59,7 @@ const capabilities = authenticated
               aiConfigured={capabilities.aiConfigured}
               imageConfigured={capabilities.imageConfigured}
               passwordConfigured={capabilities.passwordConfigured ?? false}
-              client:only="react"
+              client:load
             />
           )}
           <article id="article-reading" class="article-reading">

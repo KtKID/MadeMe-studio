@@ -48,6 +48,8 @@ export async function api<T>(
 export function date(value: string | null | undefined) {
   return value
     ? new Intl.DateTimeFormat("zh-CN", {
+        // SSR 与浏览器使用同一作者时区，避免 hydration 日期不同而重建整块界面。
+        timeZone: "Asia/Shanghai",
         year: "numeric",
         month: "short",
         day: "numeric",

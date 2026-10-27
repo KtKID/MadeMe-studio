@@ -2,7 +2,7 @@
 import Studio from "../../layouts/Studio.astro";
 import Integrations from "../../components/integrations/Integrations";
 import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro);
+const data = await loadPageData(Astro, false, { posts: "none" });
 ---
 
 <Studio title="连接与发布" active="integrations" settings={data.settings}>

@@ -2,7 +2,7 @@
 import Studio from "../../layouts/Studio.astro";
 import Editor from "../../components/editor/Editor";
 import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro);
+const data = await loadPageData(Astro, false, { posts: "none" });
 ---
 
 <Studio title="写新文章" settings={data.settings}>

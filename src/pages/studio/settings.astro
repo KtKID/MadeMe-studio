@@ -2,7 +2,7 @@
 import Studio from "../../layouts/Studio.astro";
 import SettingsPanel from "../../components/settings/SettingsPanel";
 import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro);
+const data = await loadPageData(Astro, false, { posts: "none" });
 ---
 
 <Studio title="站点设置" active="settings" settings={data.settings}>

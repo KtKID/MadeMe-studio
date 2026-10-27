@@ -2,8 +2,8 @@
 import Studio from "../../layouts/Studio.astro";
 import Editor from "../../components/editor/Editor";
 import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro);
 const id = Astro.url.searchParams.get("id");
+const data = await loadPageData(Astro, false, { posts: "single", id });
 const post = data.capabilities.authenticated
   ? data.posts.find((p) => p.id === id)
   : undefined;
