@@ -201,20 +201,79 @@ export async function serveMedia(
     }
     if (!permitted) throw notFound();
   }
-  const object = await env.BUCKET.get(row.object_key);
-  if (!object) throw notFound();
+  // 只在访问检查通过后处理范围；未授权者不能通过 416 获知私有文件大小。
+  const rawRange =
+    request.method === "GET" && !request.headers.has("If-Range")
+      ? request.headers.get("Range")
+      : null;
+  // 超长输入按不支持的范围忽略，限制大整数解析成本。
+  const match =
+    rawRange && rawRange.length <= 1024
+      ? rawRange.match(/^bytes=(\d*)-(\d*)$/i)
+      : null;
+  const validRange =
+    match &&
+    (match[1] || match[2]) &&
+    !(match[1] && match[2] && BigInt(match[1]) > BigInt(match[2]));
+  let range: { offset: number; length: number } | undefined;
+  let size: number;
+  let body: ReadableStream | null = null;
+  const headers = new Headers({
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "private, no-store",
+    Vary: "Cookie, Authorization",
+  });
+  if (validRange || request.method === "HEAD") {
+    const metadata = await env.BUCKET.head(row.object_key);
+    if (!metadata) throw notFound();
+    size = metadata.size;
+    if (validRange) {
+      // 使用 BigInt 比较任意长十进制输入，避免溢出改变范围语义。
+      const total = BigInt(size);
+      const start = match[1]
+        ? BigInt(match[1])
+        : total - (BigInt(match[2]) < total ? BigInt(match[2]) : total);
+      const requestedEnd = match[1] && match[2] ? BigInt(match[2]) : total - 1n;
+      const end = requestedEnd < total ? requestedEnd : total - 1n;
+      if (start >= total || end < start) {
+        headers.set("Content-Range", `bytes */${size}`);
+        headers.set("Content-Length", "0");
+        return new Response(null, { status: 416, headers });
+      }
+      range = { offset: Number(start), length: Number(end - start + 1n) };
+      headers.set("Content-Range", `bytes ${start}-${end}/${size}`);
+    }
+  } else size = row.size;
+  if (request.method !== "HEAD") {
+    const object = await env.BUCKET.get(
+      row.object_key,
+      range ? { range } : undefined,
+    );
+    if (!object) throw notFound();
+    // 对象键不可变；若存储被外部改写，不发送错误长度的部分响应。
+    if (range && object.size !== size) {
+      await object.body.cancel();
+      throw new AppError(
+        503,
+        "MEDIA_CHANGED",
+        "Media changed during the request. Please retry.",
+      );
+    }
+    size = object.size;
+    body = object.body;
+  }
   const inline =
     /^(image|audio|video)\//.test(row.mime) &&
     new URL(request.url).searchParams.get("download") !== "1";
-  return new Response(object.body, {
+  return new Response(body, {
+    status: range ? 206 : 200,
     headers: {
+      ...Object.fromEntries(headers),
       "Content-Type": row.mime,
-      "Content-Length": String(object.size),
+      "Content-Length": String(range?.length ?? size),
       "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${row.name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(row.name)}`,
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; sandbox",
-      "Cache-Control": "private, no-store",
-      Vary: "Cookie, Authorization",
       "Cross-Origin-Resource-Policy": "same-origin",
     },
   });

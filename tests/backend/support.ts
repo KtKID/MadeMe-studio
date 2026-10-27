@@ -78,10 +78,25 @@ export class MemoryR2 implements R2Bucket {
     else bytes = new Uint8Array(value);
     this.objects.set(key, bytes.slice());
   }
-  async get(key: string) {
+  async head(key: string) {
     const bytes = this.objects.get(key);
+    return bytes ? { size: bytes.length } : null;
+  }
+  async get(
+    key: string,
+    options?: { range?: { offset: number; length: number } },
+  ) {
+    const bytes = this.objects.get(key);
+    const range = options?.range;
+    const selected =
+      bytes && range
+        ? bytes.slice(range.offset, range.offset + range.length)
+        : bytes;
     return bytes
-      ? { body: new Response(bytes.slice().buffer).body!, size: bytes.length }
+      ? {
+          body: new Response(selected!.slice().buffer).body!,
+          size: bytes.length,
+        }
       : null;
   }
   async delete(key: string) {

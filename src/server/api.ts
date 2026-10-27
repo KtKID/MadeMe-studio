@@ -260,7 +260,11 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
         });
       }
     }
-    if (path[0] === "files" && path.length === 2 && method === "GET")
+    if (
+      path[0] === "files" &&
+      path.length === 2 &&
+      ["GET", "HEAD"].includes(method)
+    )
       return await serveMedia(request, env, identity, path[1]);
     if (path[0] === "media" && path.length === 1) {
       if (method === "GET") {

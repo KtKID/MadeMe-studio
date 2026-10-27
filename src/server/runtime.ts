@@ -25,7 +25,11 @@ export interface R2Bucket {
     value: ArrayBuffer | ArrayBufferView | ReadableStream,
     options?: unknown,
   ): Promise<unknown>;
-  get(key: string): Promise<R2ObjectBody | null>;
+  head(key: string): Promise<{ size: number } | null>;
+  get(
+    key: string,
+    options?: { range?: { offset: number; length: number } },
+  ): Promise<R2ObjectBody | null>;
   delete(key: string): Promise<void>;
 }
 export interface RuntimeEnv {

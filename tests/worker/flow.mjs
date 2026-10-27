@@ -67,13 +67,59 @@ const uploaded = await fetch(base + "/api/media", {
 });
 assert.equal(uploaded.status, 201);
 const { media } = await uploaded.json();
+const original = readFileSync(
+  new URL("../fixtures/valid-image.png", import.meta.url),
+);
 const downloaded = await fetch(base + media.url);
 assert.equal(downloaded.status, 200);
+assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), original);
+// 真实 workerd/R2 范围读取：验证 size 是完整对象大小，而正文只含所选字节。
+for (const [range, start, end] of [
+  ["bytes=0-7", 0, 7],
+  [`bytes=${original.length - 5}-`, original.length - 5, original.length - 1],
+  ["bytes=-4", original.length - 4, original.length - 1],
+]) {
+  const partial = await fetch(base + media.url, { headers: { Range: range } });
+  assert.equal(partial.status, 206);
+  assert.equal(
+    partial.headers.get("Content-Range"),
+    `bytes ${start}-${end}/${original.length}`,
+  );
+  assert.equal(partial.headers.get("Content-Length"), String(end - start + 1));
+  assert.equal(partial.headers.get("Accept-Ranges"), "bytes");
+  assert.equal(partial.headers.get("Cache-Control"), "private, no-store");
+  assert.deepEqual(
+    Buffer.from(await partial.arrayBuffer()),
+    original.subarray(start, end + 1),
+  );
+}
+const head = await fetch(base + media.url, {
+  method: "HEAD",
+  headers: { Range: "bytes=0-1" },
+});
+assert.equal(head.status, 200);
+assert.equal(head.headers.get("Content-Length"), String(original.length));
+assert.equal(head.headers.get("Content-Range"), null);
+assert.equal((await head.arrayBuffer()).byteLength, 0);
+const unsatisfiable = await fetch(base + media.url, {
+  headers: { Range: `bytes=${original.length}-` },
+});
+assert.equal(unsatisfiable.status, 416);
 assert.equal(
-  (await downloaded.arrayBuffer()).byteLength,
-  readFileSync(new URL("../fixtures/valid-image.png", import.meta.url))
-    .byteLength,
+  unsatisfiable.headers.get("Content-Range"),
+  `bytes */${original.length}`,
 );
+assert.equal(unsatisfiable.headers.get("Cache-Control"), "private, no-store");
+assert.equal((await unsatisfiable.arrayBuffer()).byteLength, 0);
+// 仅上传并关联 postId 不等于发布引用，访客不得读取或探测媒体长度。
+for (const method of ["GET", "HEAD"]) {
+  const denied = await fetch("http://127.0.0.1:4322" + media.url, {
+    method,
+    headers: { Range: `bytes=${original.length}-` },
+  });
+  assert.equal(denied.status, 404);
+  assert.equal(denied.headers.get("Content-Range"), null);
+}
 const unconfigured = await api("/api/ai", "POST", {
   action: "polish",
   selection: "测试",
@@ -94,5 +140,5 @@ assert.ok(
   visitor.data.posts.every((p) => p.title !== "不应出现在阅读页的草稿标题"),
 );
 console.log(
-  "真实 Worker/D1/R2 HTTP 端到端通过：建文、发布快照、版本409、有效PNG上传下载、缺模型错误、删除恢复、访客隔离。",
+  "真实 Worker/D1/R2 HTTP 端到端通过：建文、发布快照、版本409、有效PNG上传下载及R2范围/HEAD/416/私有长度隔离、缺模型错误、删除恢复、访客隔离。",
 );
