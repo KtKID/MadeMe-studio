@@ -1,0 +1,68 @@
+---
+import Base from "../layouts/Base.astro";
+import LoginPanel from "../components/auth/LoginPanel";
+import { getEnv } from "../server/runtime";
+import { authenticate } from "../server/auth/identity";
+import { getAuthPresentation } from "../server/auth/password";
+import { safeReturnTo } from "../shared/auth";
+const env = getEnv(Astro);
+const session = getAuthPresentation(
+  env,
+  await authenticate(Astro.request, env),
+);
+const returnTo = safeReturnTo(Astro.url.searchParams.get("returnTo"));
+Astro.response.headers.set("Cache-Control", "no-store");
+Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
+---
+
+<Base title="作者登录 · MadeMe">
+  <main id="main" class="auth-shell">
+    <a class="brand" href="/">
+      MadeMe
+    </a>
+    <noscript>作者登录需要 JavaScript 才能安全提交，请启用后刷新。</noscript>
+    <div class="auth-panel">
+      <LoginPanel
+        secureTransport={Astro.url.protocol === "https:"}
+        session={session}
+        returnTo={returnTo}
+        client:load
+      />
+    </div>
+    <a href="/">返回站点</a>
+  </main>
+</Base>
+<style is:global>
+  .auth-shell {
+    max-width: 480px;
+    margin: 7vh auto;
+    padding: 24px;
+  }
+  .auth-panel {
+    margin: 24px 0;
+    padding: 28px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--surface);
+  }
+  .auth-panel h1 {
+    font-size: 26px;
+    margin-bottom: 12px;
+  }
+  .auth-panel p {
+    line-height: 1.7;
+    margin: 12px 0 20px;
+  }
+  .auth-panel form {
+    display: grid;
+    gap: 12px;
+  }
+  .auth-panel input {
+    width: 100%;
+  }
+  .auth-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+</style>

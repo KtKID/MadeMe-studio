@@ -1,5 +1,7 @@
 ---
 import Base from "./Base.astro";
+import { getEnv } from "../server/runtime";
+const passwordAuth = getEnv(Astro).AUTH_MODE === "password";
 import {
   Feather,
   FileText,
@@ -79,6 +81,15 @@ const links = [
           </span>
           <ArrowUpRight size={16} />
         </a>
+        {passwordAuth && (
+          <a
+            data-astro-reload
+            class="site-link"
+            href={`/login?returnTo=${encodeURIComponent(Astro.url.pathname)}`}
+          >
+            作者登录 / 账号与退出
+          </a>
+        )}
         <div class="sidebar-note">
           <span class="status-dot"></span>写作，让想法有迹可循
         </div>
