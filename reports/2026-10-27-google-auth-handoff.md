@@ -1,13 +1,8 @@
 # MadeMe Google 登录迁移排障报告
 
-工程交接　2026 年 10 月 27 日 UTC
+工程交接　2026 年 10 月 27 日 UTC；Git 交接状态更新于 06:58 UTC。
 
-> Git 交接更新：Google 登录源码、迁移与测试现随本报告保存在独立分支 `feat/google-auth`。另一台服务器可直接拉取该分支；下文关于未提交工作区和源码 ZIP 的描述保留为打包时的历史记录。分支提交不表示依赖安装、完整测试或部署成功。
-
-```sh
-git clone --branch feat/google-auth --single-branch https://github.com/KtKID/MadeMe-studio.git
-cd MadeMe-studio
-```
+**Google 登录代码已推送独立分支 `feat/google-auth`，实现提交 `04a1bbd7aa219d4e0364ae70b25c6f8497dc6676`。提交不表示完整验证或部署完成。**
 
 ## 1 结论与处理顺序
 
@@ -24,7 +19,7 @@ cd MadeMe-studio
 - 本次工作区：`/workspace/scratch/4859fb17ce30/MadeMe-google-auth`。
 - 运行结构：Cloudflare Workers、D1、R2；Astro 7.4.2、React、BlockNote、TypeScript、Zod。
 - 原环境运行版本：Node.js 24.22.1、npm 11.9.0。目标服务器使用已获授权安装的 Node.js 24 环境。
-- Google 修改尚未提交或推送到 GitHub。仅 clone 远端 `feat/v1` 不会得到这些修改；请使用随附完整源码 ZIP，或在精确基线上应用随附 patch。
+- Google 修改已推送到 `feat/google-auth`。仅 clone `feat/v1` 不会得到 Google 实现；新服务器应直接取得 `feat/google-auth`，也可使用此前交付的完整源码 ZIP。
 - 原 `MadeMe-studio` 工作区另有冻结 QA 改动，未合入本次 Google 工作区；不要混包或把其验证结果算入本报告。
 
 ### 当前阻塞的证据与解释
@@ -77,7 +72,14 @@ cd MadeMe-studio
 
 ### 先取得完整代码
 
-推荐解压 `MadeMe-Google登录源码与排障交接.zip`，进入其中的 `MadeMe-google-auth/`；这里是基线与未提交 Google 修改合并后的完整源码，不必再次应用 patch。确认该目录含 `package.json` 与 `package-lock.json`。包内另有 `source-manifest.json` 供逐文件 SHA-256 核对。
+推荐直接拉取独立分支：
+
+```sh
+git clone --branch feat/google-auth --single-branch https://github.com/KtKID/MadeMe-studio.git
+cd MadeMe-studio
+```
+
+另一种方式是解压 `MadeMe-Google登录源码与排障交接.zip`，进入其中的 `MadeMe-google-auth/`；这里是当时基线与 Google 修改合并后的完整源码快照，不必再次应用 patch。确认该目录含 `package.json` 与 `package-lock.json`。包内另有 `source-manifest.json` 供逐文件 SHA-256 核对。
 
 备选路线：先取得 Git 的 `feat/v1`，切换至精确基线 `d1900e19c260f82d062b243f207389e15083bc9f`，再对随附 `google-auth-uncommitted.patch` 执行 `git apply --check`，确认后 `git apply`。交接时已在该精确基线的解压目录验证 `git apply --check` 通过；这不代表功能测试通过。该 patch 仅用于此基线；遇到冲突应停下审查，不强行忽略。随后核对 Google 实现、追加迁移及测试文件均已出现。
 
