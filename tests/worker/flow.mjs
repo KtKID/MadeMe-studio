@@ -140,6 +140,58 @@ for (const method of ["GET", "HEAD"]) {
   assert.equal(denied.status, 404);
   assert.equal(denied.headers.get("Content-Range"), null);
 }
+// macOS 录屏同构的 H.264 .mov（ftyp 品牌 "qt  "）：按 video/quicktime 原样存储与返回，范围读取同 MP4。
+const mov = readFileSync(
+  new URL("../fixtures/screen-recording.mov", import.meta.url),
+);
+const movForm = new FormData();
+movForm.append(
+  "file",
+  new Blob([mov], { type: "video/quicktime" }),
+  "screen-recording.mov",
+);
+movForm.append("postId", post.id);
+const movUploaded = await fetch(base + "/api/media", {
+  method: "POST",
+  headers: { Origin: base },
+  body: movForm,
+});
+assert.equal(movUploaded.status, 201);
+const movMedia = (await movUploaded.json()).media;
+assert.equal(movMedia.mime, "video/quicktime");
+const movFull = await fetch(base + movMedia.url);
+assert.equal(movFull.status, 200);
+assert.equal(movFull.headers.get("Content-Type"), "video/quicktime");
+assert.match(movFull.headers.get("Content-Disposition"), /^inline;/);
+assert.equal(movFull.headers.get("X-Content-Type-Options"), "nosniff");
+assert.deepEqual(Buffer.from(await movFull.arrayBuffer()), mov);
+const movPartial = await fetch(base + movMedia.url, {
+  headers: { Range: "bytes=0-" },
+});
+assert.equal(movPartial.status, 206);
+assert.equal(
+  movPartial.headers.get("Content-Range"),
+  `bytes 0-${mov.length - 1}/${mov.length}`,
+);
+assert.equal(movPartial.headers.get("Accept-Ranges"), "bytes");
+await movPartial.arrayBuffer();
+// 声明为 .mov 但内容是 PNG：签名不符必须拒绝。
+const fakeMov = new FormData();
+fakeMov.append(
+  "file",
+  new Blob([original], { type: "video/quicktime" }),
+  "fake.mov",
+);
+const fakeUploaded = await fetch(base + "/api/media", {
+  method: "POST",
+  headers: { Origin: base },
+  body: fakeMov,
+});
+assert.equal(fakeUploaded.status, 415);
+assert.equal(
+  (await fakeUploaded.json()).error.code,
+  "MEDIA_SIGNATURE_MISMATCH",
+);
 const unconfigured = await api("/api/ai", "POST", {
   action: "polish",
   selection: "测试",
@@ -160,5 +212,5 @@ assert.ok(
   visitor.data.posts.every((p) => p.title !== "不应出现在阅读页的草稿标题"),
 );
 console.log(
-  "真实 Worker/D1/R2 HTTP 端到端通过：建文、发布快照、版本409、有效PNG上传下载及R2范围/HEAD/416/私有长度隔离、缺模型错误、删除恢复、访客隔离。",
+  "真实 Worker/D1/R2 HTTP 端到端通过：建文、发布快照、版本409、有效PNG/MOV上传下载及R2范围/HEAD/416/私有长度隔离、缺模型错误、删除恢复、访客隔离。",
 );

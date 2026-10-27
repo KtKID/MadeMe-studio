@@ -9,5 +9,6 @@
 - [2026-10-27：侧栏改为显示 Google 昵称](2026-10-27-google-nickname.md)：scope 增加 profile，ID token `name` 清洗后存入迁移 0004 的 `display_name`；昵称优先、邮箱回退；旧会话需重新登录。
 - [2026-10-27：视频块 0:00 无法播放](2026-10-27-video-blocks.md)：空 url 被 safeUrl 补成 local.invalid；网页链接（Bilibili）被交给 `<video>`；BlockNote 吞掉上传失败原因。已修复渲染与上传提示，Bilibili 站内播放待决定。
 - [2026-10-27：嵌入模块化与 Bilibili 播放器](2026-10-27-embed-module.md)：新模块 `src/modules/embed/`（YouTube / Bilibili / X 提供方注册表），编辑器、服务端校验、阅读页与 CSP frame-src 共用；cf-46630d 无需改数据即显示 Bilibili 播放器。
+- [2026-10-27：支持直接上传 .mov](2026-10-27-mov-upload.md)：MIME 清单加 `video/quicktime`，`isQuickTime()` 签名校验（ftyp 或旧式原子）；按原 MIME 返回、`<video src>` 不写 type（Chrome 实测）；25 MB 上限不变。
 
 每次修复都必须在本目录新增报告（现象、根因、修复内容、验证方式与结果、如何避免再次踩坑），并在此索引登记。

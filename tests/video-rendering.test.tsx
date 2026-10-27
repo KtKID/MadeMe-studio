@@ -63,9 +63,9 @@ describe("上传前检查（BlockNote 只显示通用上传失败）", () => {
     expect(p?.reason).toBe("too_large");
     expect(p?.message).toContain("25 MB");
   });
-  it("MOV/MKV 等不支持的格式给出中文原因", () => {
+  it("MKV 等不支持的格式给出中文原因", () => {
     expect(
-      mediaUploadProblem({ size: 10, type: "video/quicktime" })?.reason,
+      mediaUploadProblem({ size: 10, type: "video/x-matroska" })?.reason,
     ).toBe("unsupported_type");
     expect(mediaUploadProblem({ size: 10, type: "" })?.message).toContain(
       "未知类型",

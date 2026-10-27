@@ -40,7 +40,10 @@ import {
   date,
 } from "../shared/ui";
 import type { EditorBlock, AIAction, Revision } from "../../shared/contracts";
-import { mediaUploadProblem } from "../../shared/contracts";
+import {
+  acceptedVideoFormatsLabel,
+  mediaUploadProblem,
+} from "../../shared/contracts";
 import { clientLog } from "../../modules/log/client";
 import { SafeEmbed } from "../content/BlockReader";
 import {
@@ -84,7 +87,7 @@ const blockNoteDictionary = {
       file_placeholder: {
         ...blockNoteEn.file_panel.upload.file_placeholder,
         image: "选择图片",
-        video: "选择视频文件（MP4 / WebM，≤ 25 MB）",
+        video: `选择视频文件（${acceptedVideoFormatsLabel}，≤ 25 MB）`,
         audio: "选择音频文件",
         file: "选择文件",
       },

@@ -26,6 +26,30 @@ type MediaRow = {
 };
 const MAX_BYTES = MAX_MEDIA_BYTES;
 const allowed = new Set<string>(acceptedMediaMimeTypes);
+/** QuickTime 文件可能不带 ftyp 而直接以这些原子开头（旧版 QuickTime / 部分录屏工具）。 */
+const quickTimeLeadingAtoms = new Set([
+  "moov",
+  "wide",
+  "mdat",
+  "free",
+  "skip",
+  "pnot",
+]);
+/**
+ * QuickTime（.mov）签名：首个原子为 ftyp（品牌通常是 "qt  "，也接受其他 ISO-BMFF 品牌），
+ * 或为 quickTimeLeadingAtoms 之一。原子大小必须合法：0（延伸到文件尾）、1（64 位扩展大小）
+ * 或 8..文件长度，防止任意字节凑巧命中 4 个字母。
+ */
+export function isQuickTime(bytes: Uint8Array): boolean {
+  if (bytes.length < 12) return false;
+  const type = String.fromCharCode(...bytes.slice(4, 8));
+  const size =
+    ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0;
+  if (type === "ftyp") return size >= 12 && size <= bytes.length;
+  if (!quickTimeLeadingAtoms.has(type)) return false;
+  if (size === 0 || size === 1) return type === "mdat" || size === 1;
+  return size >= 8 && size <= bytes.length;
+}
 export function validateMedia(bytes: Uint8Array, mime: string) {
   if (!bytes.length || bytes.length > MAX_BYTES)
     throw new AppError(
@@ -67,10 +91,12 @@ export function validateMedia(bytes: Uint8Array, mime: string) {
                           bytes[3] === 0xa3
                         : mime === "audio/mp4" || mime === "video/mp4"
                           ? start.slice(4, 8) === "ftyp"
-                          : mime === "audio/mpeg"
-                            ? start.startsWith("ID3") ||
-                              (bytes[0] === 255 && (bytes[1] & 0xe0) === 0xe0)
-                            : true;
+                          : mime === "video/quicktime"
+                            ? isQuickTime(bytes)
+                            : mime === "audio/mpeg"
+                              ? start.startsWith("ID3") ||
+                                (bytes[0] === 255 && (bytes[1] & 0xe0) === 0xe0)
+                              : true;
   if (!match)
     throw new AppError(
       415,

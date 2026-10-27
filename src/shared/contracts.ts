@@ -491,6 +491,8 @@ export const acceptedMediaMimeTypes = [
   "audio/mp4",
   "video/mp4",
   "video/webm",
+  // macOS 录屏 / iPhone 的 .mov。按原 MIME 存储与返回；能否播放取决于编码（H.264 可在 Chrome、Safari 播放）。
+  "video/quicktime",
   "application/pdf",
   "application/epub+zip",
   "application/zip",
@@ -501,6 +503,10 @@ export const acceptedMediaMimeTypes = [
   "text/markdown",
   "text/csv",
 ] as const;
+/**
+ * 面向作者的视频格式文案，与上方 MIME 清单同处维护（单一来源；下一步将整体改为可配置）。
+ */
+export const acceptedVideoFormatsLabel = "MP4、WebM、MOV";
 /** 单个媒体文件上限；服务端 validateMedia 与编辑器上传前检查共用。 */
 export const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
 const acceptedMediaMimeSet = new Set<string>(acceptedMediaMimeTypes);
@@ -520,12 +526,12 @@ export function mediaUploadProblem(file: {
   if (file.size > MAX_MEDIA_BYTES)
     return {
       reason: "too_large",
-      message: `文件大小 ${(file.size / 1024 / 1024).toFixed(1)} MB，超过 25 MB 上限。视频请压缩后再上传，或改用“嵌入”插入 YouTube 链接。`,
+      message: `文件大小 ${(file.size / 1024 / 1024).toFixed(1)} MB，超过 25 MB 上限。视频请压缩后再上传，或改用“嵌入”插入 YouTube / Bilibili 链接。`,
     };
   if (!acceptedMediaMimeSet.has(file.type))
     return {
       reason: "unsupported_type",
-      message: `暂不支持该文件格式（${file.type || "未知类型"}）。视频仅支持 MP4、WebM，音频支持 MP3、WAV、OGG、M4A。`,
+      message: `暂不支持该文件格式（${file.type || "未知类型"}）。视频仅支持 ${acceptedVideoFormatsLabel}，音频支持 MP3、WAV、OGG、M4A。`,
     };
   return null;
 }

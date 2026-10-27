@@ -27,3 +27,28 @@
 ## 上限常量
 
 `MAX_BYTES` 取自 `src/shared/contracts.ts` 的 `MAX_MEDIA_BYTES`，编辑器上传前检查（`mediaUploadProblem`）与服务端 `validateMedia` 共用同一上限与 MIME 清单，修改时只改一处。
+
+## QuickTime（.mov）
+
+- **接受的内容**：`video/quicktime`，即 macOS 录屏和 iPhone 视频，上限同样是 25 MB。
+- **签名校验**：`isQuickTime()`。
+  - 首个原子为 `ftyp`（品牌通常是 `qt  `）即通过；
+  - 没有 ftyp 的旧式文件，首个原子为 `moov` / `wide` / `mdat` / `free` / `skip` / `pnot` 之一也通过；
+  - 原子长度必须合法：`mdat` 可以为 0，任意原子可以为 1（64 位扩展长度），其余须在 8 到文件长度之间。
+  - 声明为 .mov、内容却是别的文件，返回 415 `MEDIA_SIGNATURE_MISMATCH`。
+- **返回方式**：按原 MIME `video/quicktime` 存储和返回，不改写成 `video/mp4`。范围读取（206 / 416）与 MP4 相同。阅读页用不带 `type` 的 `<video src>`。
+
+为什么这样做（2026-10-27 用 Chrome 无头浏览器实测）：
+
+- `Content-Type: video/quicktime` 加 `nosniff` 时，Chrome 能正常播放和拖动 H.264 的 .mov，moov 原子在文件头或文件尾都可以。
+- Chrome 的 `canPlayType("video/quicktime")` 返回空串，所以写 `<source type="video/quicktime">` 会被 Chrome 直接跳过。正确做法是不写 type。
+- Safari 原生支持 QuickTime。
+- 保留真实的 MIME，不需要为了兼容去解析编码再改写响应头。
+
+能否播放取决于**编码**，与容器无关：
+
+- H.264 在各浏览器都能播放；
+- HEVC（iPhone 默认的“高效”格式）和 ProRes 在 Chrome、Firefox 上可能无法播放，需要先转成 H.264；
+- Firefox 尚未实测。
+
+MIME 清单、25 MB 上限和格式文案目前都集中在 `src/shared/contracts.ts`（`acceptedMediaMimeTypes`、`MAX_MEDIA_BYTES`、`acceptedVideoFormatsLabel`）。下一步会整体改为可配置。
