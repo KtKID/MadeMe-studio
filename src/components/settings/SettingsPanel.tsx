@@ -75,7 +75,12 @@ export default function SettingsPanel({
   const dirty =
     Object.keys(settingsPatch(baseline.current, settings)).length > 0;
   useEffect(() => {
-    if (dirty) return installUnsavedGuard(window);
+    if (dirty)
+      return installUnsavedGuard(window, {
+        documentTarget: document,
+        confirmLeave: () => window.confirm("设置尚未保存，确定离开吗？"),
+        currentUrl: () => window.location.href,
+      });
   }, [dirty]);
   const [tab, setTab] = useState("general");
   const [busy, setBusy] = useState(false);

@@ -43,3 +43,67 @@ it("阅读页只获取能力且编辑入口不静态加载整个编辑器", () =
   expect(inline.includes('lazy(() => import("./Editor"))')).toBe(true);
   expect(inline.includes('import Editor from "./Editor"')).toBe(false);
 });
+
+it("设置链接取消不导航，确认只弹一次且原生守卫保留到确认前", () => {
+  class Link extends EventTarget {
+    closest() {
+      return this;
+    }
+    getAttribute(name: string) {
+      return name === "href" ? "/studio/media" : null;
+    }
+    hasAttribute() {
+      return false;
+    }
+  }
+  const originalElement = globalThis.Element;
+  Object.defineProperty(globalThis, "Element", {
+    configurable: true,
+    value: Link,
+  });
+  try {
+    const documentTarget = new Link();
+    const windowTarget = new EventTarget();
+    let allow = false;
+    let confirmations = 0;
+    const cleanup = installUnsavedGuard(windowTarget, {
+      documentTarget,
+      confirmLeave: () => {
+        confirmations++;
+        return allow;
+      },
+      currentUrl: () => "https://example.test/studio/settings",
+    });
+    let navigationHandlers = 0;
+    documentTarget.addEventListener("click", () => {
+      navigationHandlers++;
+    });
+    const unload = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      Object.defineProperty(event, "returnValue", {
+        value: undefined,
+        writable: true,
+      });
+      return windowTarget.dispatchEvent(event);
+    };
+    expect(
+      documentTarget.dispatchEvent(new Event("click", { cancelable: true })),
+    ).toBe(false);
+    expect(unload()).toBe(false);
+    expect(navigationHandlers).toBe(0);
+    allow = true;
+    expect(
+      documentTarget.dispatchEvent(new Event("click", { cancelable: true })),
+    ).toBe(true);
+    expect(confirmations).toBe(2);
+    expect(navigationHandlers).toBe(1);
+    expect(unload()).toBe(true);
+    expect(unload()).toBe(false);
+    cleanup();
+  } finally {
+    Object.defineProperty(globalThis, "Element", {
+      configurable: true,
+      value: originalElement,
+    });
+  }
+});

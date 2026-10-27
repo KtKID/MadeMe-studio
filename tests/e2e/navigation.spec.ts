@@ -1,14 +1,18 @@
 import { test, expect, type Page } from "@playwright/test";
 
 // 仅使用隔离作者环境；变更只留在输入框，不写入服务端设置。
-async function expectCanceledLeave(page: Page, action: () => Promise<unknown>) {
+async function expectCanceledLeave(
+  page: Page,
+  action: () => Promise<unknown>,
+  dialogType = "beforeunload",
+) {
   const dialogSeen = page.waitForEvent("dialog");
   const actionDone = action().catch((error: unknown) => {
     // 浏览器取消整页导航时，Playwright 的导航等待可能返回 ERR_ABORTED。
     if (!String(error).includes("ERR_ABORTED")) throw error;
   });
   const dialog = await dialogSeen;
-  expect(dialog.type()).toBe("beforeunload");
+  expect(dialog.type()).toBe(dialogType);
   await dialog.dismiss();
   await actionDone;
   await expect(page).toHaveURL(/\/studio\/settings$/);
@@ -34,8 +38,10 @@ test("@author 设置完整导航保护链接、历史回退和程序化地址跳
   );
   await input.fill("未保存导航验收");
   await expect(page.getByText("有未保存设置", { exact: true })).toBeVisible();
-  await expectCanceledLeave(page, () =>
-    page.getByRole("link", { name: "媒体库", exact: true }).click(),
+  await expectCanceledLeave(
+    page,
+    () => page.getByRole("link", { name: "媒体库", exact: true }).click(),
+    "confirm",
   );
   await expectCanceledLeave(page, () => page.goBack());
   await expectCanceledLeave(page, () =>

@@ -13,3 +13,5 @@
 日期展示显式使用 `Asia/Shanghai`，使 SSR 和浏览器在不同宿主时区下保持同一日期，避免 hydration 不匹配引起界面重建。当前是作者时区的固定默认值，不宣称已支持可配置时区。
 
 `unsaved-guard.ts` 仅用于禁用客户端路由的表单页，监听原生 `beforeunload`，同时设置兼容性 `returnValue`。浏览器决定提示文案；取消后保留输入，组件卸载后释放监听。不使用 Astro preparation 的 preventDefault，因为它会触发整页 fallback，而非取消导航。
+
+设置页额外在 document 捕获阶段对同窗口 HTTP(S) 链接显示显式确认；取消时阻断默认导航。确认仅放行下一次 beforeunload，避免双重弹窗，随后自动恢复原生保护；pageshow 也清除放行状态。新窗口、下载、修饰键点击与页内锚点不受影响。浏览器原生前进/后退及刷新保护的真实提示表现尚待验收，不能把事件单测当作浏览器实测。
