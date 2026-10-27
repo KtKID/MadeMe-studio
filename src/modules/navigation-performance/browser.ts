@@ -5,6 +5,23 @@ let enabled = false;
 let state = restore(null);
 let started = false;
 let sequence = 0;
+let managedHistory = false;
+export function manageHistoryPerformance(value: boolean) {
+  managedHistory = value;
+}
+export function cancelNavigationPerformance() {
+  if (enabled) {
+    sequence++;
+    settle("canceled");
+  }
+}
+export function beginHistoryPerformance(from: StudioRoute, to: StudioRoute) {
+  if (!enabled) return;
+  sequence++;
+  begin(state, from, to, now(), "history");
+  publish();
+}
+
 function publish() {
   try {
     sessionStorage.setItem(KEY, JSON.stringify(state));
@@ -135,6 +152,7 @@ export function installPerformance() {
   });
   document.addEventListener("astro:page-load", mount);
   window.addEventListener("popstate", () => {
+    if (managedHistory) return;
     const to = route(location.pathname);
     const from = state.samples.at(-1)?.to;
     if (to && from) {
@@ -145,7 +163,7 @@ export function installPerformance() {
   });
   window.addEventListener("pageshow", (event) => {
     mount();
-    if (event.persisted && current) markReady(current);
+    if (!managedHistory && event.persisted && current) markReady(current);
   });
   setInterval(expire, 500);
 }

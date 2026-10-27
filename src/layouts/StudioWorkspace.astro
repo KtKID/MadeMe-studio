@@ -1,0 +1,30 @@
+---
+import Base from "./Base.astro";
+import StudioShell from "../components/studio/StudioShell";
+import { loadStudioPageData } from "../server/page-data";
+import { getEnv } from "../server/runtime";
+import { route } from "../modules/navigation-performance/protocol";
+const data = await loadStudioPageData(Astro);
+const initialPath = route(Astro.url.pathname) ?? "/studio";
+---
+
+<Base
+  title={`工作空间 · ${data.settings.siteTitle || "MadeMe"}`}
+  theme={data.settings.theme}
+  mode={data.settings.mode}
+  skin={data.settings.skin}
+  font={data.settings.font}
+  accent={data.settings.accent}
+>
+  <StudioShell
+    initial={data}
+    initialPath={initialPath}
+    passwordAuth={getEnv(Astro).AUTH_MODE === "password"}
+    client:load
+  />
+</Base>
+<style is:global>
+  .studio-pane[hidden] {
+    display: none !important;
+  }
+</style>

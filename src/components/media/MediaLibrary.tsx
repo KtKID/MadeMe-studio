@@ -1,3 +1,4 @@
+import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { CropRenderGuard, cropGeometry } from "./crop-state";
 import { acceptedMediaMimeTypes, type Provider } from "../../shared/contracts";
@@ -227,6 +228,13 @@ export default function MediaLibrary({
   initialMedia?: Media[];
   initialError?: string;
 }) {
+  const { active } = useStudioPane();
+  useEffect(() => {
+    if (!active) {
+      setGenerate(false);
+      setCrop(null);
+    }
+  }, [active]);
   const [media, setMedia] = useState<Media[]>(initialMedia ?? []);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");

@@ -1,3 +1,4 @@
+import { useStudioPane } from "../studio-navigation/pane";
 import { useEffect } from "react";
 import { markReady, installPerformance } from "./browser";
 import type { StudioRoute } from "./protocol";
@@ -7,8 +8,9 @@ export function useNavigationReady(
   ready = true,
   failed = false,
 ) {
+  const { active, navigationKey } = useStudioPane();
   useEffect(() => {
     installPerformance();
-    if (ready) markReady(path, failed);
-  }, [path, ready, failed]);
+    if (active && ready) markReady(path, failed);
+  }, [path, ready, failed, active, navigationKey]);
 }

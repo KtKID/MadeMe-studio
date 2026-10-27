@@ -1,12 +1,15 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 
-it("设置和编辑页不启用客户端路由，设置入口强制完整导航", () => {
+it("编辑器保留完整导航，工作台深链共享单个SSR外壳", () => {
   const studio = readFileSync("src/layouts/Studio.astro", "utf8");
-  expect(studio).toContain('"/studio/settings"');
+  expect(studio).toContain('"/studio/edit"');
   expect(studio).toContain("clientNavigation={!protectedFormPage}");
-  expect(studio).toContain('data-astro-reload={item.key === "settings"}');
+  const workspace = readFileSync("src/layouts/StudioWorkspace.astro", "utf8");
+  expect(workspace).toContain("loadStudioPageData(Astro)");
+  expect(workspace).not.toContain("ClientRouter");
 });
+
 it("设置在客户端切页前保护未保存输入", () => {
   const source = readFileSync(
     "src/components/settings/SettingsPanel.tsx",

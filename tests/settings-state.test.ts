@@ -83,3 +83,32 @@ it("服务端规范化返回不会把未继续编辑的空白图像模型误判�
     ),
   ).toEqual({});
 });
+
+it("保存请求期间确认放弃，迟到响应采用服务器基线而不复活旧草稿", () => {
+  const original = structuredClone(defaultSettings);
+  const submitted = { ...original, siteTitle: "已提交" };
+  const response = { ...submitted, tagline: "另一个窗口修改" };
+  const next = reconcileSettingsResponse(
+    submitted,
+    original,
+    response,
+    original,
+  );
+  expect(next).toEqual(response);
+  expect(settingsPatch(response, next)).toEqual({});
+});
+
+it("放弃后返回面板重新输入，迟到保存响应只替换未再编辑字段", () => {
+  const original = structuredClone(defaultSettings);
+  const submitted = { ...original, siteTitle: "已提交" };
+  const afterReturn = { ...original, tagline: "放弃后新输入" };
+  const next = reconcileSettingsResponse(
+    submitted,
+    afterReturn,
+    submitted,
+    original,
+  );
+  expect(next.siteTitle).toBe("已提交");
+  expect(next.tagline).toBe("放弃后新输入");
+  expect(settingsPatch(submitted, next)).toEqual({ tagline: "放弃后新输入" });
+});

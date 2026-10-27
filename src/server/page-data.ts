@@ -3,6 +3,8 @@ import {
   mediaListResponseSchema,
   tokensResponseSchema,
   type DashboardBootstrap,
+  type Media,
+  type APIToken,
 } from "../shared/contracts";
 import { listMedia } from "./media/service";
 import { listTokens } from "./tokens";
@@ -15,18 +17,46 @@ import { canReadPost } from "./auth/access";
 import { D1PostRepository, type StoredPost } from "./content/repository";
 import { publicPosts } from "./content/service";
 import { readSettings, redactSettings } from "./settings";
-export async function loadPageData(
-  context: RequestContext,
-  publicOnly = false,
-  options:
-    { posts: "none" | "single"; id?: string | null } | undefined = undefined,
-): Promise<BootstrapResponse> {
+/** 公共引导只读取一次身份和设置，私有资源查询必须在此核验后。 */
+async function loadBasePageData(context: RequestContext, publicOnly = false) {
   const env = getEnv(context);
   // 身份与站点设置互不依赖；避免每次导航串行等待数据库。
   const [identity, settings] = await Promise.all([
     authenticate(context.request, env),
     readSettings(env),
   ]);
+  return {
+    env,
+    identity,
+    data: {
+      settings: redactSettings(settings, identity.owner && !publicOnly, env),
+      capabilities: {
+        authenticated: identity.owner,
+        aiConfigured:
+          identity.owner &&
+          settings.providers.some(
+            (p) => providerCapabilities(p, env).textConfigured,
+          ),
+        imageConfigured:
+          identity.owner && hasConfiguredImageProvider(settings.providers, env),
+        passwordConfigured:
+          identity.owner &&
+          !!env.SESSION_SECRET &&
+          env.SESSION_SECRET.length >= 32,
+        storageConfigured: !!(env.DB && env.BUCKET),
+        ownerConfigured: ownerConfigured(env),
+      },
+    },
+  };
+}
+
+export async function loadPageData(
+  context: RequestContext,
+  publicOnly = false,
+  options:
+    { posts: "none" | "single"; id?: string | null } | undefined = undefined,
+): Promise<BootstrapResponse> {
+  const { env, identity, data } = await loadBasePageData(context, publicOnly);
   let rows: StoredPost[] = [];
   if (env.DB && options?.posts !== "none") {
     const repository = new D1PostRepository(env.DB);
@@ -43,23 +73,7 @@ export async function loadPageData(
       identity.owner && !publicOnly
         ? rows.map((r) => r.draft)
         : publicPosts(rows),
-    settings: redactSettings(settings, identity.owner && !publicOnly, env),
-    capabilities: {
-      authenticated: identity.owner,
-      aiConfigured:
-        identity.owner &&
-        settings.providers.some(
-          (p) => providerCapabilities(p, env).textConfigured,
-        ),
-      imageConfigured:
-        identity.owner && hasConfiguredImageProvider(settings.providers, env),
-      passwordConfigured:
-        identity.owner &&
-        !!env.SESSION_SECRET &&
-        env.SESSION_SECRET.length >= 32,
-      storageConfigured: !!(env.DB && env.BUCKET),
-      ownerConfigured: ownerConfigured(env),
-    },
+    ...data,
   };
 }
 export async function loadPostPage(
@@ -147,4 +161,55 @@ export async function loadIntegrationsPageData(context: RequestContext) {
     }
   }
   return { ...data, initialTokens, initialError };
+}
+
+/** 四个深链共享一次 SSR 引导；数据仅属于当前已授权文档，不持久化。 */
+export type StudioPageData = DashboardBootstrap & {
+  trustedIdentity: string | null;
+  initialMedia: Media[];
+  initialTokens: APIToken[];
+  postsError: string;
+  mediaError: string;
+  tokensError: string;
+};
+export async function loadStudioPageData(
+  context: RequestContext,
+): Promise<StudioPageData> {
+  const { env, identity, data } = await loadBasePageData(context);
+  const result: StudioPageData = {
+    ...data,
+    posts: [],
+    trustedIdentity: identity.trustedIdentity,
+    initialMedia: [],
+    initialTokens: [],
+    postsError: "",
+    mediaError: "",
+    tokensError: "",
+  };
+  // 未授权的后台不需要公开列表；更不能预加载任意草稿、媒体或令牌。
+  if (!identity.owner) return result;
+  const [posts, media, tokens] = await Promise.allSettled([
+    (async () => {
+      if (!env.DB) throw new Error("Storage unavailable");
+      return new D1PostRepository(env.DB).listSummaries();
+    })(),
+    (async () => {
+      if (!env.DB) throw new Error("Storage unavailable");
+      return mediaListResponseSchema.parse({
+        media: await listMedia(env, "", null),
+      }).media;
+    })(),
+    (async () => {
+      if (!env.DB) throw new Error("Storage unavailable");
+      return tokensResponseSchema.parse({ tokens: await listTokens(env) })
+        .tokens;
+    })(),
+  ]);
+  if (posts.status === "fulfilled") result.posts = posts.value;
+  else result.postsError = "文章列表加载失败，请刷新后重试。";
+  if (media.status === "fulfilled") result.initialMedia = media.value;
+  else result.mediaError = "媒体加载失败，请刷新后重试。";
+  if (tokens.status === "fulfilled") result.initialTokens = tokens.value;
+  else result.tokensError = "令牌列表加载失败，请刷新后重试。";
+  return result;
 }

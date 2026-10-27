@@ -28,6 +28,9 @@ export async function api<T>(
       ...options.headers,
     },
   });
+  // 状态码已知即撤下私有界面，不等待可能迟到的错误正文。
+  if (typeof window !== "undefined" && [401, 403].includes(response.status))
+    window.dispatchEvent(new Event("mademe:identity-invalid"));
   const data = await response
     .json()
     .catch(() => ({ error: { message: "服务器返回了无法读取的响应。" } }));
@@ -145,7 +148,8 @@ export function Modal({
     return () => {
       document.removeEventListener("keydown", handler);
       modalLayers.remove(layer);
-      if (previous?.isConnected) previous.focus();
+      if (previous?.isConnected && !previous.closest("[hidden], [inert]"))
+        previous.focus();
     };
   }, []);
   return (

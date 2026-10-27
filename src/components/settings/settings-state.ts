@@ -18,10 +18,13 @@ export function reconcileSettingsResponse(
   submitted: Settings,
   current: Settings,
   response: Settings,
+  discardedBaseline?: Settings,
 ): Settings {
+  // 放弃本身不是编辑；但放弃后返回面板输入的新草稿仍必须保留。
+  const comparison = discardedBaseline ?? submitted;
   const merged: Record<string, unknown> = { ...response };
   for (const key of Object.keys(current) as (keyof Settings)[]) {
-    if (!equal(current[key], submitted[key])) merged[key] = current[key];
+    if (!equal(current[key], comparison[key])) merged[key] = current[key];
   }
   return merged as Settings;
 }

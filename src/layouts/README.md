@@ -6,8 +6,8 @@
 
 ## 后台导航性能
 
-后台列表、媒体和连接页面启用 Astro ClientRouter，复用已加载的客户端模块，减少整页刷新。设置、新建和编辑文章保留完整文档导航，继续使用原生 beforeunload 保护；没有通过页面缓存绕过身份验证。主题监听在每次页面交换后清理并重绑，防止重复监听或旧根节点残留。
+四个工作空间深链使用 `StudioWorkspace.astro` + 单个 React `StudioShell`。初次打开/刷新仍 SSR；同一已授权文档的四个业务模块保持挂载，hidden/inert 切换，不再每次切 tab 请求 HTML 与相同列表。编辑器、新建文章、登录及公开页保持完整导航。
 
-切页仍会请求服务端，因此不承诺消除托管层网络延迟。不得以此将私人 HTML 改为公共缓存。
+设置链接与本document历史由明确的离开保护处理；取消history用go补偿，原生 beforeunload 保护刷新及完整导航。不可用 Astro before-preparation.preventDefault 冒充取消。
 
-设置页暂不使用客户端路由，入口强制完整加载，确保未保存时链接、浏览器前进/后退及地址跳转均走原生 `beforeunload`。这是数据安全优先的明确例外：Astro 的 `astro:before-preparation.preventDefault()` 会降级整页导航，并不能取消离开。后续若恢复设置页客户端导航，必须先提供覆盖历史导航和程序化跳转的完整异步路由守卫，不能只拦截链接点击。
+身份恢复、一次性secret与测量语义见 [会话导航](../modules/studio-navigation/README.md)。服务端 no-store、owner 权限校验不变，禁止把私有 HTML 设为公共缓存。

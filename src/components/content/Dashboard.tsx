@@ -29,10 +29,12 @@ import {
 } from "../shared/ui";
 export default function Dashboard({
   initial,
+  initialError = "",
 }: {
   initial: DashboardBootstrap;
+  initialError?: string;
 }) {
-  useNavigationReady("/studio");
+  useNavigationReady("/studio", true, !!initialError);
   const [posts, setPosts] = useState(initial.posts);
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");

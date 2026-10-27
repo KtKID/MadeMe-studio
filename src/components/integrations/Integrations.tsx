@@ -1,6 +1,7 @@
+import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { integrationSourceLinks } from "./source-links";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   KeyRound,
   Plus,
@@ -24,6 +25,33 @@ export default function Integrations({
   initialTokens?: APIToken[];
   initialError?: string;
 }) {
+  const { active } = useStudioPane();
+  const activation = useRef(0);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  useEffect(() => {
+    activation.current++;
+    if (!active) {
+      setSecret("");
+      setOpen(false);
+      setCopied(false);
+    }
+    return () => {
+      activation.current++;
+    };
+  }, [active]);
+  useEffect(() => {
+    const conceal = () => {
+      activation.current++;
+      activeRef.current = false;
+      setSecret("");
+      setOpen(false);
+      setCopied(false);
+    };
+    if (typeof window === "undefined") return;
+    window.addEventListener("mademe:private-conceal", conceal);
+    return () => window.removeEventListener("mademe:private-conceal", conceal);
+  }, []);
   const [initialLoading, setInitialLoading] = useState(
     authenticated && initialTokens === undefined && !initialError,
   );
@@ -50,6 +78,7 @@ export default function Integrations({
         .finally(() => setInitialLoading(false));
   }, [authenticated, initialTokens, initialError]);
   async function create() {
+    const epoch = activation.current;
     setBusy(true);
     setError("");
     try {
@@ -60,7 +89,7 @@ export default function Integrations({
           body: JSON.stringify({ name, scopes, expiresInDays: days }),
         },
       );
-      setSecret(r.token);
+      if (activeRef.current && activation.current === epoch) setSecret(r.token);
       const list = await api<{ tokens: APIToken[] }>("/api/tokens");
       setTokens(list.tokens);
       setOpen(false);

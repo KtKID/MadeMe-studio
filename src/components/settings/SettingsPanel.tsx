@@ -1,3 +1,4 @@
+import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { useEffect, useRef, useState } from "react";
 import { installUnsavedGuard } from "../shared/unsaved-guard";
@@ -59,15 +60,22 @@ const skins = [
 export default function SettingsPanel({
   initial,
   authenticated,
+  onGuardChange,
+  onSaved,
 }: {
   initial: Settings;
   authenticated: boolean;
+  onGuardChange?: (guard: { dirty: boolean; discard: () => void }) => void;
+  onSaved?: (settings: Settings) => void;
 }) {
   useNavigationReady("/studio/settings");
+  const { active, navigationKey } = useStudioPane();
   const [settings, setSettings] = useState(initial);
   const baseline = useRef(initial);
   const draftRef = useRef(initial);
   const saveLock = useRef(false);
+  const discardEpoch = useRef(0);
+  const discardedBaseline = useRef(initial);
   function setDraft(update: Settings | ((previous: Settings) => Settings)) {
     const next =
       typeof update === "function" ? update(draftRef.current) : update;
@@ -77,13 +85,24 @@ export default function SettingsPanel({
   const dirty =
     Object.keys(settingsPatch(baseline.current, settings)).length > 0;
   useEffect(() => {
+    if (onGuardChange) {
+      onGuardChange({
+        dirty,
+        discard: () => {
+          discardEpoch.current++;
+          discardedBaseline.current = baseline.current;
+          setDraft(baseline.current);
+        },
+      });
+      return;
+    }
     if (dirty)
       return installUnsavedGuard(window, {
         documentTarget: document,
         confirmLeave: () => window.confirm("设置尚未保存，确定离开吗？"),
         currentUrl: () => window.location.href,
       });
-  }, [dirty]);
+  }, [dirty, onGuardChange]);
   const [tab, setTab] = useState("general");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -107,8 +126,8 @@ export default function SettingsPanel({
     }
   }
   useEffect(() => {
-    if (location.hash === "#models") setTab("models");
-  }, []);
+    if (active && location.hash === "#models") setTab("models");
+  }, [active, navigationKey]);
   function change<K extends keyof Settings>(key: K, value: Settings[K]) {
     setDraft((prev) => ({ ...prev, [key]: value }));
     setMessage("");
@@ -116,6 +135,7 @@ export default function SettingsPanel({
   async function save() {
     if (saveLock.current || !authenticated) return;
     const captured = draftRef.current;
+    const epoch = discardEpoch.current;
     const submitted = {
       ...captured,
       providers: captured.providers.map(normalizeImageModel),
@@ -139,8 +159,10 @@ export default function SettingsPanel({
         captured,
         draftRef.current,
         response.settings,
+        epoch !== discardEpoch.current ? discardedBaseline.current : undefined,
       );
       baseline.current = response.settings;
+      onSaved?.(response.settings);
       setDraft(next);
       document.documentElement.dataset.theme = response.settings.theme;
       document.documentElement.dataset.mode = response.settings.mode;

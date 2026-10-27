@@ -2,6 +2,7 @@
 
 采用 Astro 服务端阅读页面与 React 客户端交互岛。编辑器为真正的 BlockNote，不以 textarea 替代富文本正文。
 
+- [常驻工作台外壳](studio/README.md)
 - [共享界面与协议适配](shared/README.md)
 - [内容列表与安全阅读](content/README.md)
 - [块编辑与发布](editor/README.md)

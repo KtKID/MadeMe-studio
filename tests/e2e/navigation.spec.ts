@@ -21,21 +21,20 @@ async function expectCanceledLeave(
   );
 }
 
-test("@author 设置完整导航保护链接、历史回退和程序化地址跳转", async ({
+test("@author 常驻设置保护链接、历史回退和程序化地址跳转", async ({
   page,
   request,
 }) => {
   const bootstrap = await (await request.get("/api/bootstrap")).json();
   expect(bootstrap.capabilities?.authenticated).toBe(true);
   await page.goto("/studio");
+  await expect(page.locator("[data-studio-ready=true]")).toBeVisible();
   const documentStart = await page.evaluate(() => performance.timeOrigin);
   await page.getByRole("link", { name: "站点设置", exact: true }).click();
   await expect(page).toHaveURL(/\/studio\/settings$/);
   const input = page.getByLabel("站点名称", { exact: true });
   await expect(input).toBeVisible();
-  expect(await page.evaluate(() => performance.timeOrigin)).not.toBe(
-    documentStart,
-  );
+  expect(await page.evaluate(() => performance.timeOrigin)).toBe(documentStart);
   await input.fill("未保存导航验收");
   await expect(page.getByText("有未保存设置", { exact: true })).toBeVisible();
   await expectCanceledLeave(
@@ -43,7 +42,7 @@ test("@author 设置完整导航保护链接、历史回退和程序化地址跳
     () => page.getByRole("link", { name: "媒体库", exact: true }).click(),
     "confirm",
   );
-  await expectCanceledLeave(page, () => page.goBack());
+  await expectCanceledLeave(page, () => page.goBack(), "confirm");
   await expectCanceledLeave(page, () =>
     page.evaluate(() => {
       window.location.href = "/studio/media";
@@ -61,6 +60,7 @@ test("@author 设置完整导航保护链接、历史回退和程序化地址跳
 
 test("@author 未保存设置取消浏览器前进后保留输入", async ({ page }) => {
   await page.goto("/studio/settings");
+  await expect(page.locator("[data-studio-ready=true]")).toBeVisible();
   await expect(page.getByLabel("站点名称", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "媒体库", exact: true }).click();
   await expect(page).toHaveURL(/\/studio\/media$/);
@@ -68,5 +68,5 @@ test("@author 未保存设置取消浏览器前进后保留输入", async ({ pag
   await expect(page).toHaveURL(/\/studio\/settings$/);
   await page.getByLabel("站点名称", { exact: true }).fill("未保存导航验收");
   await expect(page.getByText("有未保存设置", { exact: true })).toBeVisible();
-  await expectCanceledLeave(page, () => page.goForward());
+  await expectCanceledLeave(page, () => page.goForward(), "confirm");
 });

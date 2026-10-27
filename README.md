@@ -80,3 +80,5 @@ npm run test:integrations
 - [独立作者登录界面](src/components/auth/README.md)
 
 - [导航性能测量模块](src/modules/navigation-performance/README.md)
+
+- [工作台常驻外壳](src/components/studio/README.md)、[会话导航与身份生命周期](src/modules/studio-navigation/README.md)

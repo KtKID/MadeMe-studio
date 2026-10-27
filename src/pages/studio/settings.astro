@@ -1,14 +1,5 @@
 ---
-import Studio from "../../layouts/Studio.astro";
-import SettingsPanel from "../../components/settings/SettingsPanel";
-import { loadPageData } from "../../server/page-data";
-const data = await loadPageData(Astro, false, { posts: "none" });
+import StudioWorkspace from "../../layouts/StudioWorkspace.astro";
 ---
 
-<Studio title="站点设置" active="settings" settings={data.settings}>
-  <SettingsPanel
-    initial={data.settings}
-    authenticated={data.capabilities.authenticated}
-    client:load
-  />
-</Studio>
+<StudioWorkspace />

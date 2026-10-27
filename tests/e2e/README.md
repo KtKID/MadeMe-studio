@@ -13,3 +13,5 @@
 `media.spec.ts` 使用 Canvas 生成可解码 PNG 并等待真实 `naturalWidth`，验证 640×480 原图和 1200×675 裁剪输出。由于当前媒体 API 没有删除端点，媒体验收会在隔离测试存储保留带 E2E 名称的原图与裁剪图，不能在生产资料库运行，也不宣称自动清理了全部媒体。
 
 `settings-regressions.spec.ts` 对延迟 PATCH 中继续编辑、只提交 dirty 字段、两个窗口独立修改 mode/font 设计了真实界面断言。保存完成后恢复原 mode/font。设置回归应在隔离测试实例串行执行，避免其他并行验收修改同一全站设置。
+
+`navigation.spec.ts` 与 `studio-shell.spec.ts` 覆盖四 tab 不重复请求、真实 href 与历史补偿、设置放弃基线、隐藏后的身份重验、401后迟到响应、一次性 secret 清理。新增用例源码不代表本轮已跑浏览器；当前执行环境仅允许已授权浏览器通道，不启动独立浏览器绕过限制。Vitest 生命周期夹具与真实 Worker HTTP 作为独立证据报告。
