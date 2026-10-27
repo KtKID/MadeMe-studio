@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError } from "../errors";
+import { logCaught, logger } from "../log";
 import type { RuntimeEnv } from "../runtime";
 
 const providerHosts = new Set([
@@ -9,7 +10,11 @@ const providerHosts = new Set([
   "api.cloudflare.com",
   "generativelanguage.googleapis.com",
 ]);
-/** 模型端点仅来自代码内官方白名单，任何调用都禁止携带凭据重定向。 */
+/**
+ * 模型端点仅来自代码内官方白名单，任何调用都禁止携带凭据重定向。
+ * Workers 的 fetch 只支持 redirect "follow" | "manual"（"error" 会直接抛 TypeError），
+ * 因此使用 "manual"，并由下方 `response.ok` 把任何非 2xx（含 3xx）视为失败。
+ */
 export async function providerRequest(
   url: string,
   key: string,
@@ -43,18 +48,34 @@ export async function providerRequest(
       ...(options.body === undefined
         ? {}
         : { body: JSON.stringify(options.body) }),
-      redirect: "error",
+      redirect: "manual",
       credentials: "omit",
       signal: AbortSignal.timeout(options.timeoutMs ?? 90000),
     });
-  } catch {
+  } catch (error) {
+    // 只记录主机名与异常类型/消息（已脱敏）；绝不记录密钥、请求体或完整 URL 查询串。
+    logCaught(
+      "ai.provider_fetch_failed",
+      error,
+      { host: parsed.hostname },
+      "error",
+    );
     throw new AppError(
       502,
       "PROVIDER_UNAVAILABLE",
       "The provider could not be reached. Please try again.",
     );
   }
-  if (!response.ok)
+  if (!response.ok) {
+    // 不读取上游错误正文（可能回显提示词或密钥片段），只记录状态码。
+    logger[response.status === 429 ? "warn" : "error"](
+      "ai.provider_http_error",
+      {
+        host: parsed.hostname,
+        httpStatus: response.status,
+        redirected: response.status >= 300 && response.status < 400,
+      },
+    );
     throw new AppError(
       response.status === 429 ? 429 : 502,
       "PROVIDER_ERROR",
@@ -62,6 +83,7 @@ export async function providerRequest(
         ? "The provider rate limit was reached."
         : "The provider rejected the request. Check the server-side key and selected model.",
     );
+  }
   return response;
 }
 export async function readProviderBytes(response: Response, max = 35_000_000) {

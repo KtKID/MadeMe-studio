@@ -1,3 +1,4 @@
+import { clientCaught } from "../shared/client-log";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { integrationSourceLinks } from "./source-links";
@@ -236,7 +237,8 @@ export default function Integrations({
                   try {
                     await navigator.clipboard.writeText(secret);
                     setCopied(true);
-                  } catch {
+                  } catch (error) {
+                    clientCaught("integrations.clipboard_failed", error);
                     setError("浏览器不允许自动复制，请手动选择令牌。");
                   }
                 }}

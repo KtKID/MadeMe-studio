@@ -1,3 +1,4 @@
+import { logCaught } from "../log";
 const encoder = new TextEncoder();
 function hex(bytes: Uint8Array) {
   return [...bytes].map((v) => v.toString(16).padStart(2, "0")).join("");
@@ -52,7 +53,9 @@ export async function verifyPassword(value: string, stored: string) {
       256,
     );
     return constantTimeEqual(hex(new Uint8Array(hash)), expected);
-  } catch {
+  } catch (error) {
+    // 存储的摘要损坏或 KDF 不可用：仍按校验失败处理，但必须留下日志，避免误判为"密码错误"。
+    logCaught("auth.post_password_verify_failed", error, {}, "error");
     return false;
   }
 }

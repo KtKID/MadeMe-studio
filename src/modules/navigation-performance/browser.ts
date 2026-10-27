@@ -1,3 +1,4 @@
+import { clientCaught } from "../../components/shared/client-log";
 import { begin, finish, restore, route, type StudioRoute } from "./protocol";
 const KEY = "mademe.navigation-performance.v1";
 const now = () => performance.timeOrigin + performance.now();
@@ -25,8 +26,9 @@ export function beginHistoryPerformance(from: StudioRoute, to: StudioRoute) {
 function publish() {
   try {
     sessionStorage.setItem(KEY, JSON.stringify(state));
-  } catch {
-    /* 存储不可用仍保留本页样本。 */
+  } catch (error) {
+    // 存储不可用仍保留本页样本。
+    clientCaught("perf.storage_write_failed", error, {}, "debug");
   }
   const output = document.getElementById("navigation-performance-json");
   if (output) output.textContent = JSON.stringify(state, null, 2);
@@ -98,7 +100,8 @@ export function installPerformance() {
   if (!enabled) return;
   try {
     state = restore(sessionStorage.getItem(KEY));
-  } catch {
+  } catch (error) {
+    clientCaught("perf.storage_read_failed", error, {}, "debug");
     state = restore(null);
   }
   expire();

@@ -26,7 +26,7 @@
 
 密钥只通过运行时提供：`OPENAI_API_KEY`、`OPENROUTER_API_KEY`、`SILICONFLOW_API_KEY`、`CLOUDFLARE_AI_TOKEN`、`GEMINI_API_KEY`。Cloudflare 还需合法账户 ID。OpenAI 图像可使用单独的 `IMAGE_API_KEY`；未选定图像模型时可使用 `IMAGE_MODEL` 默认值。
 
-不接受客户端任意 base URL。所有 API 主机固定白名单；密钥仅放请求头，不进入 URL、日志或返回内容。请求禁止重定向，响应有体积上限。Gemini 思考标记的文字或图片不作为最终输出保存。
+不接受客户端任意 base URL。所有 API 主机固定白名单；密钥仅放请求头，不进入 URL、日志或返回内容。请求禁止重定向：Workers fetch 不支持 `redirect: "error"`，因此使用 `"manual"`，任何非 2xx（含 3xx）都视为失败；失败经统一日志记录 `ai.provider_fetch_failed` / `ai.provider_http_error` / `ai.image_download_*`（仅主机名与状态码，不含密钥与上游正文）。响应有体积上限。Gemini 思考标记的文字或图片不作为最终输出保存。
 
 SiliconFlow 临时图片仅允许 HTTPS 精确主机白名单，不转发 API 密钥、Cookie 或重定向。默认允许官方示例使用的对象存储主机；管理员可通过 `SILICONFLOW_IMAGE_HOSTS` 明确补充已验证主机，不支持通配符、IP、本地域名或客户端覆盖。主机变更时安全拒绝，不自动放开。
 

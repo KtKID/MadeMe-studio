@@ -7,6 +7,7 @@ import {
   type APIToken,
 } from "../shared/contracts";
 import { listMedia } from "./media/service";
+import { logCaught, requestLogContext } from "./log";
 import { listTokens } from "./tokens";
 import { providerCapabilities } from "./ai/capabilities";
 import { hasConfiguredImageProvider } from "./ai/images";
@@ -139,7 +140,12 @@ export async function loadMediaPageData(context: RequestContext) {
       initialMedia = mediaListResponseSchema.parse({
         media: await listMedia(env, "", null),
       }).media;
-    } catch {
+    } catch (error) {
+      logCaught(
+        "page.media_load_failed",
+        error,
+        requestLogContext(context.request),
+      );
       initialError = "媒体加载失败，请刷新后重试。";
     }
   }
@@ -156,7 +162,12 @@ export async function loadIntegrationsPageData(context: RequestContext) {
       initialTokens = tokensResponseSchema.parse({
         tokens: await listTokens(env),
       }).tokens;
-    } catch {
+    } catch (error) {
+      logCaught(
+        "page.tokens_load_failed",
+        error,
+        requestLogContext(context.request),
+      );
       initialError = "令牌列表加载失败，请刷新后重试。";
     }
   }

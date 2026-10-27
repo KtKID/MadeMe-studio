@@ -1,3 +1,4 @@
+import { clientCaught } from "../shared/client-log";
 import {
   useCallback,
   useEffect,
@@ -170,7 +171,8 @@ export default function StudioShell({
         if (privateRoot.current) privateRoot.current.hidden = false;
         setVisible(true);
         setNavigationKey((key) => key + 1);
-      } catch {
+      } catch (error) {
+        clientCaught("studio.identity_recheck_failed", error);
         if (epoch === visibilityEpoch.current) invalidate();
       }
     };

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SignJWT, exportJWK, generateKeyPair } from "jose";
 import { handleAPI } from "../../src/server/api";
+import { captureLogs } from "./log-capture";
 import { fixtureEnv } from "./support";
 let env: ReturnType<typeof fixtureEnv>;
 let signing: Awaited<ReturnType<typeof generateKeyPair>>;
@@ -207,6 +208,7 @@ describe("Google 单作者 OAuth 安全边界", () => {
     ).toBe(0);
   });
   it("篡改签名拒绝且不泄露provider响应", async () => {
+    const logs = captureLogs();
     const flow = await start();
     fetchMock.mockImplementation(async () =>
       Response.json({
@@ -217,9 +219,12 @@ describe("Google 单作者 OAuth 安全边界", () => {
     const done = await finish(flow);
     expect(done.headers.get("location")).toBe("/login?error=google_failed");
     expect(await done.text()).not.toContain("secret");
+    expect(logs.find("auth.google.callback_failed")).toHaveLength(1);
+    expect(logs.raw()).not.toContain("secret-invalid-token");
+    expect(logs.raw()).not.toContain("secret-email");
   });
   it("provider fetch 使用 Workers 支持的 redirect 模式，3xx 视为失败且日志只含阶段", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const logs = captureLogs();
     const ok = await finish(await start());
     expect(ok.headers.get("location")).toBe("/studio/settings");
     for (const [, init] of fetchMock.mock.calls)
@@ -238,17 +243,31 @@ describe("Google 单作者 OAuth 安全边界", () => {
       "https://oauth2.googleapis.com/token",
       expect.objectContaining({ redirect: "manual" }),
     );
-    expect(warn).toHaveBeenLastCalledWith("google_callback_failed", {
+    expect(logs.find("auth.google.callback_failed").at(-1)).toMatchObject({
+      level: "error",
       stage: "token",
+      outcome: "google_failed",
+      path: "/api/auth/google/callback",
     });
-    const logged = JSON.stringify(warn.mock.calls);
-    for (const leak of [flow.state, "fixture-code", env.OWNER_EMAIL!])
+    expect(logs.find("auth.google.provider_failed").at(-1)).toMatchObject({
+      level: "warn",
+      endpoint: "token",
+      httpStatus: 302,
+    });
+    const logged = logs.raw();
+    for (const leak of [
+      flow.state,
+      "fixture-code",
+      env.OWNER_EMAIL!,
+      env.GOOGLE_CLIENT_SECRET!,
+      "attacker.test",
+    ])
       expect(logged).not.toContain(leak);
   });
   it.each(["jwks", "verify"] as const)(
     "失败阶段 %s 被准确记录",
     async (stage) => {
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const logs = captureLogs();
       const flow = await start();
       const real = fetchMock.getMockImplementation() as (
         url: string,
@@ -266,9 +285,11 @@ describe("Google 单作者 OAuth 安全边界", () => {
       });
       const done = await finish(flow);
       expect(done.headers.get("location")).toBe("/login?error=google_failed");
-      expect(warn).toHaveBeenLastCalledWith("google_callback_failed", {
+      expect(logs.find("auth.google.callback_failed").at(-1)).toMatchObject({
+        level: "error",
         stage,
       });
+      expect(logs.raw()).not.toContain(flow.state);
     },
   );
 });

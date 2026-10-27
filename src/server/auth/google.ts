@@ -5,6 +5,7 @@ import {
   googleStartRequestSchema,
 } from "../../shared/auth";
 import { AppError } from "../errors";
+import { logger, requestLogContext } from "../log";
 import { boundedBody, json } from "../http";
 import { rateLimit } from "../rate-limit";
 import type { RuntimeEnv } from "../runtime";
@@ -29,6 +30,7 @@ function validOrigin(value?: string): boolean {
       !u.password
     );
   } catch {
+    // 判定函数：无效配置即"未配置"，由调用方返回 503 AUTH_SETUP_REQUIRED 并经 errorResponse 记录。
     return false;
   }
 }
@@ -111,17 +113,26 @@ async function providerJSON(
 ) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
+  let status: number | undefined;
   try {
     const response = await fetch(url, {
       ...init,
       redirect: "manual",
       signal: controller.signal,
     });
+    status = response.status;
     if (response.status < 200 || response.status >= 300)
       throw new Error("provider unavailable");
     const bytes = await boundedBody(response as unknown as Request, 65536);
     return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
-  } catch {
+  } catch (error) {
+    // 只记录端点名、HTTP 状态与异常类型；不记录请求体（含 code/verifier/secret）或提供方响应正文。
+    logger.warn("auth.google.provider_failed", {
+      endpoint: url === TOKEN ? "token" : "jwks",
+      httpStatus: status,
+      errorName: error instanceof Error ? error.name : typeof error,
+      timedOut: controller.signal.aborted,
+    });
     throw new AppError(
       503,
       "GOOGLE_UNAVAILABLE",
@@ -365,9 +376,27 @@ async function callback(request: Request, env: RuntimeEnv) {
       cookie(FLOW_COOKIE, "", 0),
       cookie(SESSION_COOKIE, session, SESSION_SECONDS),
     ]);
-  } catch {
-    // 固定错误码，不将提供方描述、邮箱、code 或 token 回传浏览器或日志；日志仅含阶段标签。
-    console.warn("google_callback_failed", { stage });
+  } catch (error) {
+    // 固定错误码，不将提供方描述、邮箱、code 或 token 回传浏览器或日志；
+    // 日志仅含阶段标签、结果与异常类型/固定错误码，不含异常消息。
+    const e = error as { name?: unknown; code?: unknown };
+    // 用户在 Google 取消 → info；伪造/过期流程、无效参数、非作者账号 → warn；
+    // 提供方、验签、会话写入等失败 → error（需要排查）。
+    logger[
+      stage === "provider_error"
+        ? "info"
+        : stage === "flow" || stage === "code" || stage === "owner"
+          ? "warn"
+          : "error"
+    ]("auth.google.callback_failed", {
+      ...requestLogContext(request),
+      stage,
+      outcome: denied ? "google_denied" : "google_failed",
+      errorName: typeof e?.name === "string" ? e.name : typeof error,
+      ...(typeof e?.code === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(e.code)
+        ? { errorCode: e.code }
+        : {}),
+    });
     return redirect(
       `/login?error=${denied ? "google_denied" : "google_failed"}`,
       [cookie(FLOW_COOKIE, "", 0)],

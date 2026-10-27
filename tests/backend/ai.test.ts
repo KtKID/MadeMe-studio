@@ -3,6 +3,7 @@ import { providerSchema } from "../../src/shared/contracts";
 import { generateImage, listModels, runAI } from "../../src/server/ai/service";
 import { writeSettings } from "../../src/server/settings";
 import { loadPageData } from "../../src/server/page-data";
+import { captureLogs } from "./log-capture";
 import { fixtureEnv } from "./support";
 
 let env: ReturnType<typeof fixtureEnv>;
@@ -17,6 +18,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   env.DB.close();
 });
 async function configure(kind: string, extras: Record<string, unknown> = {}) {
@@ -168,7 +170,7 @@ describe("新增提供商协议：官方格式 fixture，先测后实现", () =>
     expect(
       new Headers(mockFetch.mock.calls[1][1]?.headers).has("authorization"),
     ).toBe(false);
-    expect(mockFetch.mock.calls[1][1]?.redirect).toBe("error");
+    expect(mockFetch.mock.calls[1][1]?.redirect).toBe("manual");
     expect(image.mime).toBe("image/png");
   });
   it.each([
@@ -268,7 +270,119 @@ describe("新增提供商协议：官方格式 fixture，先测后实现", () =>
     await expect(
       generateImage(env, { prompt: "A notebook", providerId: "provider" }),
     ).rejects.toMatchObject({ code: "PROVIDER_ERROR" });
-    expect(sent().init.redirect).toBe("error");
+    expect(sent().init.redirect).toBe("manual");
+    expect(env.BUCKET.objects.size).toBe(0);
+  });
+  it("Workers 只接受 follow/manual：所有提供商请求都能通过 workerd 的 redirect 校验", async () => {
+    // workerd 对 redirect:"error" 直接抛 TypeError；模拟同样的约束，防止 fetch 模拟掩盖平台差异。
+    mockFetch.mockImplementation(async (_url, init) => {
+      if (!["follow", "manual", undefined].includes(init?.redirect))
+        throw new TypeError("Invalid redirect value");
+      return Response.json({
+        choices: [{ message: { content: "Workers ok" } }],
+      });
+    });
+    env.OPENAI_API_KEY = "fixture-openai-key";
+    await configure("openai");
+    expect(
+      await runAI(env, {
+        action: "polish",
+        selection: "Draft",
+        providerId: "provider",
+      }),
+    ).toEqual({ text: "Workers ok" });
+  });
+  it("提供商 3xx 重定向视为失败、不跟随，并写入不含密钥的结构化日志", async () => {
+    const logs = captureLogs();
+    env.OPENAI_API_KEY = "fixture-openai-key";
+    await configure("openai");
+    mockFetch.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { Location: "https://attacker.test/collect" },
+      }),
+    );
+    await expect(
+      runAI(env, {
+        action: "polish",
+        selection: "Draft",
+        providerId: "provider",
+      }),
+    ).rejects.toMatchObject({ code: "PROVIDER_ERROR" });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(logs.find("ai.provider_http_error")[0]).toMatchObject({
+      level: "error",
+      host: "api.openai.com",
+      httpStatus: 302,
+      redirected: true,
+    });
+    expect(logs.raw()).not.toContain("fixture-openai-key");
+    expect(logs.raw()).not.toContain("attacker.test");
+  });
+  it("提供商网络异常记录为 ai.provider_fetch_failed，不再静默", async () => {
+    const logs = captureLogs();
+    env.OPENAI_API_KEY = "fixture-openai-key";
+    await configure("openai");
+    mockFetch.mockRejectedValueOnce(new TypeError("network down"));
+    await expect(
+      runAI(env, {
+        action: "polish",
+        selection: "Draft",
+        providerId: "provider",
+      }),
+    ).rejects.toMatchObject({ code: "PROVIDER_UNAVAILABLE" });
+    expect(logs.find("ai.provider_fetch_failed")[0]).toMatchObject({
+      level: "error",
+      host: "api.openai.com",
+      error: { name: "TypeError", message: "network down" },
+    });
+    expect(logs.raw()).not.toContain("fixture-openai-key");
+  });
+  it("上游 500 只记录状态码，不记录响应正文", async () => {
+    const logs = captureLogs();
+    env.OPENAI_API_KEY = "fixture-openai-key";
+    await configure("openai");
+    mockFetch.mockResolvedValueOnce(
+      new Response("private-upstream-details", { status: 500 }),
+    );
+    await expect(
+      generateImage(env, { prompt: "A notebook", providerId: "provider" }),
+    ).rejects.toMatchObject({ code: "PROVIDER_ERROR" });
+    expect(logs.find("ai.provider_http_error")[0]).toMatchObject({
+      httpStatus: 500,
+    });
+    expect(logs.raw()).not.toContain("private-upstream-details");
+  });
+  it("生成图片下载遇到 3xx 视为失败并记录日志", async () => {
+    const logs = captureLogs();
+    env.SILICONFLOW_API_KEY = "fixture-silicon-key";
+    await configure("siliconflow", {
+      imageModel: "black-forest-labs/FLUX.1-schnell",
+    });
+    respond({
+      images: [
+        {
+          url: "https://sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com/outputs/test.png?signature=fixture-signature",
+        },
+      ],
+    });
+    mockFetch.mockResolvedValueOnce(
+      new Response(null, {
+        status: 301,
+        headers: { Location: "https://attacker.test/x.png" },
+      }),
+    );
+    await expect(
+      generateImage(env, { prompt: "Yellow notebook", providerId: "provider" }),
+    ).rejects.toMatchObject({ code: "IMAGE_DOWNLOAD_FAILED" });
+    expect(mockFetch.mock.calls[1][1]?.redirect).toBe("manual");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(logs.find("ai.image_download_http_error")[0]).toMatchObject({
+      level: "error",
+      host: "sf-maas-uat-prod.oss-cn-shanghai.aliyuncs.com",
+      httpStatus: 301,
+    });
+    expect(logs.raw()).not.toContain("fixture-signature");
     expect(env.BUCKET.objects.size).toBe(0);
   });
   it("没有密钥时在网络前失败，不伪造生图记录", async () => {

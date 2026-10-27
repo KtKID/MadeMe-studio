@@ -32,6 +32,8 @@ npm run build
 npm run test:integrations
 ```
 
+贡献约定：失败不得静默，服务端统一使用 `src/server/log.ts`、浏览器端使用 `src/components/shared/client-log.ts`；每次修复须在 `reports/` 新增报告，详见 [开发清单与执行约定](docs/DEVELOPMENT.md#执行约定)。
+
 本地开发、数据库准备、作者身份和部署边界见 [部署与运行](docs/DEPLOYMENT.md)。真实 Worker 测试入口为 `npm run test:worker`，HTTP 冒烟为 `npm run test:smoke`；浏览器测试入口为 `npm run test:e2e`，需独立准备隔离实例与浏览器。不能将浏览器启动失败或未登录记为通过。
 
 ## 文档与模块索引

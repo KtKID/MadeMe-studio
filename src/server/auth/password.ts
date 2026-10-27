@@ -1,3 +1,4 @@
+import { logCaught } from "../log";
 import { googleAuthConfigured, handleGoogleLogout } from "./google";
 import { z } from "zod";
 import {
@@ -38,8 +39,9 @@ async function derive(password: string, salt: Uint8Array<ArrayBuffer>) {
         ),
       ),
     );
-  } catch {
+  } catch (error) {
     // 某些生产 Worker 限制迭代次数；不得降级哈希强度或回退为成功。
+    logCaught("auth.password_kdf_unavailable", error);
     throw new AppError(
       503,
       "AUTH_KDF_UNAVAILABLE",

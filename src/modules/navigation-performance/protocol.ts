@@ -44,6 +44,7 @@ export function restore(raw: string | null): TimingState {
   try {
     return State.parse(JSON.parse(raw || "null"));
   } catch {
+    // 纯函数：仅 ?perf=1 的诊断样本，损坏即重置；读取失败由 browser.ts 记录。
     return initialState();
   }
 }

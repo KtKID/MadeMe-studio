@@ -1,3 +1,4 @@
+import { clientCaught, clientLog } from "./client-log";
 import { useEffect, useRef, type ReactNode } from "react";
 import { parseApiResponse, parseApiError } from "./api-protocol";
 import { ModalStack } from "./modal-stack";
@@ -18,29 +19,49 @@ export async function api<T>(
   url: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(url, {
-    credentials: "same-origin",
-    ...options,
-    headers: {
-      ...(options.body instanceof FormData
-        ? {}
-        : { "Content-Type": "application/json" }),
-      ...options.headers,
-    },
-  });
+  const path = url.split("?")[0];
+  const method = options.method || "GET";
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      credentials: "same-origin",
+      ...options,
+      headers: {
+        ...(options.body instanceof FormData
+          ? {}
+          : { "Content-Type": "application/json" }),
+        ...options.headers,
+      },
+    });
+  } catch (error) {
+    clientCaught("api.network_failed", error, { path, method });
+    throw error;
+  }
   // 状态码已知即撤下私有界面，不等待可能迟到的错误正文。
   if (typeof window !== "undefined" && [401, 403].includes(response.status))
     window.dispatchEvent(new Event("mademe:identity-invalid"));
-  const data = await response
-    .json()
-    .catch(() => ({ error: { message: "服务器返回了无法读取的响应。" } }));
+  const data = await response.json().catch((error: unknown) => {
+    clientCaught("api.unreadable_response", error, {
+      path,
+      method,
+      status: response.status,
+    });
+    return { error: { message: "服务器返回了无法读取的响应。" } };
+  });
   if (!response.ok) {
     const error = parseApiError(data);
+    clientLog(response.status >= 500 ? "error" : "warn", "api.request_failed", {
+      path,
+      method,
+      status: response.status,
+      code: error.code,
+    });
     throw new ApiError(response.status, error.code, error.message);
   }
   try {
-    return parseApiResponse(data, url, options.method || "GET") as T;
-  } catch {
+    return parseApiResponse(data, url, method) as T;
+  } catch (error) {
+    clientCaught("api.protocol_mismatch", error, { path, method }, "error");
     throw new ApiError(
       502,
       "INVALID_RESPONSE",

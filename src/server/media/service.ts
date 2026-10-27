@@ -1,3 +1,4 @@
+import { logCaught } from "../log";
 import { acceptedMediaMimeTypes, type Media } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
 import { AppError, notFound } from "../errors";
@@ -142,7 +143,14 @@ export async function saveMedia(
       )
       .run();
   } catch (error) {
-    await env.BUCKET.delete(row.object_key);
+    // 元数据写入失败须回滚对象；回滚本身失败时记录孤儿对象，但仍抛出原始错误。
+    try {
+      await env.BUCKET.delete(row.object_key);
+    } catch (rollbackError) {
+      logCaught("media.rollback_failed", rollbackError, {
+        mediaId: row.id,
+      });
+    }
     throw error;
   }
   return publicMedia(row);

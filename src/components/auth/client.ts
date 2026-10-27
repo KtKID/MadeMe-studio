@@ -1,3 +1,4 @@
+import { clientCaught, clientLog } from "../shared/client-log";
 import {
   authLoginRequestSchema,
   authLoginResponseSchema,
@@ -14,10 +15,12 @@ async function postAuth(path: string, body: unknown): Promise<unknown> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-  } catch {
+  } catch (error) {
+    clientCaught("auth.network_failed", error, { path });
     throw new Error("网络暂时不可用，请检查连接后重试。");
   }
   if (!response.ok) {
+    clientLog("warn", "auth.request_failed", { path, status: response.status });
     if (response.status === 429) throw new Error("尝试次数过多，请稍后再试。");
     if (response.status === 401)
       throw new Error("邮箱或密码不正确，请重新输入。");
@@ -27,7 +30,8 @@ async function postAuth(path: string, body: unknown): Promise<unknown> {
   }
   try {
     return await response.json();
-  } catch {
+  } catch (error) {
+    clientCaught("auth.unreadable_response", error, { path });
     throw new Error("服务器响应无法验证，请刷新页面后重试。");
   }
 }

@@ -63,6 +63,18 @@ Chrome、Obsidian 与 CLI 使用短有效期、最小 scope 的 API Token。真�
 
 私有 Sites 外层访问门可能先于应用 Bearer 鉴权拦截外部客户端。不要为了联调擅自公开站点或绕过身份门；先确认正式托管的受支持 API 访问方式，再按 [集成检查表](../integrations/tests/README.md) 验证。默认只创建草稿，正式发布需独立权限及明确操作。
 
+## 日志与排障
+
+服务端日志为单行 JSON（`level`、`event`、`ts`、`requestId`、`path` 及脱敏字段），见 [服务端编排](../src/server/README.md#统一日志)。`wrangler.jsonc` 开启 `observability.enabled`，可在 Cloudflare 控制台 Workers → 对应 Worker → Logs 按 `event`、`level` 查询历史日志。实时查看：
+
+```sh
+npx wrangler tail <worker-name> --format pretty
+# 只看以异常结束的请求（日志级别请在 JSON 的 level 字段筛选）
+npx wrangler tail <worker-name> --format json --status error
+```
+
+`wrangler tail` 输出可能含请求 URL；保存或转发前去掉查询串，不要提交到仓库。
+
 ## 上线前检查
 
 - 完整浏览器 E2E 和手机尺寸视觉检查。
@@ -79,7 +91,6 @@ Chrome、Obsidian 与 CLI 使用短有效期、最小 scope 的 API Token。真�
 密码哈希采用 PBKDF2-SHA256 600,000 次；不支持这一策略的运行时返回 503，不降低参数。Cloudflare 生产运行时的迭代限制与 CPU 预算必须单独验证，本地 Node/workerd 通过不能证明生产可用。正式环境选择尚待确认，不得将当前密码模式称作已完成生产认证验收。详见[认证模块边界](../src/server/auth/README.md)。
 
 登录页面仅在 HTTPS 下显示密码表单；会话 Cookie 为 HttpOnly、Secure、SameSite=Strict，8 小时绝对到期。新登录轮换会话，退出服务器端撤销；更换邮箱、密码摘要或签名密钥使旧会话失效。第一版无空闲续期、无公开注册或邮件找回密码服务。
-
 
 ## Google 单作者模式（实现准备，未部署验收）
 

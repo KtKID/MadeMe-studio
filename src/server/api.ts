@@ -30,6 +30,7 @@ import { PostService, publicPosts } from "./content/service";
 import { readSettings, redactSettings, writeSettings } from "./settings";
 import { loadPageData } from "./page-data";
 import { json, readJSON, boundedBody, errorResponse } from "./http";
+import { requestLogContext } from "./log";
 import { listMedia, saveMedia, serveMedia } from "./media/service";
 import { runAI, generateImage, listModels } from "./ai/service";
 import { createToken, listTokens, revokeToken } from "./tokens";
@@ -373,7 +374,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
     }
     throw notFound();
   } catch (error) {
-    response = errorResponse(error);
+    response = errorResponse(error, requestLogContext(request));
   }
   // 浏览器会话响应不开放跨域；只有显式 Bearer 令牌响应开放无凭据 CORS。
   if (request.headers.get("authorization")?.startsWith("Bearer ")) {

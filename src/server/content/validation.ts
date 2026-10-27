@@ -72,6 +72,7 @@ export function isSafeEmbed(url: string) {
       !u.password
     );
   } catch {
+    // 判定函数：作者输入的无效 URL 视为不允许嵌入，调用方返回 422 并经 errorResponse 记录。
     return false;
   }
 }

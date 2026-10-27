@@ -3,6 +3,7 @@ import { z } from "zod";
 import { imageInputSchema, type Provider } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
 import { AppError } from "../errors";
+import { logCaught, logger } from "../log";
 import { providerKey, readSettings } from "../settings";
 import { saveMedia, validateMedia } from "../media/service";
 import {
@@ -121,24 +122,34 @@ async function downloadImage(
   let response: Response;
   // 下载地址仅来自受信提供商响应且命中精确白名单；绝不转发模型密钥或浏览器 Cookie。
   try {
+    // Workers 不支持 redirect "error"；用 "manual"，下方 !response.ok 拒绝任何 3xx，不跟随到白名单外主机。
     response = await fetch(url, {
-      redirect: "error",
+      redirect: "manual",
       credentials: "omit",
       signal: AbortSignal.timeout(30000),
     });
-  } catch {
+  } catch (error) {
+    logCaught("ai.image_download_failed", error, {
+      host: new URL(url).hostname,
+    });
     throw new AppError(
       502,
       "IMAGE_DOWNLOAD_FAILED",
       "The generated image could not be downloaded.",
     );
   }
-  if (!response.ok)
+  if (!response.ok) {
+    logger.error("ai.image_download_http_error", {
+      host: new URL(url).hostname,
+      httpStatus: response.status,
+      redirected: response.status >= 300 && response.status < 400,
+    });
     throw new AppError(
       502,
       "IMAGE_DOWNLOAD_FAILED",
       "The generated image could not be downloaded.",
     );
+  }
   const bytes = await readProviderBytes(response, 25 * 1024 * 1024);
   const mime = mimeFromBytes(bytes);
   validateMedia(bytes, mime);
