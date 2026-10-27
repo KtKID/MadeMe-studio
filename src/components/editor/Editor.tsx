@@ -44,6 +44,8 @@ import { embedUrl, SafeEmbed } from "../content/BlockReader";
 import MediaLibrary from "../media/MediaLibrary";
 import { resolveMode } from "../shared/appearance";
 import { EditClock, hasDocumentContent } from "./editor-state";
+import { AIRequestState } from "./ai-request-state";
+import { applyEditorReplacement } from "./editor-replacement";
 import {
   createEditorLeaveGuard,
   editorLinkDestination,
@@ -148,6 +150,7 @@ export default function Editor({
   const [selection, setSelection] = useState("");
   const [aiAction, setAiAction] = useState<AIAction>("polish");
   const [aiText, setAiText] = useState("");
+  const aiSession = useRef(new AIRequestState());
   const [provider, setProvider] = useState("");
   const [promptId, setPromptId] = useState("");
   const [revisions, setRevisions] = useState<Revision[]>([]);
@@ -326,31 +329,46 @@ export default function Editor({
   }
   async function reload() {
     if (
+      lock.current ||
       !current ||
       !confirm(
         "加载服务器最新版本将替换本页未保存修改。建议先导出 Markdown 备份，确定继续？",
       )
     )
       return;
+    lock.current = true;
+    setBusy("reload");
+    const sequence = editClock.current.snapshot();
     try {
       const { post: p } = await api<{ post: Post }>(`/api/posts/${current.id}`);
-      editor.replaceBlocks(
-        editor.document,
-        p.blocks as unknown as PartialBlock<typeof schema.blockSchema>[],
+      const applied = applyEditorReplacement(
+        editClock.current,
+        sequence,
+        () => {
+          editor.replaceBlocks(
+            editor.document,
+            p.blocks as unknown as PartialBlock<typeof schema.blockSchema>[],
+          );
+          updateCurrent(p);
+          setTitle(p.title);
+          setExcerpt(p.excerpt);
+          setTags(p.tags.join(", "));
+          setCategory(p.category);
+          setCover(p.coverImage);
+          setSlug(p.slug);
+          markClean();
+          setConflict(false);
+          setError("");
+          setMessage("已载入服务器最新版本。");
+        },
       );
-      updateCurrent(p);
-      setTitle(p.title);
-      setExcerpt(p.excerpt);
-      setTags(p.tags.join(", "));
-      setCategory(p.category);
-      setCover(p.coverImage);
-      setSlug(p.slug);
-      markClean();
-      setConflict(false);
-      setError("");
-      setMessage("已载入服务器最新版本。");
+      if (!applied)
+        setError("载入期间你又修改了文章，已保留本地输入；请备份后重新载入。");
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      lock.current = false;
+      setBusy("");
     }
   }
   async function exportMarkdown() {
@@ -361,9 +379,10 @@ export default function Editor({
     );
   }
   async function importMarkdown(file: File | undefined) {
-    if (!file) return;
+    if (!file || lock.current) return;
     if (file.size > 2 * 1024 * 1024) {
       setError("Markdown 文件请小于 2 MB。");
+      if (importInput.current) importInput.current.value = "";
       return;
     }
     if (
@@ -373,23 +392,41 @@ export default function Editor({
       if (importInput.current) importInput.current.value = "";
       return;
     }
+    lock.current = true;
+    setBusy("import");
+    const sequence = editClock.current.snapshot();
     try {
       const text = await file.text();
       const parsed = editor.tryParseMarkdownToBlocks(text);
-      editor.replaceBlocks(editor.document, parsed);
-      if (!title) {
-        const match = text.match(/^#\s+(.+)$/m);
-        if (match) setTitle(match[1]);
-      }
-      markDirty();
-      setMessage("已导入 Markdown，请检查排版后保存。");
+      const applied = applyEditorReplacement(
+        editClock.current,
+        sequence,
+        () => {
+          editor.replaceBlocks(editor.document, parsed);
+          if (!title) {
+            const match = text.match(/^#\s+(.+)$/m);
+            if (match) setTitle(match[1]);
+          }
+          markDirty();
+          setMessage("已导入 Markdown，请检查排版后保存。");
+        },
+      );
+      if (!applied)
+        setError("读取文件期间你又修改了文章，已取消导入并保留本地输入。");
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      lock.current = false;
+      setBusy("");
       if (importInput.current) importInput.current.value = "";
     }
   }
+  function closeAI() {
+    aiSession.current.invalidate();
+    setPanel(null);
+  }
   function openAI(action: AIAction = "polish") {
+    aiSession.current.invalidate();
     const selected = editor.getSelectedText();
     setSelection(selected || editor.blocksToMarkdownLossy(editor.document));
     setAiAction(action);
@@ -405,6 +442,16 @@ export default function Editor({
       (p) => p.id === effectiveProviderId && p.textConfigured === true,
     );
   async function runAI() {
+    if (
+      lock.current ||
+      !aiConfigured ||
+      !selectedTextConfigured ||
+      !selection.trim()
+    )
+      return;
+    lock.current = true;
+    const session = aiSession.current.snapshot();
+    setAiText("");
     setBusy("ai");
     setError("");
     try {
@@ -419,14 +466,16 @@ export default function Editor({
           ...(aiAction === "translate" ? { language: "English" } : {}),
         }),
       });
-      setAiText(data.text);
+      if (aiSession.current.isCurrent(session)) setAiText(data.text);
     } catch (e) {
-      setError((e as Error).message);
+      if (aiSession.current.isCurrent(session)) setError((e as Error).message);
     } finally {
+      lock.current = false;
       setBusy("");
     }
   }
   function applyAI() {
+    if (lock.current || !aiText.trim()) return;
     if (aiAction === "title") setTitle(aiText.trim());
     else if (aiAction === "excerpt") setExcerpt(aiText.trim());
     else if (aiAction === "tags")
@@ -470,35 +519,51 @@ export default function Editor({
   }
   async function restore(version: number) {
     if (
+      lock.current ||
       !current ||
       !confirm(
         "将这个历史版本恢复为当前草稿？现有内容仍保留在版本历史中，不会自动发布。",
       )
     )
       return;
+    lock.current = true;
+    const sequence = editClock.current.snapshot();
     setBusy("restore");
     try {
       const { post: p } = await api<{ post: Post }>(
         `/api/posts/${current.id}/revisions/${version}/restore`,
         { method: "POST", body: JSON.stringify({ version: current.version }) },
       );
-      editor.replaceBlocks(
-        editor.document,
-        p.blocks as unknown as PartialBlock<typeof schema.blockSchema>[],
-      );
+      // 服务端已恢复历史版本；即使本地又输入，也必须保留新的 CAS 版本号。
       updateCurrent(p);
-      setTitle(p.title);
-      setExcerpt(p.excerpt);
-      setCategory(p.category);
-      setTags(p.tags.join(", "));
-      setCover(p.coverImage);
-      setSlug(p.slug);
-      markClean();
-      setPanel(null);
-      setMessage("历史版本已恢复到草稿，尚未发布。");
+      const applied = applyEditorReplacement(
+        editClock.current,
+        sequence,
+        () => {
+          editor.replaceBlocks(
+            editor.document,
+            p.blocks as unknown as PartialBlock<typeof schema.blockSchema>[],
+          );
+          updateCurrent(p);
+          setTitle(p.title);
+          setExcerpt(p.excerpt);
+          setCategory(p.category);
+          setTags(p.tags.join(", "));
+          setCover(p.coverImage);
+          setSlug(p.slug);
+          markClean();
+          setPanel(null);
+          setMessage("历史版本已恢复到草稿，尚未发布。");
+        },
+      );
+      if (!applied)
+        setMessage(
+          "服务器草稿已恢复历史版本；你在等待期间的新输入已保留，仍未保存。",
+        );
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      lock.current = false;
       setBusy("");
     }
   }
@@ -767,8 +832,12 @@ export default function Editor({
             {current?.publishedAt && (
               <button
                 className="button danger-text"
+                disabled={!!busy || !authenticated}
                 onClick={async () => {
+                  if (lock.current || !authenticated) return;
                   if (confirm("确定撤下已发布版本？草稿会保留。")) {
+                    lock.current = true;
+                    setBusy("unpublish");
                     try {
                       const r = await api<{ post: Post }>(
                         `/api/posts/${current.id}/unpublish`,
@@ -781,7 +850,12 @@ export default function Editor({
                       onPublished?.(r.post);
                       setMessage("已撤下公开版本，草稿仍保留。");
                     } catch (e) {
+                      if (e instanceof ApiError && e.status === 409)
+                        setConflict(true);
                       setError((e as Error).message);
+                    } finally {
+                      lock.current = false;
+                      setBusy("");
                     }
                   }
                 }}
@@ -808,7 +882,7 @@ export default function Editor({
         </Modal>
       )}
       {panel === "ai" && (
-        <Modal title="AI 写作搭档" onClose={() => setPanel(null)}>
+        <Modal title="AI 写作搭档" onClose={closeAI}>
           {!aiConfigured && (
             <Notice>
               尚未配置 AI 服务端密钥。到
@@ -821,7 +895,10 @@ export default function Editor({
               想怎么处理
               <select
                 value={aiAction}
+                disabled={!!busy}
                 onChange={(e) => {
+                  aiSession.current.invalidate();
+                  setAiText("");
                   setAiAction(e.target.value as AIAction);
                   setPromptId("");
                 }}
@@ -837,7 +914,11 @@ export default function Editor({
               模型
               <select
                 value={provider}
-                onChange={(e) => setProvider(e.target.value)}
+                disabled={!!busy}
+                onChange={(e) => {
+                  setAiText("");
+                  setProvider(e.target.value);
+                }}
               >
                 <option value="">第一个已配置的文本服务商</option>
                 {settings.providers.map((p) => (
@@ -855,7 +936,11 @@ export default function Editor({
             提示词
             <select
               value={promptId}
-              onChange={(e) => setPromptId(e.target.value)}
+              disabled={!!busy}
+              onChange={(e) => {
+                setAiText("");
+                setPromptId(e.target.value);
+              }}
             >
               <option value="">内置提示词</option>
               {settings.prompts
@@ -872,7 +957,11 @@ export default function Editor({
             <textarea
               rows={4}
               value={selection}
-              onChange={(e) => setSelection(e.target.value)}
+              disabled={!!busy}
+              onChange={(e) => {
+                setAiText("");
+                setSelection(e.target.value);
+              }}
             />
           </label>
           {aiText && (
@@ -908,7 +997,11 @@ export default function Editor({
               )}
             </button>
             {aiText && (
-              <button className="button primary" onClick={applyAI}>
+              <button
+                className="button primary"
+                disabled={!!busy || !aiText.trim()}
+                onClick={applyAI}
+              >
                 <Check size={15} />
                 应用到
                 {["title", "excerpt", "tags", "slug"].includes(aiAction)
@@ -956,13 +1049,16 @@ export default function Editor({
           title={
             current?.publishedAt ? "把这次更新，分享出去" : "让你的文字被看见"
           }
-          onClose={() => setPublishOpen(false)}
+          onClose={() => {
+            if (!lock.current) setPublishOpen(false);
+          }}
         >
           <p className="muted">将先保存草稿，再发布当前完整版本。</p>
           <label>
             谁可以阅读
             <select
               value={visibility}
+              disabled={!!busy}
               onChange={(e) =>
                 setVisibility(e.target.value as typeof visibility)
               }
@@ -987,13 +1083,18 @@ export default function Editor({
                 type="password"
                 autoComplete="new-password"
                 value={password}
+                disabled={!!busy}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="至少 8 位；已设置时可留空保持"
               />
             </label>
           )}
           <div className="modal-actions">
-            <button className="button" onClick={() => setPublishOpen(false)}>
+            <button
+              className="button"
+              disabled={!!busy}
+              onClick={() => setPublishOpen(false)}
+            >
               再检查一下
             </button>
             <button

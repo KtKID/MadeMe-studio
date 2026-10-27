@@ -24,3 +24,9 @@
 阅读页作者入口使用轻量 SSR + client:load，不再为了显示按钮静态加载 BlockNote；主动打开后才通过 React lazy 加载完整编辑器，等待时有明确状态。编辑页本身仍为 client:only，以避免富文本浏览器依赖进入服务端执行。移动端 viewport 声明 resizes-content，键盘行为仍需真机验收。
 
 `editor-navigation.ts` 将未保存确认与一次性卸载放行集中管理。`tests/editor-navigation.test.ts` 覆盖取消、确认、重复点击、保存中及恢复；`tests/e2e/editor-navigation.spec.ts` 覆盖返回按钮、侧栏链接和刷新保护，实际浏览器运行记录以交付说明为准。
+
+## 交互链路竞态回归
+
+载入最新版本、历史恢复和 Markdown 文件读取都捕获请求开始时的编辑序号。响应迟到且期间有新输入时，不替换本地正文/标题，不清 dirty；历史恢复已写入服务器时，仅跟进新的 CAS 版本。保存、发布、恢复、载入、导入、撤下发布与 AI 请求共用同步事务锁，避免同一事件批次重复写入。发布过程的可见性/密码选择固定，不能显示已经切换、实际仍发布旧选项。
+
+AI 面板关闭/重开使旧请求的建议失效；改变处理动作会清除旧建议，禁止把旧操作的结果应用到新目标。单测见 `editor-replacement.test.ts`、`ai-request-state.test.ts`；真实 DOM 点击由 `tests/ui/editor-clicks.test.tsx` 覆盖，BlockNote 和网络在该层为隔离替身，不等于真实供应商或浏览器排版验收。
