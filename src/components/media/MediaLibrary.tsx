@@ -1,3 +1,4 @@
+import { MediaOperation } from "./media-operation";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { CropRenderGuard, cropGeometry } from "./crop-state";
@@ -40,6 +41,7 @@ function CropImage({
   const [y, setY] = useState(50);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const operation = useRef(new MediaOperation());
   const guard = useRef(new CropRenderGuard());
   const [ready, setReady] = useState(false);
   const cropKey = JSON.stringify([media.url, ratio, zoom, x, y]);
@@ -102,6 +104,7 @@ function CropImage({
     };
   }, [cropKey, media.url, ratio, zoom, x, y]);
   async function save() {
+    if (!operation.current.begin()) return;
     setBusy(true);
     setError("");
     try {
@@ -137,18 +140,28 @@ function CropImage({
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      operation.current.end();
       setBusy(false);
     }
   }
   return (
-    <Modal title="裁剪图片 · 保留原图" onClose={onClose}>
+    <Modal
+      title="裁剪图片 · 保留原图"
+      onClose={() => {
+        if (!operation.current.busy) onClose();
+      }}
+    >
       <div className="crop-preview">
         <canvas ref={canvas} />
       </div>
       <div className="form-grid">
         <label>
           比例
-          <select value={ratio} onChange={(e) => setRatio(e.target.value)}>
+          <select
+            value={ratio}
+            disabled={busy}
+            onChange={(e) => setRatio(e.target.value)}
+          >
             <option value="1.7778">横向 16 : 9</option>
             <option value="1">方形 1 : 1</option>
             <option value="0.75">纵向 3 : 4</option>
@@ -163,6 +176,7 @@ function CropImage({
             max="3"
             step="0.05"
             value={zoom}
+            disabled={busy}
             onChange={(e) => setZoom(+e.target.value)}
           />
         </label>
@@ -173,6 +187,7 @@ function CropImage({
             min="0"
             max="100"
             value={x}
+            disabled={busy}
             onChange={(e) => setX(+e.target.value)}
           />
         </label>
@@ -183,6 +198,7 @@ function CropImage({
             min="0"
             max="100"
             value={y}
+            disabled={busy}
             onChange={(e) => setY(+e.target.value)}
           />
         </label>
@@ -190,7 +206,7 @@ function CropImage({
       {!ready && !error && <Notice>正在载入并绘制图片…</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
       <div className="modal-actions">
-        <button className="button" onClick={onClose}>
+        <button className="button" disabled={busy} onClick={onClose}>
           取消
         </button>
         <button
@@ -243,6 +259,7 @@ export default function MediaLibrary({
   );
   const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState(false);
+  const operation = useRef(new MediaOperation());
   const [prompt, setPrompt] = useState("");
   const [providerId, setProviderId] = useState("");
   const [generate, setGenerate] = useState(false);
@@ -252,12 +269,17 @@ export default function MediaLibrary({
   useEffect(() => {
     if (initialMedia !== undefined || initialError) return;
     api<{ media: Media[] }>("/api/media")
-      .then((r) => setMedia(r.media))
+      .then((r) =>
+        setMedia((current) => {
+          const known = new Set(current.map((item) => item.id));
+          return [...current, ...r.media.filter((item) => !known.has(item.id))];
+        }),
+      )
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [initialMedia, initialError]);
   async function upload(files: FileList | null) {
-    if (!files?.length) return;
+    if (!files?.length || !operation.current.begin()) return;
     setBusy(true);
     setError("");
     try {
@@ -274,11 +296,20 @@ export default function MediaLibrary({
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      operation.current.end();
       setBusy(false);
       if (input.current) input.current.value = "";
     }
   }
   async function generateImage() {
+    if (
+      !imageConfigured ||
+      !prompt.trim() ||
+      (providerId &&
+        !providers.find((p) => p.id === providerId)?.imageConfigured) ||
+      !operation.current.begin()
+    )
+      return;
     setBusy(true);
     setError("");
     try {
@@ -296,6 +327,7 @@ export default function MediaLibrary({
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      operation.current.end();
       setBusy(false);
     }
   }
@@ -327,7 +359,13 @@ export default function MediaLibrary({
           <option value="generated">AI 生成历史</option>
         </select>
         <div className="button-group">
-          <button className="button" onClick={() => setGenerate(true)}>
+          <button
+            className="button"
+            disabled={busy}
+            onClick={() => {
+              if (!operation.current.busy) setGenerate(true);
+            }}
+          >
             <Sparkles size={16} />
             生成图片
           </button>
@@ -399,6 +437,7 @@ export default function MediaLibrary({
                     <button
                       className="icon-button"
                       title="裁剪"
+                      disabled={busy}
                       onClick={() => setCrop(m)}
                     >
                       <Crop size={16} />
@@ -443,7 +482,12 @@ export default function MediaLibrary({
         />
       )}{" "}
       {generate && (
-        <Modal title="让灵感成为画面" onClose={() => setGenerate(false)}>
+        <Modal
+          title="让灵感成为画面"
+          onClose={() => {
+            if (!operation.current.busy) setGenerate(false);
+          }}
+        >
           {!imageConfigured && (
             <Notice>
               还没有配置可用的图片模型。请通过部署环境安全设置服务端密钥；不会使用演示图片假装生成结果。
@@ -454,6 +498,7 @@ export default function MediaLibrary({
             图像服务商
             <select
               value={providerId}
+              disabled={busy}
               onChange={(event) => setProviderId(event.target.value)}
             >
               <option value="">第一个已配置的图像服务商</option>
@@ -477,12 +522,17 @@ export default function MediaLibrary({
             <textarea
               rows={5}
               value={prompt}
+              disabled={busy}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="例如：安静的书房，午后斜照的阳光，低饱和度胶片摄影…"
             />
           </label>
           <div className="modal-actions">
-            <button className="button" onClick={() => setGenerate(false)}>
+            <button
+              className="button"
+              disabled={busy}
+              onClick={() => setGenerate(false)}
+            >
               取消
             </button>
             <button
