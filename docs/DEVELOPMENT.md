@@ -7,7 +7,7 @@
 - 基础框架先提交，随后按协议、存储、权限、内容、媒体、AI、API、界面及外部集成分模块提交。
 - 新增回归先记录失败，再修复实现。部分初始研究草稿与界面实现早于测试先行要求，不能把全部历史声称为严格 TDD；具体模块如实记录顺序。
 - 不提交密钥、私人笔记、运行数据库或构建缓存。
-- **失败不得静默**：服务端一律通过 `src/server/log.ts`（`logger.*` / `logCaught`）写结构化日志，浏览器端通过 `src/components/shared/client-log.ts`；禁止空 catch、`.catch(() => 默认值)` 吞错或无日志的回退。纯判定函数（如 URL 解析失败返回 false）须注释说明由调用方记录。日志字段经 `src/shared/log-redact.ts` 强制脱敏，仍不得主动传入密钥、令牌、授权码、state/nonce/PKCE、Cookie、会话 ID、邮箱或上游响应正文。
+- **失败不得静默**：服务端一律通过 [日志模块](../src/modules/log/README.md) 的 `src/modules/log/server.ts`（`logger.*` / `logCaught`）写结构化日志，浏览器端通过 `src/modules/log/client.ts`；禁止空 catch、`.catch(() => 默认值)` 吞错或无日志的回退。纯判定函数（如 URL 解析失败返回 false）须注释说明由调用方记录。日志字段经 `src/modules/log/redact.ts` 强制脱敏，仍不得主动传入密钥、令牌、授权码、state/nonce/PKCE、Cookie、会话 ID、邮箱或上游响应正文。
 - **Workers 平台差异**：Worker 内 `fetch` 只能用 `redirect: "follow" | "manual"`（`"error"` 在 workerd 直接抛 TypeError）；禁止重定向时用 `"manual"` 并把非 2xx 视为失败。fetch 模拟测试应断言 redirect 取值，涉及平台 API 的修改须经 `npm run test:worker` 或 workerd 探针验证。
 - **每次修复都写报告**：在 `reports/` 新增 `YYYY-MM-DD-主题.md`（现象、根因、修复内容（文件）、验证方式与结果、如何避免再次踩坑），并登记到 [reports/README.md](../reports/README.md)。
 

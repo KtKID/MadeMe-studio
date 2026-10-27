@@ -2,7 +2,7 @@ import { defineMiddleware } from "astro:middleware";
 import { env } from "cloudflare:workers";
 import type { RuntimeEnv } from "./server/runtime";
 import { secureResponse } from "./server/response-policy";
-import { logCaught, requestLogContext } from "./server/log";
+import { logCaught, requestLogContext } from "./modules/log/server";
 
 export const onRequest = defineMiddleware(async (context, next) => {
   // 运行时依赖由入口注入，领域逻辑不直接依赖 Cloudflare 模块。

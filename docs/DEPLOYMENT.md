@@ -65,7 +65,7 @@ Chrome、Obsidian 与 CLI 使用短有效期、最小 scope 的 API Token。真�
 
 ## 日志与排障
 
-服务端日志为单行 JSON（`level`、`event`、`ts`、`requestId`、`path` 及脱敏字段），见 [服务端编排](../src/server/README.md#统一日志)。`wrangler.jsonc` 开启 `observability.enabled`，可在 Cloudflare 控制台 Workers → 对应 Worker → Logs 按 `event`、`level` 查询历史日志。实时查看：
+服务端日志为单行 JSON（`level`、`event`、`ts`、`requestId`、`path` 及脱敏字段），见 [日志模块](../src/modules/log/README.md)。`wrangler.jsonc` 开启 `observability.enabled`，可在 Cloudflare 控制台 Workers → 对应 Worker → Logs 按 `event`、`level` 查询历史日志。实时查看：
 
 ```sh
 npx wrangler tail <worker-name> --format pretty

@@ -12,15 +12,11 @@
 - `tokens.ts`：单次显示随机令牌、存储 SHA-256 摘要、scope 和撤销。
 - `rate-limit.ts`：D1 原子窗口计数，保护密码尝试及模型调用。
 - `errors.ts`：可公开的错误；意外异常不向客户端返回堆栈或上游正文。
-- `log.ts`：统一结构化日志（见下文）。
+- 日志：统一使用 [日志模块](../modules/log/README.md) 的 `server.ts`（见下文）。
 
 ## 统一日志
 
-- `logger.debug/info/warn/error(event, fields)` 输出一行 JSON 到 console，Workers Logs 与 `wrangler tail` 可直接解析；`logCaught(event, error, fields, level = "error")` 供 catch 块使用。
-- `requestLogContext(request)` 提供 `requestId`（优先 `cf-ray`）、`method`、`path`（不含查询串）。
-- 所有字段经 `src/shared/log-redact.ts` 强制脱敏：敏感键名（secret、token、code、state、nonce、verifier、cookie、authorization、session、password、email、body 等）整体替换，字符串中的邮箱、Bearer、JWT、`code=`/`state=` 查询参数和长随机串被擦除；异常只序列化 name、擦除后的 message、固定大写错误码、status，error 级别附带擦除后的堆栈。
-- `http.ts` 的 `errorResponse` 统一记录：401/403/429 为 warn、其它 4xx 为 info（只含错误码或字段路径），5xx 与意外异常为 error；`middleware.ts` 记录页面渲染中的未处理异常后再抛出。
-- 事件名采用 `模块.动作_结果`，如 `auth.google.callback_failed`、`ai.provider_http_error`、`media.rollback_failed`。
+日志逻辑位于独立模块 [src/modules/log](../modules/log/README.md)（API、级别约定、脱敏规则、输出格式与查看方式见该 README）。服务端接入点：`http.ts` 的 `errorResponse` 按状态码统一记录 API 异常，`../middleware.ts` 记录页面渲染未处理异常，其余 catch 使用 `logCaught`。
 
 ## 子模块
 

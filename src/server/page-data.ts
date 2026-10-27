@@ -7,7 +7,7 @@ import {
   type APIToken,
 } from "../shared/contracts";
 import { listMedia } from "./media/service";
-import { logCaught, requestLogContext } from "./log";
+import { logCaught, requestLogContext } from "../modules/log/server";
 import { listTokens } from "./tokens";
 import { providerCapabilities } from "./ai/capabilities";
 import { hasConfiguredImageProvider } from "./ai/images";

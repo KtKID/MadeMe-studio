@@ -1,4 +1,4 @@
-import { clientCaught, clientLog } from "../shared/client-log";
+import { clientCaught, clientLog } from "../../modules/log/client";
 import {
   authLoginRequestSchema,
   authLoginResponseSchema,

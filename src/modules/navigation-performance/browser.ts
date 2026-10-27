@@ -1,4 +1,4 @@
-import { clientCaught } from "../../components/shared/client-log";
+import { clientCaught } from "../log/client";
 import { begin, finish, restore, route, type StudioRoute } from "./protocol";
 const KEY = "mademe.navigation-performance.v1";
 const now = () => performance.timeOrigin + performance.now();

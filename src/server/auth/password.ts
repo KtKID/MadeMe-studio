@@ -1,4 +1,4 @@
-import { logCaught } from "../log";
+import { logCaught } from "../../modules/log/server";
 import { googleAuthConfigured, handleGoogleLogout } from "./google";
 import { z } from "zod";
 import {

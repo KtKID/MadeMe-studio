@@ -1,4 +1,4 @@
-import { clientCaught } from "../shared/client-log";
+import { clientCaught } from "../../modules/log/client";
 import {
   useCallback,
   useEffect,

@@ -4,16 +4,13 @@ import {
   logCaught,
   logger,
   requestLogContext,
-} from "../../src/server/log";
-import { redact, serializeError } from "../../src/shared/log-redact";
+} from "../../src/modules/log/server";
+import { redact, serializeError } from "../../src/modules/log/redact";
 import { errorResponse } from "../../src/server/http";
 import { AppError } from "../../src/server/errors";
 import { verifyPassword } from "../../src/server/auth/crypto";
 import { saveMedia } from "../../src/server/media/service";
-import {
-  clientCaught,
-  clientLog,
-} from "../../src/components/shared/client-log";
+import { clientCaught, clientLog } from "../../src/modules/log/client";
 import { captureLogs } from "../backend/log-capture";
 import { z } from "zod";
 

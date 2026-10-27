@@ -1,4 +1,4 @@
-import { clientCaught } from "../shared/client-log";
+import { clientCaught } from "../../modules/log/client";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { integrationSourceLinks } from "./source-links";

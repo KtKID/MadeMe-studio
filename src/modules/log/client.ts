@@ -2,7 +2,7 @@
  * 浏览器端统一日志：只写入开发者控制台，不上报任何外部服务。
  * 被捕获后转换为界面提示的异常也必须经此记录，避免失败静默。
  */
-import { redact, serializeError } from "../../shared/log-redact";
+import { redact, serializeError } from "./redact";
 
 export type ClientLogLevel = "debug" | "info" | "warn" | "error";
 

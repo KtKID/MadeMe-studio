@@ -30,7 +30,7 @@ import { PostService, publicPosts } from "./content/service";
 import { readSettings, redactSettings, writeSettings } from "./settings";
 import { loadPageData } from "./page-data";
 import { json, readJSON, boundedBody, errorResponse } from "./http";
-import { requestLogContext } from "./log";
+import { requestLogContext } from "../modules/log/server";
 import { listMedia, saveMedia, serveMedia } from "./media/service";
 import { runAI, generateImage, listModels } from "./ai/service";
 import { createToken, listTokens, revokeToken } from "./tokens";

@@ -1,4 +1,4 @@
-import { logCaught } from "../log";
+import { logCaught } from "../../modules/log/server";
 const encoder = new TextEncoder();
 function hex(bytes: Uint8Array) {
   return [...bytes].map((v) => v.toString(16).padStart(2, "0")).join("");

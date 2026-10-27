@@ -1,4 +1,4 @@
-import { logCaught } from "../log";
+import { logCaught } from "../../modules/log/server";
 import { acceptedMediaMimeTypes, type Media } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
 import { AppError, notFound } from "../errors";

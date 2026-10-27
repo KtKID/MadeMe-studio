@@ -22,9 +22,9 @@ Google 登录排障期间，回调只返回固定的 `google_failed`，Worker �
 
 ## 修复内容（文件）
 
-- 新增 `src/shared/log-redact.ts`：强制脱敏（敏感键名整体替换；字符串中邮箱、Bearer、JWT、`code=`/`state=` 等查询参数、`mm_`/`sk_` 令牌与长随机串擦除；深度/长度上限；Request/Headers 不展开）与异常序列化（name、擦除后的 message、固定大写错误码、status，可选堆栈与 cause）。
-- 新增 `src/server/log.ts`：`logger.debug/info/warn/error`、`logCaught`、`requestLogContext`（`cf-ray` 或随机 ID，路径不含查询串）；每条日志为一行 JSON，兼容 Workers Logs 与 `wrangler tail`。
-- 新增 `src/components/shared/client-log.ts`：浏览器端 `clientLog`/`clientCaught`，仅写控制台，不上报外部服务。
+- 新增 `src/shared/log-redact.ts`（现为 `src/modules/log/redact.ts`）：强制脱敏（敏感键名整体替换；字符串中邮箱、Bearer、JWT、`code=`/`state=` 等查询参数、`mm_`/`sk_` 令牌与长随机串擦除；深度/长度上限；Request/Headers 不展开）与异常序列化（name、擦除后的 message、固定大写错误码、status，可选堆栈与 cause）。
+- 新增 `src/server/log.ts`（现为 `src/modules/log/server.ts`）：`logger.debug/info/warn/error`、`logCaught`、`requestLogContext`（`cf-ray` 或随机 ID，路径不含查询串）；每条日志为一行 JSON，兼容 Workers Logs 与 `wrangler tail`。
+- 新增 `src/components/shared/client-log.ts`（现为 `src/modules/log/client.ts`）：浏览器端 `clientLog`/`clientCaught`，仅写控制台，不上报外部服务。
 - 接入点：`http.ts` errorResponse（401/403/429 warn、其它 4xx info 只记错误码，5xx/意外异常 error）、`api.ts` 传入请求上下文、`middleware.ts` 未处理异常、`google.ts`（`auth.google.provider_failed`、`auth.google.callback_failed` 保留 stage）、AI transport/images、crypto、password、media 回滚、page-data、上述浏览器端各处。纯判定函数（URL 解析失败返回 false）加注释说明由调用方记录。
 - `wrangler.jsonc`：新增 `observability.enabled: true`（仓库版本与生产配置副本均已加入）。
 - 文档：`docs/DEVELOPMENT.md` 执行约定（失败不得静默、Workers fetch 约束、每次修复写报告）、`docs/DEPLOYMENT.md` 日志查看、`src/server/README.md` 统一日志、`src/server/auth/README.md`、`src/server/ai/README.md`、根 `README.md`。
@@ -42,3 +42,19 @@ Google 登录排障期间，回调只返回固定的 `google_failed`，Worker �
 3. 涉及失败路径的修改，测试用 `tests/backend/log-capture.ts` 断言事件与"不泄露"。
 4. 上线后用 `npx wrangler tail <worker> --format json` 或控制台 Workers Logs 确认事件按预期出现。
 5. 已知限制：Astro 内置 checkOrigin 拦截的跨站表单 POST 在应用中间件之前返回 403，不经统一日志；`auth.google.provider_failed` 暂未携带 requestId，可按时间戳与 `callback_failed` 关联。
+
+## 补充：日志迁移为独立模块（2026-10-27）
+
+**现象**：初版日志代码分散在 `src/server/log.ts`、`src/shared/log-redact.ts`、`src/components/shared/client-log.ts` 三处，没有模块说明，不符合"每个业务模块自带 README"的约定，后来者难以发现规则与 API。
+
+**根因**：初版按调用方位置就近放置，没有作为横切模块设计。
+
+**修复内容（文件）**：
+
+- 迁移为独立目录 `src/modules/log/`：`server.ts`（服务端 logger）、`client.ts`（浏览器日志）、`redact.ts`（脱敏与异常序列化）、`index.ts`（汇总导出），公开 API 不变。
+- 新增 [src/modules/log/README.md](../src/modules/log/README.md)：用途与规则、API、级别约定、脱敏与绝不记录的内容、JSON 输出示例、查看日志、新增事件步骤、测试辅助。
+- 更新全部导入路径（server、components、modules、tests），以及根 README 索引、`docs/DEVELOPMENT.md`、`docs/DEPLOYMENT.md`、`src/server/README.md` 的引用。
+
+**验证方式与结果**：`npm test`、`npm run check`、`npm run build`、`test:smoke`、`test:worker` 通过（结果见提交说明），重新部署后线上 `/login`、session、start 正常。
+
+**如何避免再次踩坑**：横切能力（日志、度量、协议）新建时即放入 `src/modules/<名称>/` 并附 README；导入按运行端选择 `server.ts` / `client.ts`，不要在业务目录另建同义工具函数。

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AppError } from "../errors";
-import { logCaught, logger } from "../log";
+import { logCaught, logger } from "../../modules/log/server";
 import type { RuntimeEnv } from "../runtime";
 
 const providerHosts = new Set([

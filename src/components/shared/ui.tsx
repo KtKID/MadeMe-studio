@@ -1,4 +1,4 @@
-import { clientCaught, clientLog } from "./client-log";
+import { clientCaught, clientLog } from "../../modules/log/client";
 import { useEffect, useRef, type ReactNode } from "react";
 import { parseApiResponse, parseApiError } from "./api-protocol";
 import { ModalStack } from "./modal-stack";

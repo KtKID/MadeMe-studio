@@ -5,7 +5,7 @@ import {
   googleStartRequestSchema,
 } from "../../shared/auth";
 import { AppError } from "../errors";
-import { logger, requestLogContext } from "../log";
+import { logger, requestLogContext } from "../../modules/log/server";
 import { boundedBody, json } from "../http";
 import { rateLimit } from "../rate-limit";
 import type { RuntimeEnv } from "../runtime";

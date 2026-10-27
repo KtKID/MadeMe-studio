@@ -8,7 +8,7 @@
  * - catch 块使用 `logCaught(event, error, fields)`，不得空 catch 或静默回退。
  * - 预期的 4xx 用 info/warn 且只记错误码；意外异常、5xx、上游失败用 error。
  */
-import { redact, serializeError } from "../shared/log-redact";
+import { redact, serializeError } from "./redact";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 export type LogFields = Record<string, unknown>;

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { imageInputSchema, type Provider } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
 import { AppError } from "../errors";
-import { logCaught, logger } from "../log";
+import { logCaught, logger } from "../../modules/log/server";
 import { providerKey, readSettings } from "../settings";
 import { saveMedia, validateMedia } from "../media/service";
 import {
