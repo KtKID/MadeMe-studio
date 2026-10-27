@@ -1,4 +1,5 @@
 import type { EditorBlock, JSONValue } from "../../shared/contracts";
+import { AppError } from "../errors";
 type Inline =
   | { type: "text"; text: string; styles: Record<string, boolean> }
   | { type: "link"; href: string; content: Inline[] };
@@ -27,61 +28,93 @@ function protectEscapedPunctuation(text: string) {
     );
   return { text: protectedText, restore };
 }
+/** 只递归支持明确成对的行内格式；不生成嵌套链接，限制递归层数。 */
 function inline(text: string): Inline[] {
   const protectedInput = protectEscapedPunctuation(text);
-  text = protectedInput.text;
   const restore = protectedInput.restore;
-  const out: Inline[] = [];
-  const re =
-    /\[([^\]]+)\]\(([^\s)]+)(?:\s+"[^"]*")?\)|(`+)(.*?)\3|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*([^*]+)\*|_([^_]+)_/g;
-  let cursor = 0;
-  for (const match of text.matchAll(re)) {
-    if (match.index! > cursor)
-      out.push({
-        type: "text",
-        text: restore(text.slice(cursor, match.index)),
-        styles: {},
-      });
-    if (match[1]) {
-      const href = restore(match[2]);
-      if (
-        /^https:\/\//i.test(href) ||
-        /^\/api\/files\/[a-zA-Z0-9-]+$/.test(href) ||
-        /^mailto:/.test(href)
-      )
+  function parse(
+    source: string,
+    styles: Record<string, boolean> = {},
+    depth = 0,
+    links = true,
+  ): Inline[] {
+    if (depth > 16)
+      throw new AppError(
+        422,
+        "INVALID_CONTENT",
+        "Markdown inline nesting exceeds the limit.",
+      );
+    const out: Inline[] = [];
+    const re =
+      /\[([^\]]+)\]\(([^\s)]+)(?:\s+"[^"]*")?\)|(`+)(.*?)\3|\*\*\*(.+?)\*\*\*|___(.+?)___|\*\*(.+?)\*\*(?!\*)|__(.+?)__(?!_)|~~(.+?)~~|\*((?:\*\*.+?\*\*|[^*])+)\*|_((?:__.+?__|[^_])+)_/g;
+    let cursor = 0;
+    const literal = (value: string) =>
+      out.push({ type: "text", text: restore(value), styles: { ...styles } });
+    for (const match of source.matchAll(re)) {
+      if (match.index! > cursor) literal(source.slice(cursor, match.index));
+      if (match[1]) {
+        const href = restore(match[2]);
+        const label = parse(match[1], styles, depth + 1, false);
+        if (
+          links &&
+          href.length <= 2048 &&
+          (/^https:\/\//i.test(href) ||
+            /^\/api\/files\/[a-zA-Z0-9-]+$/.test(href) ||
+            /^mailto:[^\s<>]+$/.test(href))
+        )
+          out.push({ type: "link", href, content: label });
+        else out.push(...label);
+      } else if (match[3]) {
         out.push({
-          type: "link",
-          href,
-          content: [{ type: "text", text: restore(match[1]), styles: {} }],
+          type: "text",
+          text: match[4],
+          styles: { ...styles, code: true },
         });
-      else out.push({ type: "text", text: restore(match[1]), styles: {} });
-    } else {
-      const raw =
-        match[4] ??
-        match[5] ??
-        match[6] ??
-        match[7] ??
-        match[8] ??
-        match[9] ??
-        "";
-      out.push({
-        type: "text",
-        text: match[3] ? raw : restore(raw),
-        styles: match[3]
-          ? { code: true }
-          : match[5] || match[6]
-            ? { bold: true }
-            : match[7]
-              ? { strike: true }
-              : { italic: true },
-      });
+      } else {
+        const raw =
+          match[5] ??
+          match[6] ??
+          match[7] ??
+          match[8] ??
+          match[9] ??
+          match[10] ??
+          match[11];
+        const added: Record<string, boolean> =
+          match[5] || match[6]
+            ? { bold: true, italic: true }
+            : match[7] || match[8]
+              ? { bold: true }
+              : match[9]
+                ? { strike: true }
+                : { italic: true };
+        out.push(...parse(raw, { ...styles, ...added }, depth + 1, links));
+      }
+      cursor = match.index! + match[0].length;
     }
-    cursor = match.index! + match[0].length;
+    if (cursor < source.length) literal(source.slice(cursor));
+    return out;
   }
-  if (cursor < text.length)
-    out.push({ type: "text", text: restore(text.slice(cursor)), styles: {} });
-  return out;
+  return parse(protectedInput.text);
 }
+/** 分隔符前的反斜线按奇偶配对，避免把转义竖线误当成列。 */
+function tableCells(line: string) {
+  const source = line.trim();
+  const cells: string[] = [];
+  let cell = "",
+    slashes = 0;
+  for (const char of source) {
+    if (char === "|" && slashes % 2 === 0) {
+      cells.push(cell);
+      cell = "";
+    } else cell += char;
+    slashes = char === "\\" ? slashes + 1 : 0;
+  }
+  cells.push(cell);
+  if (source.startsWith("|")) cells.shift();
+  if (cells.at(-1) === "" && source.endsWith("|")) cells.pop();
+  return cells.map((value) => inline(value.trim()));
+}
+
 function block(
   type: string,
   text: string,
@@ -97,15 +130,47 @@ function block(
 }
 /** 保守导入 Markdown；原始 HTML 永远作为文字保存，不生成可执行内容。 */
 export function markdownToBlocks(markdown: string): EditorBlock[] {
+  if (markdown.length > 1_000_000)
+    throw new AppError(413, "CONTENT_TOO_LARGE", "Markdown is too large.");
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   const result: EditorBlock[] = [];
+  const listStack: { indent: number; block: EditorBlock }[] = [];
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
     if (!line.trim()) {
+      listStack.length = 0;
       i++;
       continue;
     }
+    const item = line.match(
+      /^([ \t]*)([-*+]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/,
+    );
+    if (item) {
+      const indent = item[1].replace(/\t/g, "    ").length;
+      while (listStack.length && listStack.at(-1)!.indent >= indent)
+        listStack.pop();
+      if (listStack.length >= 10)
+        throw new AppError(
+          422,
+          "INVALID_CONTENT",
+          "Markdown list nesting exceeds the limit.",
+        );
+      const current =
+        item[3] !== undefined
+          ? block("checkListItem", item[4], { checked: item[3] !== " " })
+          : block(
+              /\d/.test(item[2]) ? "numberedListItem" : "bulletListItem",
+              item[4],
+            );
+      const parent = listStack.at(-1);
+      if (parent) (parent.block.children as EditorBlock[]).push(current);
+      else result.push(current);
+      listStack.push({ indent, block: current });
+      i++;
+      continue;
+    }
+    listStack.length = 0;
     const fence = line.match(/^\s*(`{3,}|~{3,})([\w+-]*)\s*$/);
     if (fence) {
       const body: string[] = [];
@@ -150,26 +215,6 @@ export function markdownToBlocks(markdown: string): EditorBlock[] {
       i++;
       continue;
     }
-    const task = line.match(/^\s*[-*+]\s+\[([ xX])\]\s+(.*)$/);
-    if (task) {
-      result.push(
-        block("checkListItem", task[2], { checked: task[1] !== " " }),
-      );
-      i++;
-      continue;
-    }
-    const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
-    if (bullet) {
-      result.push(block("bulletListItem", bullet[1]));
-      i++;
-      continue;
-    }
-    const number = line.match(/^\s*\d+[.)]\s+(.*)$/);
-    if (number) {
-      result.push(block("numberedListItem", number[1]));
-      i++;
-      continue;
-    }
     if (/^>\s?/.test(line)) {
       const quotes: string[] = [];
       while (i < lines.length && /^>\s?/.test(lines[i]))
@@ -182,16 +227,10 @@ export function markdownToBlocks(markdown: string): EditorBlock[] {
       line.includes("|") &&
       /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(lines[i + 1])
     ) {
-      const cells = (l: string) =>
-        l
-          .trim()
-          .replace(/^\||\|$/g, "")
-          .split("|")
-          .map((v) => inline(v.trim()));
-      const rows = [{ cells: cells(line) }];
+      const rows = [{ cells: tableCells(line) }];
       i += 2;
       while (i < lines.length && lines[i].includes("|") && lines[i].trim())
-        rows.push({ cells: cells(lines[i++]) });
+        rows.push({ cells: tableCells(lines[i++]) });
       result.push({
         id: crypto.randomUUID(),
         type: "table",
