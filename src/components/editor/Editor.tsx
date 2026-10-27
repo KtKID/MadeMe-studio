@@ -45,6 +45,10 @@ import MediaLibrary from "../media/MediaLibrary";
 import { resolveMode } from "../shared/appearance";
 import { EditClock, hasDocumentContent } from "./editor-state";
 import {
+  createEditorLeaveGuard,
+  editorLinkDestination,
+} from "./editor-navigation";
+import {
   initialPublishVisibility,
   publicationAvailability,
 } from "./publishing-state";
@@ -149,6 +153,17 @@ export default function Editor({
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const importInput = useRef<HTMLInputElement>(null);
   const lock = useRef(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const leaveGuardRef = useRef<ReturnType<
+    typeof createEditorLeaveGuard
+  > | null>(null);
+  if (!leaveGuardRef.current)
+    leaveGuardRef.current = createEditorLeaveGuard({
+      isDirty: () => editClock.current.dirty,
+      isBusy: () => lock.current,
+      show: setLeaveOpen,
+    });
+  const leaveGuard = leaveGuardRef.current;
   const editor = useCreateBlockNote({
     schema,
     initialContent: post?.blocks.length
@@ -166,14 +181,30 @@ export default function Editor({
     },
   });
   useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (dirty) {
-        e.preventDefault();
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (leaveGuard.shouldBlockUnload()) {
+        event.preventDefault();
+        event.returnValue = "";
       }
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty]);
+    const click = (event: MouseEvent) => {
+      const destination = editorLinkDestination(event, window.location.href);
+      if (!destination || (!editClock.current.dirty && !lock.current)) return;
+      // 先阻止默认完整导航与其他路由监听，再通过站内弹窗决定是否放行。
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      leaveGuard.request(() => window.location.assign(destination));
+    };
+    const pageshow = () => leaveGuard.reset();
+    window.addEventListener("beforeunload", beforeUnload);
+    window.addEventListener("pageshow", pageshow);
+    document.addEventListener("click", click, true);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      window.removeEventListener("pageshow", pageshow);
+      document.removeEventListener("click", click, true);
+    };
+  }, [leaveGuard]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
@@ -473,16 +504,33 @@ export default function Editor({
   }
   return (
     <div className={`editor-shell ${inline ? "inline-editor" : ""}`}>
+      {leaveOpen && (
+        <Modal title="还有未保存的修改" onClose={() => leaveGuard.cancel()}>
+          <p>
+            返回会丢弃本次尚未保存的修改，已保存的草稿不会被删除。你可以继续编辑并保存后再返回。
+          </p>
+          <div className="modal-actions">
+            <button className="button" onClick={() => leaveGuard.cancel()}>
+              继续编辑
+            </button>
+            <button
+              className="button danger"
+              disabled={!!busy}
+              onClick={() => leaveGuard.confirm()}
+            >
+              丢弃修改并返回
+            </button>
+          </div>
+        </Modal>
+      )}
       <header className="editor-toolbar">
         <div className="editor-toolbar-start">
           {onClose ? (
             <button
               className="icon-button"
               title="返回阅读"
-              onClick={() => {
-                if (!dirty || confirm("还有未保存修改，确定退出编辑？"))
-                  onClose();
-              }}
+              disabled={!!busy}
+              onClick={() => leaveGuard.request(onClose)}
             >
               <ArrowLeft size={18} />
             </button>

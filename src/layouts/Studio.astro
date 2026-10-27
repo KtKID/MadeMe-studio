@@ -12,7 +12,7 @@ import {
   Plus,
 } from "lucide-react";
 const { title = "写作台", active = "posts", settings } = Astro.props;
-// 表单页完整导航，确保链接、历史回退和地址跳转都经过原生离开保护。
+// 表单页保留完整导航；编辑器先拦截站内链接显示自定义确认，刷新/关页另有原生兜底。
 const protectedFormPage = [
   "/studio/new",
   "/studio/edit",
