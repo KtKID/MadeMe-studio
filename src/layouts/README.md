@@ -1,6 +1,6 @@
 # 布局与主题模块
 
-`Base.astro` 提供语义 HTML、语言、视口、站点主题与跳转主内容入口。`Studio.astro` 提供响应式工作台侧边栏、导航与统一页脚；可选 `account` / `accountName` 属性（来自 `loadEditorPageData`，昵称优先）用于在侧边栏账号入口显示作者账号名，与 `StudioShell` 保持相同标记和样式（`.author-link`、`.author-account-name`）。侧边栏底部只放账号入口（仅 password / google 模式渲染），站点链接统一用右上角“访问站点”；底部距离由 CSS 变量 `--sidebar-bottom-gap`（10px）控制，≤960px 时侧边栏变为顶部导航、账号入口隐藏。样式位于 `src/styles/global.css`。
+`Base.astro` 提供语义 HTML、语言、视口、站点主题与跳转主内容入口。`Studio.astro` 提供响应式工作台侧边栏、导航与统一页脚；可选 `account` / `accountName` 属性（来自 `loadEditorPageData`，昵称优先）用于在侧边栏账号入口显示作者账号名，与 `StudioShell` 保持相同标记和样式（`.author-link`、`.author-account-name`）。侧边栏底部只放账号入口（仅 password / google 模式渲染），站点链接统一用右上角“访问站点”；账号为紧凑横向底栏，与右页脚共用 `--studio-footer-height`（56px）和顶部分隔线；昵称过长省略，账号提示不压缩，侧栏横向内缩由 `--studio-sidebar-inset` 控制，≤960px 时侧边栏变为顶部导航、账号入口隐藏。宽屏低视窗时侧栏自身可纵向滚动，确保账号入口可达。短页面左右底栏顶边对齐；长页面右页脚仍随内容滚动，不新增固定遮罩。样式位于 `src/styles/global.css`。
 
 强调色仅接受十六进制颜色，避免动态 CSS 注入。主题为 paper / ink / garden / mono，移动端需验证导航与表格不溢出。
 

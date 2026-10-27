@@ -15,8 +15,9 @@
   --tint-strong: #ead597;
   --shadow: 0 12px 50px #292b2808;
   --danger: #b94f45;
-  /* 工作台侧边栏底部（账号入口）到侧边栏下边缘的距离。 */
-  --sidebar-bottom-gap: 10px;
+  /* 工作台左右底栏共用高度；侧栏内容横向内缩随断点调整。 */
+  --studio-footer-height: 56px;
+  --studio-sidebar-inset: 21px;
   color-scheme: light;
   font-family: var(--font);
   font-synthesis: none;
@@ -424,10 +425,11 @@ img {
   display: flex;
 }
 .studio-sidebar {
+  overflow-y: auto;
   width: 232px;
   position: fixed;
   inset: 0 auto 0 0;
-  padding: 32px 21px var(--sidebar-bottom-gap);
+  padding: 32px var(--studio-sidebar-inset) 0;
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -501,6 +503,13 @@ img {
 }
 .sidebar-bottom {
   margin-top: auto;
+  min-height: var(--studio-footer-height);
+  flex-shrink: 0;
+  margin-inline: calc(-1 * var(--studio-sidebar-inset));
+  padding-inline: var(--studio-sidebar-inset);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
 }
 .site-link {
   display: flex;
@@ -510,6 +519,23 @@ img {
   border-radius: 9px;
   padding: 12px 10px;
   font-size: 11px;
+}
+.author-link {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+}
+.author-link:hover {
+  background: var(--soft);
+}
+.author-link .site-avatar {
+  flex-shrink: 0;
+}
+.author-link .author-account small {
+  flex-shrink: 0;
+  margin-top: 0;
 }
 .site-avatar,
 .author-avatar {
@@ -533,8 +559,13 @@ img {
 .author-account {
   min-width: 0;
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .author-account-name {
+  min-width: 0;
+  flex: 1;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -600,11 +631,14 @@ img {
   margin-bottom: 10px;
 }
 .studio-footer {
+  min-height: var(--studio-footer-height);
+  flex-shrink: 0;
+  align-items: center;
   display: flex;
   justify-content: space-between;
   color: var(--muted);
   font-size: 9px;
-  padding: 20px 42px;
+  padding: 0 42px;
   border-top: 1px solid var(--line);
 }
 .stats-grid {
@@ -2214,8 +2248,7 @@ kbd {
 @media (max-width: 1200px) {
   .studio-sidebar {
     width: 205px;
-    padding-left: 17px;
-    padding-right: 17px;
+    --studio-sidebar-inset: 17px;
   }
   .studio-body {
     margin-left: 205px;
@@ -2283,6 +2316,7 @@ kbd {
     display: block;
   }
   .studio-sidebar {
+    overflow: visible;
     position: relative;
     inset: auto;
     width: 100%;

@@ -106,14 +106,19 @@ describe("侧边栏作者账号展示", () => {
     );
     expect(sites).not.toContain("sidebar-bottom");
   });
-  it("Studio.astro 与 StudioShell 一致，侧边栏底部间距走 CSS 变量", () => {
+  it("Studio.astro 与 StudioShell 一致，左右底栏共用高度，账号保持横向并兼容长昵称", () => {
     const astro = readFileSync("src/layouts/Studio.astro", "utf8");
     const css = readFileSync("src/styles/global.css", "utf8");
     for (const text of ["我的站点", "看看发布后的样子", "写作，让想法有迹可循", "sidebar-note"])
       expect(astro).not.toContain(text);
     expect(astro).toContain('class="topbar-site" href="/"');
-    expect(css).toMatch(/--sidebar-bottom-gap:\s*10px/);
-    expect(css).toMatch(/\.studio-sidebar \{[^}]*padding: 32px 21px var\(--sidebar-bottom-gap\)/);
+    expect(css).toMatch(/--studio-footer-height:\s*56px/);
+    expect(css).toMatch(/\.sidebar-bottom \{[^}]*min-height: var\(--studio-footer-height\)/);
+    expect(css).toMatch(/\.studio-footer \{[^}]*min-height: var\(--studio-footer-height\)/);
+    expect(css).toMatch(/\.author-account \{[^}]*display: flex/);
+    expect(css).toMatch(/\.author-account-name \{[^}]*text-overflow: ellipsis/);
+    expect(css).toMatch(/\.author-link \{[^}]*border: 0/);
+    expect(css).toMatch(/\.studio-sidebar \{[^}]*overflow-y: auto/);
     expect(css).not.toContain(".sidebar-note");
   });
   it("登录页已登录状态显示账号名", () => {
