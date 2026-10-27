@@ -1,3 +1,4 @@
+import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { useMemo, useState } from "react";
 import {
   Plus,
@@ -23,6 +24,7 @@ import {
   Busy,
 } from "../shared/ui";
 export default function Dashboard({ initial }: { initial: Bootstrap }) {
+  useNavigationReady("/studio");
   const [posts, setPosts] = useState(initial.posts);
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");

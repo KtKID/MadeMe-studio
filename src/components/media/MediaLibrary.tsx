@@ -1,3 +1,4 @@
+import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { CropRenderGuard, cropGeometry } from "./crop-state";
 import { acceptedMediaMimeTypes, type Provider } from "../../shared/contracts";
 import { useEffect, useRef, useState } from "react";
@@ -232,6 +233,7 @@ export default function MediaLibrary({
   const [providerId, setProviderId] = useState("");
   const [generate, setGenerate] = useState(false);
   const [crop, setCrop] = useState<Media | null>(null);
+  useNavigationReady("/studio/media", !loading, !!error);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     api<{ media: Media[] }>("/api/media")

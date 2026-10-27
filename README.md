@@ -78,3 +78,5 @@ npm run test:integrations
 - [集成测试与人工联调清单](integrations/tests/README.md)
 
 - [独立作者登录界面](src/components/auth/README.md)
+
+- [导航性能测量模块](src/modules/navigation-performance/README.md)

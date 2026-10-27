@@ -1,3 +1,4 @@
+import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { integrationSourceLinks } from "./source-links";
 import { useEffect, useState } from "react";
 import {
@@ -19,6 +20,7 @@ export default function Integrations({
 }: {
   authenticated: boolean;
 }) {
+  const [initialLoading, setInitialLoading] = useState(authenticated);
   const [tokens, setTokens] = useState<APIToken[]>([]);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -32,12 +34,14 @@ export default function Integrations({
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState("");
+  useNavigationReady("/studio/integrations", !initialLoading, !!error);
   useEffect(() => {
     setOrigin(location.origin);
     if (authenticated)
       api<{ tokens: APIToken[] }>("/api/tokens")
         .then((r) => setTokens(r.tokens))
-        .catch((e) => setError(e.message));
+        .catch((e) => setError(e.message))
+        .finally(() => setInitialLoading(false));
   }, [authenticated]);
   async function create() {
     setBusy(true);

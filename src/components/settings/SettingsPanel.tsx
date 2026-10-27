@@ -1,3 +1,4 @@
+import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { useEffect, useRef, useState } from "react";
 import { installUnsavedGuard } from "../shared/unsaved-guard";
 import {
@@ -62,6 +63,7 @@ export default function SettingsPanel({
   initial: Settings;
   authenticated: boolean;
 }) {
+  useNavigationReady("/studio/settings");
   const [settings, setSettings] = useState(initial);
   const baseline = useRef(initial);
   const draftRef = useRef(initial);
