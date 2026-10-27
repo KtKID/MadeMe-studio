@@ -89,7 +89,7 @@ CSP、编辑器提示、服务端校验会自动跟着更新。
 - 用 X 官方的静态嵌入页 `platform.twitter.com/embed/Tweet.html?id=…&dnt=true`，**不加载 `widgets.js`，CSP 不加 script-src**，`frame-src` 由注册表自动加上 `https://platform.twitter.com`；
 - `sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"`，没有 `allow-top-navigation`；
 - 嵌入页通过 `postMessage` 发 `twttr.private.resize` 告知高度。`autoHeight.ts` 只接受来自登记来源、且 `event.source` 正是该 iframe 的消息，高度限制在 80–4000px；
-- 初始高度 360px；12 秒内没有收到高度消息（动态已删除、被墙、X 改版）就隐藏 iframe，只显示“在 X 查看 @用户 的动态”链接，并记 `embed.frame_unavailable`（只含 provider）；
+- 初始高度默认 360px、等待默认 12 秒（设置页“嵌入与阅读”可调）；等待时间内没有收到高度消息（动态已删除、被墙、X 改版）就隐藏 iframe，只显示“在 X 查看 @用户 的动态”链接，并记 `embed.frame_unavailable`（只含 provider）；
 - 链接始终显示在 iframe 下方，作为降级与原文入口。
 
 验证证据见 `reports/2026-10-27-x-embed-silent-publish.md`。

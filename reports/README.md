@@ -11,5 +11,6 @@
 - [2026-10-27：嵌入模块化与 Bilibili 播放器](2026-10-27-embed-module.md)：新模块 `src/modules/embed/`（YouTube / Bilibili / X 提供方注册表），编辑器、服务端校验、阅读页与 CSP frame-src 共用；cf-46630d 无需改数据即显示 Bilibili 播放器。
 - [2026-10-27：支持直接上传 .mov](2026-10-27-mov-upload.md)：MIME 清单加 `video/quicktime`，`isQuickTime()` 签名校验（ftyp 或旧式原子）；按原 MIME 返回、`<video src>` 不写 type（Chrome 实测）；25 MB 上限不变。
 - [2026-10-27：视频块粘贴 X 嵌入代码后发布“没反应”](2026-10-27-x-embed-silent-publish.md)：422 被发布弹窗遮住且为英文；新增 `src/modules/content-check/` 按块中文原因（编辑器预检 + 服务端 422），错误显示在弹窗内；嵌入代码解析与“改为嵌入块”；X 改为 Tweet.html iframe + 自适应高度 + 链接降级。
+- [2026-10-27：配置模块与前后端限额对齐](2026-10-27-config-module.md)：新模块 `src/modules/config/`（C 级常量 / B 级部署信息 / A 级设置页可调，25 MB 只在 defaults 一处，硬上限 50 MB）；设置页四组配置带范围、默认值与恢复默认；修复 Markdown 导入、嵌套深度、slug、会话时长等前后端不一致；无 D1 迁移。
 
 每次修复都必须在本目录新增报告（现象、根因、修复内容、验证方式与结果、如何避免再次踩坑），并在此索引登记。

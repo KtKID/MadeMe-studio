@@ -1,12 +1,12 @@
 # 媒体模块
 
-媒体二进制存入 R2，文件元数据写入 D1；数据库失败时清理刚写入的对象，避免孤立上传。上传最大 25 MB，校验允许 MIME 与主要文件签名，不接受 HTML 或 SVG。
+媒体二进制存入 R2，文件元数据写入 D1；数据库失败时清理刚写入的对象，避免孤立上传。上传上限按类型来自设置页“上传与媒体”（默认 25 MB，硬上限 50 MB，见 `src/modules/config`），校验允许 MIME 与主要文件签名，不接受 HTML 或 SVG。
 
 文件 URL 只暴露不可预测媒体 ID。每次读取均检查作者身份，或检查未删除已发布文章中的引用和该文章的访问权限。未发布媒体、没有有效密码授权的文件不能直接访问。
 
 图片/音视频使用正确 MIME；其他文件强制附件下载。响应使用 `nosniff`、隔离 CSP、同源资源策略及 `private, no-store`，避免共享缓存泄露密码媒体。下载可通过 `?download=1` 请求。
 
-媒体历史最多返回最近 100 条，支持文件名/生成提示词搜索和来源筛选。上传并不自动发布或自动关联文章正文；作者仍需插入块或设置封面。
+媒体历史返回最近 N 条（设置页“媒体库展示条数”，默认 100），支持文件名/生成提示词搜索和来源筛选。上传并不自动发布或自动关联文章正文；作者仍需插入块或设置封面。
 
 验证包括签名拒绝单元测试和真实 HTTP 上传→私有读取拒绝→发布引用→删除后拒绝的端到端测试。测试中的 R2 适配器模拟对象存储，真实 Cloudflare R2 联调需另行运行。
 
@@ -30,7 +30,7 @@
 
 ## QuickTime（.mov）
 
-- **接受的内容**：`video/quicktime`，即 macOS 录屏和 iPhone 视频，上限同样是 25 MB。
+- **接受的内容**：`video/quicktime`，即 macOS 录屏和 iPhone 视频，上限同视频类型的配置（默认 25 MB）。
 - **签名校验**：`isQuickTime()`。
   - 首个原子为 `ftyp`（品牌通常是 `qt  `）即通过；
   - 没有 ftyp 的旧式文件，首个原子为 `moov` / `wide` / `mdat` / `free` / `skip` / `pnot` 之一也通过；
@@ -51,4 +51,4 @@
 - HEVC（iPhone 默认的“高效”格式）和 ProRes 在 Chrome、Firefox 上可能无法播放，需要先转成 H.264；
 - Firefox 尚未实测。
 
-MIME 清单、25 MB 上限和格式文案目前都集中在 `src/shared/contracts.ts`（`acceptedMediaMimeTypes`、`MAX_MEDIA_BYTES`、`acceptedVideoFormatsLabel`）。下一步会整体改为可配置。
+MIME 清单在 `src/modules/config/limits.ts`（`MEDIA_TYPES`），各类型上限与禁用类型在设置页配置；前后端共用 `uploadProblem()`，格式文案由 `formatsLabel()` / `uploadHint()` 生成。AI 生成的图片不受作者上传配置影响，使用硬上限策略 `GENERATED_MEDIA_POLICY`。

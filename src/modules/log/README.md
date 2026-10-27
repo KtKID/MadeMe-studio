@@ -63,6 +63,10 @@ clientCaught("studio.identity_recheck_failed", error); // 默认 warn 级别
 | 5xx、意外异常、上游/提供方失败、数据回滚失败 | error | 序列化异常（含脱敏堆栈）     |
 | 诊断性、可忽略的降级（如性能采样存储不可用） | debug | 事件名与异常类型             |
 
+### 输出阈值 `LOG_LEVEL`
+
+部署环境变量 `LOG_LEVEL`（`debug` / `info` / `warn` / `error`，默认 `info`）决定服务端最低输出级别，低于阈值的日志直接丢弃。`src/middleware.ts` 每个请求调用 `configureLogLevel(env.LOG_LEVEL)`；值拼错时回退 `info` 并记一次 `log.invalid_level`（只记录一次，不刷屏）。解析逻辑在 `src/modules/config/env.ts` 的 `parseLogLevel`。未经中间件的环境（单元测试）不设阈值，全部输出。排查问题时可临时设为 `debug` 重新部署，查完改回。
+
 `src/server/http.ts` 的 `errorResponse` 已按上表统一记录 API 异常（事件 `request.rejected` / `request.app_error` / `request.unhandled_error`），`src/middleware.ts` 记录页面渲染的未处理异常（`request.unhandled_exception`）后再抛出。
 
 ## 脱敏与绝不记录的内容

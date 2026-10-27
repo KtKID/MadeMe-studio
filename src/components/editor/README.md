@@ -33,7 +33,7 @@ AI 面板关闭/重开使旧请求的建议失效；改变处理动作会清除�
 
 ## 媒体上传失败提示
 
-BlockNote 上传面板会吞掉 `uploadFile` 抛出的异常、只显示通用“上传失败”，块以空 url 留在正文里。`uploadFile` 因此先用共享的 `mediaUploadProblem()`（`src/shared/contracts.ts`，与服务端共用 `MAX_MEDIA_BYTES` = 25 MB 与 MIME 清单）做上传前检查：拒绝时写 `editor.upload_rejected` 日志（只含 reason/mime/size，不含文件名）并在编辑器提示栏显示中文原因；服务端拒绝或网络失败由 `api()` 记录 `api.request_failed` / `api.network_failed`，编辑器显示“上传失败：<原因>”。视频支持 MP4 / WebM / MOV（文案取自 `acceptedVideoFormatsLabel`），MKV 等需先转码。
+BlockNote 上传面板会吞掉 `uploadFile` 抛出的异常、只显示通用“上传失败”，块以空 url 留在正文里。`uploadFile` 因此先用共享的 `mediaUploadProblem()`（来自 `src/modules/config` 的 `uploadProblem`，与服务端同一函数、同一份设置页配置：各类型上限默认 25 MB、可禁用类型）做上传前检查：拒绝时写 `editor.upload_rejected` 日志（只含 reason/mime/size，不含文件名）并在编辑器提示栏显示中文原因；服务端拒绝或网络失败由 `api()` 记录 `api.request_failed` / `api.network_failed`，编辑器显示“上传失败：<原因>”。视频支持 MP4 / WebM / MOV（文案由 `uploadHint()` 按当前配置生成），MKV 等需先转码。
 
 ## 嵌入与视频块文案
 

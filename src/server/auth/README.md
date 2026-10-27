@@ -29,7 +29,7 @@
 - `POST /api/auth/login` 接受 `{email,password,returnTo?}`；返回 `{ok:true,returnTo}`，不返回密码、邮箱配置、哈希或会话令牌正文。
 - `POST /api/auth/logout` 撤销 D1 中当前会话并清空 Cookie；`GET /api/auth/session` 返回 `{mode,configured,authenticated}`；仅当当前请求本身已通过作者验证（password/google 模式）时额外返回 `account`（Google 模式且有昵称时再加 `accountName`）（即配置的 `OWNER_EMAIL`，规范化小写），未登录、伪造身份头、Bearer 令牌均不返回。
 - 登录和退出都强制 HTTPS、同源 Origin、Fetch Metadata；Bearer 不能豁免这两个端点的 CSRF 检查。普通 API 中 Bearer 始终覆盖 Cookie 身份，不能获得作者权限。
-- Cookie 为 `__Host-mm_author`，固定 Path=/，Secure、HttpOnly、SameSite=Strict，不设置 Domain。D1 只保存 256 位随机令牌的 SHA-256 摘要。重新登录原子撤销当前旧会话并颁发新令牌；8 小时绝对过期，无滑动延长。第一版尚不提供独立空闲超时策略。可直接撤销 `author_sessions.revoked_at`，邮箱、密码摘要或 SESSION_SECRET 变更也会使所有旧会话失效。
+- Cookie 为 `__Host-mm_author`，固定 Path=/，Secure、HttpOnly、SameSite=Strict，不设置 Domain。D1 只保存 256 位随机令牌的 SHA-256 摘要。重新登录原子撤销当前旧会话并颁发新令牌；绝对过期，时长取设置页“登录会话时长”（默认 8 小时），无滑动延长。第一版尚不提供独立空闲超时策略。可直接撤销 `author_sessions.revoked_at`，邮箱、密码摘要或 SESSION_SECRET 变更也会使所有旧会话失效。
 - 登录在 KDF 前以 D1 执行全局单作者每 5 分钟最多 5 次尝试限制，不信任请求 IP 或邮箱作为限流键。此策略防止伪造 IP/换邮箱绕过，但攻击者也可能消耗窗口造成短时拒绝服务；独立生产发布前应结合可信边缘 WAF/访问限制评估可用性，不能通过信任任意客户端头修复。
 - 新部署执行追加迁移 `drizzle/0002_author_sessions.sql`；不更改已部署初始迁移。仅独立模式登录/后台 HTML 增加 `frame-ancestors 'none'`，保留 Sites 的 iframe 兼容。
 

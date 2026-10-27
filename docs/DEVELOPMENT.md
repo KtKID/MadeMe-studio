@@ -9,6 +9,7 @@
 - 不提交密钥、私人笔记、运行数据库或构建缓存。
 - **失败不得静默**：服务端一律通过 [日志模块](../src/modules/log/README.md) 的 `src/modules/log/server.ts`（`logger.*` / `logCaught`）写结构化日志，浏览器端通过 `src/modules/log/client.ts`；禁止空 catch、`.catch(() => 默认值)` 吞错或无日志的回退。纯判定函数（如 URL 解析失败返回 false）须注释说明由调用方记录。日志字段经 `src/modules/log/redact.ts` 强制脱敏，仍不得主动传入密钥、令牌、授权码、state/nonce/PKCE、Cookie、会话 ID、邮箱或上游响应正文。
 - **Workers 平台差异**：Worker 内 `fetch` 只能用 `redirect: "follow" | "manual"`（`"error"` 在 workerd 直接抛 TypeError）；禁止重定向时用 `"manual"` 并把非 2xx 视为失败。fetch 模拟测试应断言 redirect 取值，涉及平台 API 的修改须经 `npm run test:worker` 或 workerd 探针验证。
+- **魔法值走配置**：限额、超时、上限、文本长度、端点、端口、默认值一律从 [配置模块](../src/modules/config/README.md) `src/modules/config` 取，不在业务代码里写数字；前后端必须用同一个常量或同一个函数（如上传检查 `uploadProblem`），禁止“几个地方各写一次 25 MB”。作者可调项加在 `defaults.ts` / `schema.ts` / `meta.ts`，设置页自动出现；部署项在 `env.ts`；本地端口在 `scripts/dev-config.mjs`（`DEV_PORT`）。
 - **每次修复都写报告**：在 `reports/` 新增 `YYYY-MM-DD-主题.md`（现象、根因、修复内容（文件）、验证方式与结果、如何避免再次踩坑），并登记到 [reports/README.md](../reports/README.md)。
 
 ## 当前执行顺序

@@ -86,6 +86,7 @@ npm run test:integrations
 
 - [导航性能测量模块](src/modules/navigation-performance/README.md)
 - [统一日志与脱敏模块](src/modules/log/README.md)
+- [配置模块](src/modules/config/README.md)：所有限额、超时、端点与默认值的唯一来源；作者可调项在设置页“上传与媒体 / AI 用量 / 账号与安全 / 嵌入与阅读”，部署项只读显示是否已配置
 - [第三方嵌入模块](src/modules/embed/README.md)：YouTube / Bilibili / X 提供方注册表，同时服务编辑器、服务端校验、阅读页渲染与 CSP frame-src；可从官方嵌入代码中识别链接，X 动态用静态嵌入页 iframe
 - [内容检查模块](src/modules/content-check/README.md)：保存/发布前按块定位问题（“第 N 个视频块……”），编辑器预检与服务端 422 共用同一套中文原因
 

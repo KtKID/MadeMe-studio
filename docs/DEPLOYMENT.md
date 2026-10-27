@@ -19,7 +19,7 @@ npm run dev
 
 默认开发服务只绑定 `127.0.0.1`。示例中的测试身份仅在回环地址、`ENVIRONMENT=development`、显式允许开发身份且作者 ID 匹配时生效。不要对公网开放开发实例，也不要将开发身份配置复制到生产。
 
-`npm run build` 只构建，不会替生产数据库应用迁移。真实 Worker 冒烟和 HTTP E2E 均自动创建全新临时 D1/R2、应用迁移并启动测试进程，结束后清理。先完成构建，再串行运行 `npm run test:smoke` 与 `npm run test:worker`，预留回环端口 4321/4322；无需提前启动开发服务。详见 [Worker 测试](../tests/worker/README.md)。浏览器用例另需可用浏览器与隔离应用实例，配置方式见 `playwright.config.ts` 和测试目录说明。
+`npm run build` 只构建，不会替生产数据库应用迁移。真实 Worker 冒烟和 HTTP E2E 均自动创建全新临时 D1/R2、应用迁移并启动测试进程，结束后清理。先完成构建，再串行运行 `npm run test:smoke` 与 `npm run test:worker`，预留回环端口 DEV_PORT / DEV_PORT+1（默认 4321/4322，见 `scripts/dev-config.mjs`）；无需提前启动开发服务。详见 [Worker 测试](../tests/worker/README.md)。浏览器用例另需可用浏览器与隔离应用实例，配置方式见 `playwright.config.ts` 和测试目录说明。
 
 ## Sites 私有部署
 
@@ -90,7 +90,7 @@ npx wrangler tail <worker-name> --format json --status error
 
 密码哈希采用 PBKDF2-SHA256 600,000 次；不支持这一策略的运行时返回 503，不降低参数。Cloudflare 生产运行时的迭代限制与 CPU 预算必须单独验证，本地 Node/workerd 通过不能证明生产可用。正式环境选择尚待确认，不得将当前密码模式称作已完成生产认证验收。详见[认证模块边界](../src/server/auth/README.md)。
 
-登录页面仅在 HTTPS 下显示密码表单；会话 Cookie 为 HttpOnly、Secure、SameSite=Strict，8 小时绝对到期。新登录轮换会话，退出服务器端撤销；更换邮箱、密码摘要或签名密钥使旧会话失效。第一版无空闲续期、无公开注册或邮件找回密码服务。
+登录页面仅在 HTTPS 下显示密码表单；会话 Cookie 为 HttpOnly、Secure、SameSite=Strict，默认 8 小时绝对到期（设置页“账号与安全 → 登录会话时长”可调 1–168 小时，只影响之后的新登录）。新登录轮换会话，退出服务器端撤销；更换邮箱、密码摘要或签名密钥使旧会话失效。第一版无空闲续期、无公开注册或邮件找回密码服务。
 
 ## Google 单作者模式（实现准备，未部署验收）
 
