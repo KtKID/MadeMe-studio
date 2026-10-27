@@ -1,3 +1,4 @@
+import { handleAuth } from "./auth/password";
 import {
   createPostSchema,
   postReceiptSchema,
@@ -54,6 +55,8 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
   let response: Response;
   try {
     const env = getEnv(context);
+    if (path[0] === "auth" && path.length === 2)
+      return await handleAuth(request, env, path[1]);
     const identity = await authenticate(request, env);
     const write = !["GET", "HEAD"].includes(method);
     if (write) assertSameOrigin(request, identity);

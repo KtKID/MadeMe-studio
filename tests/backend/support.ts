@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import type {
   D1Database,
   D1Result,
@@ -11,12 +11,12 @@ import type {
 export class SQLiteD1 implements D1Database {
   readonly sqlite = new DatabaseSync(":memory:");
   constructor() {
-    this.sqlite.exec(
-      readFileSync(
-        new URL("../../drizzle/0001_initial.sql", import.meta.url),
-        "utf8",
-      ),
-    );
+    const directory = new URL("../../drizzle/", import.meta.url);
+    for (const file of readdirSync(directory)
+      .filter((name) => name.endsWith(".sql"))
+      .sort()) {
+      this.sqlite.exec(readFileSync(new URL(file, directory), "utf8"));
+    }
   }
   prepare(sql: string): D1Statement {
     let values: unknown[] = [];

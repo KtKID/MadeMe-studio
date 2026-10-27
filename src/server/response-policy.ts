@@ -1,5 +1,9 @@
 // 动态 HTML 不共享缓存；静态哈希资源保留原缓存策略。
-export function secureResponse(response: Response, url: URL): Response {
+export function secureResponse(
+  response: Response,
+  url: URL,
+  authMode?: string,
+): Response {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set(
@@ -11,10 +15,18 @@ export function secureResponse(response: Response, url: URL): Response {
     response.headers.set("Vary", "Cookie");
     response.headers.set(
       "Content-Security-Policy",
-      "object-src 'none'; base-uri 'self'; form-action 'self'",
+      "object-src 'none'; base-uri 'self'; form-action 'self'" +
+        (authMode === "password" &&
+        (url.pathname === "/login" || url.pathname.startsWith("/studio"))
+          ? "; frame-ancestors 'none'"
+          : ""),
     );
   }
-  if (url.pathname.startsWith("/studio") || url.pathname.startsWith("/api"))
+  if (
+    url.pathname === "/login" ||
+    url.pathname.startsWith("/studio") ||
+    url.pathname.startsWith("/api")
+  )
     response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
   return response;
 }

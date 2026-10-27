@@ -2,6 +2,7 @@ import type { TokenScope } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
 import { AppError } from "../errors";
 import { sha256 } from "./crypto";
+import { passwordAuthConfigured, passwordSessionOwner } from "./password";
 export type Identity = {
   owner: boolean;
   trustedIdentity: string | null;
@@ -12,6 +13,7 @@ export function trustedIdentity(
   request: Request,
   env: RuntimeEnv,
 ): string | null {
+  if (env.AUTH_MODE === "password") return null;
   const host = new URL(request.url).hostname;
   if (
     env.ENVIRONMENT === "development" &&
@@ -24,6 +26,7 @@ export function trustedIdentity(
   return request.headers.get("oai-authenticated-user-id") || null;
 }
 export function ownerConfigured(env: RuntimeEnv) {
+  if (env.AUTH_MODE === "password") return passwordAuthConfigured(env);
   return !!env.OWNER_ID || (env.AUTH_MODE === "sites" && !!env.OWNER_EMAIL);
 }
 export async function authenticate(
@@ -44,7 +47,14 @@ export async function authenticate(
         email === env.OWNER_EMAIL.trim().toLowerCase());
   const base: Identity = { owner, trustedIdentity: id, scopes: [] };
   const auth = request.headers.get("authorization");
-  if (!auth) return base;
+  if (!auth)
+    return env.AUTH_MODE === "password"
+      ? {
+          owner: await passwordSessionOwner(request, env),
+          trustedIdentity: null,
+          scopes: [],
+        }
+      : base;
   if (!auth.startsWith("Bearer ") || !env.DB)
     throw new AppError(401, "INVALID_TOKEN", "Invalid API token.");
   const token = auth.slice(7);

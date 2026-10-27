@@ -34,6 +34,7 @@ export interface RuntimeEnv {
   OWNER_ID?: string;
   OWNER_EMAIL?: string;
   AUTH_MODE?: string;
+  AUTH_PASSWORD_HASH?: string;
   ENVIRONMENT?: string;
   ALLOW_LOCAL_DEV_IDENTITY?: string;
   DEV_OWNER_ID?: string;

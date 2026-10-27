@@ -23,4 +23,24 @@ describe("响应隔离策略", () => {
     expect(r.headers.get("cache-control")).toContain("31536000");
     expect(r.headers.get("x-content-type-options")).toBe("nosniff");
   });
+  it("仅独立作者登录和后台拒绝嵌入，Sites保留兼容", () => {
+    for (const path of ["/login", "/studio", "/studio/settings"]) {
+      const response = () =>
+        new Response("", { headers: { "Content-Type": "text/html" } });
+      expect(
+        secureResponse(
+          response(),
+          new URL("https://example.com" + path),
+          "password",
+        ).headers.get("Content-Security-Policy"),
+      ).toContain("frame-ancestors 'none'");
+      expect(
+        secureResponse(
+          response(),
+          new URL("https://example.com" + path),
+          "sites",
+        ).headers.get("Content-Security-Policy"),
+      ).not.toContain("frame-ancestors");
+    }
+  });
 });

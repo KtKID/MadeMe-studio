@@ -79,3 +79,12 @@ export const rateLimits = sqliteTable("rate_limits", {
   windowStart: integer("window_start").notNull(),
   count: integer("count").notNull(),
 });
+
+// 独立作者会话仅保存随机令牌摘要，支持服务端撤销和配置轮换失效。
+export const authorSessions = sqliteTable("author_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  configVersion: text("config_version").notNull(),
+  createdAt: integer("created_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  revokedAt: integer("revoked_at"),
+});
