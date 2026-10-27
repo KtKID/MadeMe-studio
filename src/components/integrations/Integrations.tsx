@@ -15,7 +15,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { api, Notice, Busy, Modal, date } from "../shared/ui";
-import type { APIToken, TokenScope } from "../../shared/contracts";
+import {
+  createTokenSchema,
+  tokenSchema,
+  type APIToken,
+  type TokenScope,
+} from "../../shared/contracts";
 export default function Integrations({
   authenticated,
   initialTokens,
@@ -66,6 +71,7 @@ export default function Integrations({
   ]);
   const [days, setDays] = useState(90);
   const [busy, setBusy] = useState(false);
+  const mutationLock = useRef(false);
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState("");
   useNavigationReady("/studio/integrations", !initialLoading, !!error);
@@ -78,36 +84,63 @@ export default function Integrations({
         .finally(() => setInitialLoading(false));
   }, [authenticated, initialTokens, initialError]);
   async function create() {
+    if (initialLoading || mutationLock.current || !authenticated) return;
+    const input = createTokenSchema.safeParse({
+      name,
+      scopes,
+      expiresInDays: days,
+    });
+    if (!input.success) {
+      setError(
+        "请填写 1–80 字用途名称、至少一种权限，以及 1–365 的整数有效天数。",
+      );
+      return;
+    }
+    // 创建与撤销串行，防止重复创建和列表响应覆盖已撤销的条目。
+    mutationLock.current = true;
     const epoch = activation.current;
     setBusy(true);
     setError("");
     try {
-      const r = await api<{ token: string; metadata?: APIToken }>(
-        "/api/tokens",
-        {
-          method: "POST",
-          body: JSON.stringify({ name, scopes, expiresInDays: days }),
-        },
-      );
-      if (activeRef.current && activation.current === epoch) setSecret(r.token);
-      const list = await api<{ tokens: APIToken[] }>("/api/tokens");
-      setTokens(list.tokens);
+      const r = await api<APIToken & { token: string }>("/api/tokens", {
+        method: "POST",
+        body: JSON.stringify(input.data),
+      });
+      if (activeRef.current && activation.current === epoch) {
+        setSecret(r.token);
+        setCopied(false);
+      }
+      // POST 已返回权威元数据，不再用第二个 GET 决定创建是否成功。
+      const { token: _secret, ...metadata } = r;
+      const created = tokenSchema.parse(metadata);
+      setTokens((previous) => [
+        created,
+        ...previous.filter((item) => item.id !== created.id),
+      ]);
       setOpen(false);
       setName("");
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      mutationLock.current = false;
       setBusy(false);
     }
   }
   async function revoke(id: string) {
+    if (initialLoading || mutationLock.current || !authenticated) return;
     if (!confirm("撤销后，使用这个令牌的工具将无法再访问站点。确定继续？"))
       return;
+    mutationLock.current = true;
+    setBusy(true);
+    setError("");
     try {
       await api(`/api/tokens/${id}`, { method: "DELETE" });
-      setTokens(tokens.filter((t) => t.id !== id));
+      setTokens((previous) => previous.filter((t) => t.id !== id));
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      mutationLock.current = false;
+      setBusy(false);
     }
   }
   return (
@@ -181,7 +214,7 @@ export default function Integrations({
           </div>
           <button
             className="button primary"
-            disabled={!authenticated}
+            disabled={initialLoading || busy || !authenticated}
             onClick={() => setOpen(true)}
           >
             <Plus size={16} />
@@ -243,6 +276,7 @@ export default function Integrations({
                 <button
                   className="icon-button danger"
                   title="撤销令牌"
+                  disabled={initialLoading || busy || !authenticated}
                   onClick={() => revoke(t.id)}
                 >
                   <Trash2 size={17} />
@@ -313,7 +347,9 @@ export default function Integrations({
             </button>
             <button
               className="button primary"
-              disabled={busy || !name.trim() || !scopes.length}
+              disabled={
+                initialLoading || busy || !name.trim() || !scopes.length
+              }
               onClick={create}
             >
               {busy ? <Busy /> : "创建令牌"}

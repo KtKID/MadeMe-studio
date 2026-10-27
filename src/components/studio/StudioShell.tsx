@@ -260,9 +260,6 @@ export default function StudioShell({
   const panes = valid
     ? [
         <>
-          {initial.postsError && (
-            <Notice kind="error">{initial.postsError}</Notice>
-          )}
           <Dashboard
             initial={{ ...initial, settings }}
             initialError={initial.postsError}

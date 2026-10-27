@@ -90,6 +90,7 @@ it("离开或pagehide清空已展示secret与modal", () => {
 it("POST迟到于离开及返回，列表更新但一次性secret不可复活", async () => {
   render();
   h.values[3] = true;
+  h.values[5] = "测试";
   const create = findCreate(render());
   expect(create).toBeDefined();
   let finish!: (response: Response) => void;
@@ -119,7 +120,7 @@ it("POST迟到于离开及返回，列表更新但一次性secret不可复活", 
     }),
   );
   await pending;
-  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(fetch).toHaveBeenCalledTimes(1);
   expect(h.values[2]).toBe("");
   expect(h.values[4]).toBe("");
 });

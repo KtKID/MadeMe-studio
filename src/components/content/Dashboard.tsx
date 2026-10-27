@@ -4,7 +4,7 @@ import {
   type DashboardBootstrap,
 } from "../../shared/contracts";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Plus,
   ArrowUpRight,
@@ -39,8 +39,9 @@ export default function Dashboard({
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState("");
+  const [error, setError] = useState(initialError);
+  const [busy, setBusy] = useState<Set<string>>(() => new Set());
+  const pending = useRef(new Set<string>());
   const live = posts.filter((p) => !p.deletedAt);
   const categories = useMemo(
     () => [...new Set(live.map((p) => p.category).filter(Boolean))],
@@ -66,6 +67,8 @@ export default function Dashboard({
     post: PostSummary,
     action: "pin" | "trash" | "restore",
   ) {
+    if (!initial.capabilities.authenticated || pending.current.has(post.id))
+      return;
     if (
       action === "trash" &&
       !confirm(
@@ -73,7 +76,9 @@ export default function Dashboard({
       )
     )
       return;
-    setBusy(post.id);
+    // 同一文章同步上锁，跨行请求各自保留忙碌状态。
+    pending.current.add(post.id);
+    setBusy(new Set(pending.current));
     setError("");
     try {
       if (action === "trash") {
@@ -107,7 +112,8 @@ export default function Dashboard({
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy("");
+      pending.current.delete(post.id);
+      setBusy(new Set(pending.current));
     }
   }
   return (
@@ -250,7 +256,7 @@ export default function Dashboard({
                   </span>
                   <time>{date(p.updatedAt)}</time>
                   <div className="row-actions">
-                    {busy === p.id ? (
+                    {busy.has(p.id) ? (
                       <Busy text="" />
                     ) : p.deletedAt ? (
                       <button
