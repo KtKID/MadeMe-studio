@@ -3,18 +3,10 @@ import {
   settingsSchema,
   patchSettingsSchema,
   type Settings,
-  type Provider,
 } from "../shared/contracts";
 import type { RuntimeEnv } from "./runtime";
-export function providerKey(provider: Provider, env: RuntimeEnv) {
-  return {
-    openai: env.OPENAI_API_KEY,
-    openrouter: env.OPENROUTER_API_KEY,
-    siliconflow: env.SILICONFLOW_API_KEY,
-    cloudflare: env.CLOUDFLARE_AI_TOKEN,
-    gemini: env.GEMINI_API_KEY,
-  }[provider.kind];
-}
+import { providerCapabilities } from "./ai/capabilities";
+export { providerKey } from "./ai/capabilities";
 export function redactSettings(
   settings: Settings,
   owner: boolean,
@@ -25,7 +17,8 @@ export function redactSettings(
     providers: owner
       ? settings.providers.map((p) => ({
           ...p,
-          configured: !!providerKey(p, env),
+          configured: providerCapabilities(p, env).textConfigured,
+          ...providerCapabilities(p, env),
         }))
       : [],
     prompts: owner ? settings.prompts : [],
@@ -47,6 +40,8 @@ export async function writeSettings(env: RuntimeEnv, patch: Partial<Settings>) {
     validated.providers = validated.providers.map((provider) => ({
       ...provider,
       configured: false,
+      textConfigured: undefined,
+      imageConfigured: undefined,
     }));
   }
   // 在数据库单条语句内合并已校验的 patch，避免并发请求读旧值后覆盖其他字段。

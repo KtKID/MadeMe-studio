@@ -1,3 +1,4 @@
+import { providerCapabilities } from "./capabilities";
 import { z } from "zod";
 import { imageInputSchema, type Provider } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
@@ -26,12 +27,7 @@ export function hasConfiguredImageProvider(
 ) {
   return (
     !!(env.IMAGE_API_KEY || env.OPENAI_API_KEY) ||
-    providers.some(
-      (p) =>
-        !!providerKey(p, env) &&
-        (p.kind !== "cloudflare" ||
-          /^[a-f0-9]{32}$/i.test(env.CLOUDFLARE_ACCOUNT_ID ?? "")),
-    )
+    providers.some((p) => providerCapabilities(p, env).imageConfigured)
   );
 }
 function mimeFromBytes(bytes: Uint8Array) {
@@ -259,8 +255,9 @@ export async function generateImage(
   const settings = await readSettings(env);
   let provider = input.providerId
     ? settings.providers.find((p) => p.id === input.providerId)
-    : (settings.providers.find((p) => p.imageModel && providerKey(p, env)) ??
-      settings.providers.find((p) => providerKey(p, env)));
+    : settings.providers.find(
+        (p) => providerCapabilities(p, env).imageConfigured,
+      );
   if (input.providerId && !provider)
     throw new AppError(
       422,
@@ -281,11 +278,11 @@ export async function generateImage(
     provider.kind === "openai"
       ? env.IMAGE_API_KEY || env.OPENAI_API_KEY
       : providerKey(provider, env);
-  if (!key)
+  if (!key || !providerCapabilities(provider, env).imageConfigured)
     throw new AppError(
       503,
       "IMAGE_NOT_CONFIGURED",
-      `The ${provider.kind} image API key is not configured on the server.`,
+      `The ${provider.kind} image service configuration is incomplete on the server.`,
     );
   if (!env.DB || !env.BUCKET)
     throw new AppError(

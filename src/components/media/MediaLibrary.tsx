@@ -439,12 +439,18 @@ export default function MediaLibrary({
               value={providerId}
               onChange={(event) => setProviderId(event.target.value)}
             >
-              <option value="">第一个已配置的可用服务商</option>
+              <option value="">第一个已配置的图像服务商</option>
               {providers.map((provider) => (
-                <option value={provider.id} key={provider.id}>
+                <option
+                  value={provider.id}
+                  key={provider.id}
+                  disabled={!provider.imageConfigured}
+                >
                   {provider.name} ·{" "}
                   {provider.imageModel || "服务端默认图像模型"}
-                  {provider.configured ? "" : "（未配置密钥）"}
+                  {provider.imageConfigured
+                    ? "（配置已就绪，未验证联调）"
+                    : "（图像未配置）"}
                 </option>
               ))}
             </select>
@@ -464,7 +470,15 @@ export default function MediaLibrary({
             </button>
             <button
               className="button primary"
-              disabled={busy || !prompt.trim() || !imageConfigured}
+              disabled={
+                busy ||
+                !prompt.trim() ||
+                !imageConfigured ||
+                !!(
+                  providerId &&
+                  !providers.find((p) => p.id === providerId)?.imageConfigured
+                )
+              }
               onClick={generateImage}
             >
               {busy ? (

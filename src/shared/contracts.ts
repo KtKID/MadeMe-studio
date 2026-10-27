@@ -251,6 +251,8 @@ export const providerSchema = z.object({
   temperature: z.number().min(0).max(2).default(0.7),
   maxTokens: z.number().int().min(16).max(16384).default(2048),
   configured: z.boolean().default(false),
+  textConfigured: z.boolean().optional(),
+  imageConfigured: z.boolean().optional(),
 });
 export type Provider = z.infer<typeof providerSchema>;
 export const promptSchema = z.object({

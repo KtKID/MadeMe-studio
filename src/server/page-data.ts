@@ -1,3 +1,4 @@
+import { providerCapabilities } from "./ai/capabilities";
 import { hasConfiguredImageProvider } from "./ai/images";
 import type { BootstrapResponse, Post, Settings } from "../shared/contracts";
 import { getEnv, type RequestContext } from "./runtime";
@@ -5,7 +6,7 @@ import { authenticate, ownerConfigured } from "./auth/identity";
 import { canReadPost } from "./auth/access";
 import { D1PostRepository, type StoredPost } from "./content/repository";
 import { publicPosts } from "./content/service";
-import { readSettings, redactSettings, providerKey } from "./settings";
+import { readSettings, redactSettings } from "./settings";
 export async function loadPageData(
   context: RequestContext,
   publicOnly = false,
@@ -38,7 +39,10 @@ export async function loadPageData(
     capabilities: {
       authenticated: identity.owner,
       aiConfigured:
-        identity.owner && settings.providers.some((p) => !!providerKey(p, env)),
+        identity.owner &&
+        settings.providers.some(
+          (p) => providerCapabilities(p, env).textConfigured,
+        ),
       imageConfigured:
         identity.owner && hasConfiguredImageProvider(settings.providers, env),
       passwordConfigured:

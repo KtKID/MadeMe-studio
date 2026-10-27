@@ -365,6 +365,14 @@ export default function Editor({
     setAiText("");
     setPanel("ai");
   }
+  // 与服务端一致：显式选择优先，其次 Prompt 绑定；默认由服务端选择已配置项。
+  const effectiveProviderId =
+    provider || settings.prompts.find((p) => p.id === promptId)?.providerId;
+  const selectedTextConfigured =
+    !effectiveProviderId ||
+    settings.providers.some(
+      (p) => p.id === effectiveProviderId && p.textConfigured === true,
+    );
   async function runAI() {
     setBusy("ai");
     setError("");
@@ -783,10 +791,13 @@ export default function Editor({
                 value={provider}
                 onChange={(e) => setProvider(e.target.value)}
               >
-                <option value="">站点默认模型</option>
+                <option value="">第一个已配置的文本服务商</option>
                 {settings.providers.map((p) => (
-                  <option value={p.id} key={p.id}>
+                  <option value={p.id} key={p.id} disabled={!p.textConfigured}>
                     {p.name} · {p.model}
+                    {p.textConfigured
+                      ? "（配置已就绪，未验证联调）"
+                      : "（文本未配置）"}
                   </option>
                 ))}
               </select>
@@ -826,10 +837,17 @@ export default function Editor({
               />
             </label>
           )}
+          {!selectedTextConfigured && (
+            <Notice>
+              当前选择或提示词绑定的文本服务商尚未配置，请选择已配置的服务商。
+            </Notice>
+          )}
           <div className="modal-actions">
             <button
               className="button"
-              disabled={!!busy || !selection || !aiConfigured}
+              disabled={
+                !!busy || !selection || !aiConfigured || !selectedTextConfigured
+              }
               onClick={runAI}
             >
               {busy === "ai" ? (

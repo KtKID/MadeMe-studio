@@ -3,6 +3,7 @@
 ## 文件分工
 
 - `service.ts`：公开入口，供 HTTP API 使用。
+- `capabilities.ts`：从部署环境推导每个提供商的文本/图像配置态；页面、默认选择和执行校验共用。
 - `text.ts`：写作动作、作者 Prompt 与文本协议适配。
 - `images.ts`：多提供商图像协议、安全解码与持久化。
 - `models.ts`：各提供商模型发现与 ID 规范化。
@@ -11,13 +12,13 @@
 
 ## 支持能力
 
-| 提供商 | 文本 | 图像 | 模型发现 |
-| --- | --- | --- | --- |
-| OpenAI | Chat Completions | Images generations，支持配置 `imageModel` | `/v1/models` |
-| OpenRouter | Chat Completions | 专用 `/api/v1/images`，仅接受 base64 图片 | `/api/v1/models` |
-| SiliconFlow | Chat Completions | Images generations，再下载白名单临时文件 | `/v1/models` |
-| Cloudflare Workers AI | 官方 OpenAI-compatible Chat Completions | `/ai/run/{model}`，支持 base64 或图片二进制 | `/ai/models/search` |
-| Google Gemini | 官方 `generateContent` | Nano Banana `generateContent` 与 `inlineData` | 官方 models API |
+| 提供商                | 文本                                    | 图像                                          | 模型发现            |
+| --------------------- | --------------------------------------- | --------------------------------------------- | ------------------- |
+| OpenAI                | Chat Completions                        | Images generations，支持配置 `imageModel`     | `/v1/models`        |
+| OpenRouter            | Chat Completions                        | 专用 `/api/v1/images`，仅接受 base64 图片     | `/api/v1/models`    |
+| SiliconFlow           | Chat Completions                        | Images generations，再下载白名单临时文件      | `/v1/models`        |
+| Cloudflare Workers AI | 官方 OpenAI-compatible Chat Completions | `/ai/run/{model}`，支持 base64 或图片二进制   | `/ai/models/search` |
+| Google Gemini         | 官方 `generateContent`                  | Nano Banana `generateContent` 与 `inlineData` | 官方 models API     |
 
 `model` 用于文本；可选 `imageModel` 独立用于生图，不会拿文本模型名默认为图像模型。模型 ID 可配置，实际账户可用性由提供商决定。默认模型不构成可用性或价格保证，调用前应通过模型列表和账户配置确认。
 
@@ -48,3 +49,13 @@ SiliconFlow 临时图片仅允许 HTTPS 精确主机白名单，不转发 API �
 - [Cloudflare OpenAI-compatible 文本协议](https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/)
 - [Cloudflare 图像模型 REST 示例](https://developers.cloudflare.com/workers-ai/models/flux-1-schnell/)
 - [Cloudflare 模型发现](https://developers.cloudflare.com/api/resources/ai/subresources/models/methods/list/)
+
+## 提供商配置态与选择
+
+`Provider.textConfigured` 与 `imageConfigured` 为可选的脱敏返回字段；旧配置不含它们也能解析。`configured` 保留文本配置态兼容含义。客户端提交的能力字段不会持久化，服务端每次从部署环境重新推导，不能以客户端布尔值授权调用。对访客不返回提供商配置。
+
+文本和图片分别判断；只有 `IMAGE_API_KEY` 时 OpenAI 图片已配置而文本未配置。Cloudflare 两种能力都要求 token 和合法账户 ID。字段只表达配置是否齐备，不含凭据内容、长度或片段，也不保证账户、配额、模型或线上联调可用。
+
+未指定提供商时，文本使用第一个文本已配置项，图片使用第一个图片已配置项；图片保留无列表项时的运行时 OpenAI 后备。显式选择或 Prompt 绑定未配置提供商时明确拒绝，不偷偷换提供商。编辑器和媒体库禁用未配置选项，按各自能力检查提交，并标注“配置已就绪，未验证联调”。
+
+`tests/backend/ai-capabilities.test.ts` 用虚构凭据和 HTTP fixture 覆盖独立图片密钥、Cloudflare 账户缺失、默认选择、显式拒绝、Prompt 绑定、页面能力及伪造配置字段；不发起真实模型请求。
