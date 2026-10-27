@@ -48,12 +48,12 @@
 必需配置：D1、固定 HTTPS `APP_ORIGIN`（仅 origin，不带路径和尾斜线）、Google Web OAuth `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、明确 `OWNER_EMAIL`、至少 32 字符随机 `SESSION_SECRET`。可选 `OWNER_GOOGLE_SUB` 进一步绑定 Google 稳定主体。第一版 Gmail 作者可仅用邮箱白名单；非 Gmail 邮箱必须同时提供 `OWNER_GOOGLE_SUB`，不把第三方邮箱的 `email_verified` 误当作 Google 持续掌握邮箱所有权的证明。所有实际值通过部署私有配置注入，不写仓库、不发聊天、不放前端。
 
 - `POST /api/auth/google/start` 接收同源 HTTPS 的 `application/x-www-form-urlencoded` 表单，仅接受可选 `returnTo`。服务器生成 state、nonce、PKCE verifier；返回 303 Google 授权地址。固定 `openid email`，不申请 offline 或 profile 权限。
-- 回调固定为 `${APP_ORIGIN}/api/auth/google/callback`，必须在 OAuth 客户端中登记完全一致的地址。只允许硬编码 Google token/JWKS HTTPS 端点；5 秒超时、64 KiB 响应上限、禁止网络重定向，不接受请求提供的 discovery URL 或 JWKS URL。
+- 回调固定为 `${APP_ORIGIN}/api/auth/google/callback`，必须在 OAuth 客户端中登记完全一致的地址。只允许硬编码 Google token/JWKS HTTPS 端点；5 秒超时、64 KiB 响应上限、禁止网络重定向（Workers fetch 仅支持 `redirect: "follow" | "manual"`，传 `"error"` 会直接抛 TypeError；因此使用 `"manual"`，任何非 2xx 响应——含 3xx——均视为失败），不接受请求提供的 discovery URL 或 JWKS URL。
 - `__Host-mm_google_oauth` 是 HttpOnly、Secure、SameSite=Lax 的浏览器绑定 Cookie。D1 临时流程十分钟有效；state 与 Cookie 均存摘要，PKCE verifier 只短暂存在流程表。`DELETE ... RETURNING` 原子单次消费，重复/并发回调不可再次换票；失败需重新开始登录。
 - 使用 `jose` 验证 RS256 签名、Google issuer、audience、iat/exp、nonce、azp 和 verified email。JWT 自带的远程 key URL 不参与取钥。成功还必须满足预配置作者白名单/主体，绝不首次访问认领管理员。
 - Google access token、refresh token、ID token 不落库，不返回前端；应用会话采用独立随机 opaque Cookie `__Host-mm_google_author`。D1 `google_author_sessions` 仅存 token SHA-256 摘要、配置指纹与时间；八小时绝对过期。重新登录撤销当前旧会话，退出服务端撤销；邮箱、主体、客户端 ID/secret、APP_ORIGIN、SESSION_SECRET 任何配置变化均使旧会话与待完成流程失效。
 - `POST /api/auth/logout` 与所有浏览器写 API 保留同源 Origin/Fetch Metadata 检查；Google Cookie 不豁免 CSRF。Bearer API Token 保持现有显式 scope 授权，不继承 Google 作者权限。
-- 回调错误仅跳到固定 `google_failed` / `google_denied`，不反射提供方错误、邮箱或授权码；登录/认证路径设置 no-referrer。认证入口配置错误返回 503，来源错误返回 403，未登录作者操作返回 401。
+- 回调错误仅跳到固定 `google_failed` / `google_denied`，不反射提供方错误、邮箱或授权码；Worker 日志只记录 `console.warn("google_callback_failed", { stage })`，`stage` 为固定标签 `flow`/`provider_error`/`code`/`token`/`jwks`/`verify`/`claims`/`binding`/`owner`/`session`，不记录 code、token、state、邮箱或提供方错误内容；`/api/auth/*`（含 start 的 303 跳转与携带 code/state 的回调）设置 no-referrer；`/login` 设置 same-origin，使同源原生表单 POST 携带真实 Origin（no-referrer 会让浏览器发送 `Origin: null` 而被同源校验拒绝），同时不向外站发送 Referer。认证入口配置错误返回 503，来源错误返回 403，未登录作者操作返回 401。
 - 追加迁移 `0003_google_author_auth.sql`，不修改旧表/旧迁移。切换 AUTH_MODE 和创建真实凭据必须经过独立部署确认，不自动改变线上 Sites 模式。
 
 测试入口 `tests/backend/google-auth.test.ts` 使用隔离 SQLite、真实 RSA 签名与模拟 Google 网络；不会访问真实 OAuth 账号。只有依赖安装及完整测试实际成功后，才能将本模块标记验收通过。

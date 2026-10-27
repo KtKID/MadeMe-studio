@@ -100,7 +100,11 @@ function checkOrigin(request: Request, env: RuntimeEnv) {
       "Use the configured HTTPS origin.",
     );
 }
-/** 请求和响应读取均受超时约束；地址只来自模块常量，禁止重定向到其他主机。 */
+/**
+ * 请求和响应读取均受超时约束；地址只来自模块常量，禁止重定向到其他主机。
+ * Workers 的 fetch 只支持 redirect "follow" | "manual"（"error" 会直接抛 TypeError），
+ * 因此使用 "manual"，并把任何非 2xx（含 3xx 重定向）都视为失败。
+ */
 async function providerJSON(
   url: typeof TOKEN | typeof JWKS,
   init: RequestInit = {},
@@ -110,10 +114,11 @@ async function providerJSON(
   try {
     const response = await fetch(url, {
       ...init,
-      redirect: "error",
+      redirect: "manual",
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error("provider unavailable");
+    if (response.status < 200 || response.status >= 300)
+      throw new Error("provider unavailable");
     const bytes = await boundedBody(response as unknown as Request, 65536);
     return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
   } catch {
@@ -220,6 +225,18 @@ async function callback(request: Request, env: RuntimeEnv) {
   configured(env);
   checkOrigin(request, env);
   let denied = false;
+  // 失败时只记录固定阶段标签，不记录 code、token、邮箱、state 或提供方错误内容。
+  let stage:
+    | "flow"
+    | "provider_error"
+    | "code"
+    | "token"
+    | "jwks"
+    | "verify"
+    | "claims"
+    | "binding"
+    | "owner"
+    | "session" = "flow";
   try {
     const params = new URL(request.url).searchParams;
     const state = params.get("state"),
@@ -241,33 +258,36 @@ async function callback(request: Request, env: RuntimeEnv) {
     if (!flow || !constantTimeEqual(flow.config_version, await version(env)))
       throw new Error("invalid flow");
     if (params.has("error")) {
+      stage = "provider_error";
       denied = true;
       throw new Error("denied");
     }
+    stage = "code";
     const code = params.get("code");
     if (!code || code.length > 4096 || params.getAll("code").length !== 1)
       throw new Error("invalid code");
-    const token = z
-      .object({ id_token: z.string().min(1).max(16384) })
-      .parse(
-        await providerJSON(TOKEN, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            code,
-            client_id: env.GOOGLE_CLIENT_ID!,
-            client_secret: env.GOOGLE_CLIENT_SECRET!,
-            redirect_uri: env.APP_ORIGIN! + CALLBACK,
-            code_verifier: flow.verifier,
-          }),
+    stage = "token";
+    const token = z.object({ id_token: z.string().min(1).max(16384) }).parse(
+      await providerJSON(TOKEN, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          client_id: env.GOOGLE_CLIENT_ID!,
+          client_secret: env.GOOGLE_CLIENT_SECRET!,
+          redirect_uri: env.APP_ORIGIN! + CALLBACK,
+          code_verifier: flow.verifier,
         }),
-      );
+      }),
+    );
+    stage = "jwks";
     const keys = z
       .object({
         keys: z.array(z.record(z.string(), z.unknown())).min(1).max(20),
       })
       .parse(await providerJSON(JWKS));
+    stage = "verify";
     const { payload, protectedHeader } = await jwtVerify(
       token.id_token,
       createLocalJWKSet(keys as JSONWebKeySet),
@@ -289,7 +309,9 @@ async function callback(request: Request, env: RuntimeEnv) {
     );
     if (protectedHeader.jku || protectedHeader.jwk || protectedHeader.x5u)
       throw new Error("unexpected key reference");
+    stage = "claims";
     const identity = googleIdentityClaimsSchema.parse(payload);
+    stage = "binding";
     if (
       !constantTimeEqual(identity.nonce, flow.nonce) ||
       (identity.azp !== undefined && identity.azp !== env.GOOGLE_CLIENT_ID) ||
@@ -298,6 +320,7 @@ async function callback(request: Request, env: RuntimeEnv) {
         identity.azp !== env.GOOGLE_CLIENT_ID)
     )
       throw new Error("invalid binding");
+    stage = "owner";
     if (
       identity.email.trim().toLowerCase() !==
         env.OWNER_EMAIL!.trim().toLowerCase() ||
@@ -306,6 +329,7 @@ async function callback(request: Request, env: RuntimeEnv) {
       denied = true;
       throw new Error("not author");
     }
+    stage = "session";
     const session = randomToken(),
       now = Date.now(),
       old = readCookie(request, SESSION_COOKIE);
@@ -342,7 +366,8 @@ async function callback(request: Request, env: RuntimeEnv) {
       cookie(SESSION_COOKIE, session, SESSION_SECONDS),
     ]);
   } catch {
-    // 固定错误码，不将提供方描述、邮箱、code 或 token 回传浏览器或日志。
+    // 固定错误码，不将提供方描述、邮箱、code 或 token 回传浏览器或日志；日志仅含阶段标签。
+    console.warn("google_callback_failed", { stage });
     return redirect(
       `/login?error=${denied ? "google_denied" : "google_failed"}`,
       [cookie(FLOW_COOKIE, "", 0)],

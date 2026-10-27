@@ -5,11 +5,15 @@ export function secureResponse(
   authMode?: string,
 ): Response {
   response.headers.set("X-Content-Type-Options", "nosniff");
+  // /api/auth/* 的 303 跳转与回调携带 code/state，必须 no-referrer；/login 用 same-origin：
+  // no-referrer 会使原生表单 POST 发送 `Origin: null` 而被同源校验拒绝，same-origin 仍不向外站发送 Referer。
   response.headers.set(
     "Referrer-Policy",
-    url.pathname.startsWith("/api/auth/") || url.pathname === "/login"
+    url.pathname.startsWith("/api/auth/")
       ? "no-referrer"
-      : "strict-origin-when-cross-origin",
+      : url.pathname === "/login"
+        ? "same-origin"
+        : "strict-origin-when-cross-origin",
   );
   response.headers.set(
     "Permissions-Policy",

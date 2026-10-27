@@ -45,7 +45,8 @@ beforeEach(() => {
   header = { alg: "RS256", kid: "security-fixture" };
   wrongKey = false;
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    expect(init?.redirect).toBe("error");
+    // Workers 仅支持 follow/manual；"error" 在真实 workerd 中会抛 TypeError。
+    expect(init?.redirect).toBe("manual");
     expect(init?.signal).toBeInstanceOf(AbortSignal);
     if (url === "https://www.googleapis.com/oauth2/v3/certs")
       return Response.json({

@@ -19,7 +19,8 @@ beforeEach(async () => {
   signing = await generateKeyPair("RS256");
   claims = { email: "owner@gmail.com", email_verified: true };
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    expect(init?.redirect).toBe("error");
+    // Workers 仅支持 follow/manual；"error" 在真实 workerd 中会抛 TypeError。
+    expect(init?.redirect).toBe("manual");
     if (url === "https://www.googleapis.com/oauth2/v3/certs")
       return Response.json({
         keys: [
@@ -110,6 +111,21 @@ describe("Google 单作者 OAuth 安全边界", () => {
         })
       ).status,
     ).toBe(503);
+  });
+  it("Origin: null 的表单 POST 仍被拒绝（/login 不能使用 no-referrer 的原因）", async () => {
+    const response = await call("google/start", {
+      method: "POST",
+      headers: {
+        origin: "null",
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ returnTo: "/studio" }),
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      error: { code: "CSRF_REJECTED" },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it("PKCE和nonce、state由服务器生成，不接受开放跳转", async () => {
     const flow = await start("//attacker.test");
@@ -202,6 +218,59 @@ describe("Google 单作者 OAuth 安全边界", () => {
     expect(done.headers.get("location")).toBe("/login?error=google_failed");
     expect(await done.text()).not.toContain("secret");
   });
+  it("provider fetch 使用 Workers 支持的 redirect 模式，3xx 视为失败且日志只含阶段", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ok = await finish(await start());
+    expect(ok.headers.get("location")).toBe("/studio/settings");
+    for (const [, init] of fetchMock.mock.calls)
+      expect(["follow", "manual"]).toContain(init?.redirect);
+    const flow = await start();
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { Location: "https://attacker.test/token" },
+        }),
+    );
+    const done = await finish(flow);
+    expect(done.headers.get("location")).toBe("/login?error=google_failed");
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://oauth2.googleapis.com/token",
+      expect.objectContaining({ redirect: "manual" }),
+    );
+    expect(warn).toHaveBeenLastCalledWith("google_callback_failed", {
+      stage: "token",
+    });
+    const logged = JSON.stringify(warn.mock.calls);
+    for (const leak of [flow.state, "fixture-code", env.OWNER_EMAIL!])
+      expect(logged).not.toContain(leak);
+  });
+  it.each(["jwks", "verify"] as const)(
+    "失败阶段 %s 被准确记录",
+    async (stage) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const flow = await start();
+      const real = fetchMock.getMockImplementation() as (
+        url: string,
+        init?: RequestInit,
+      ) => Promise<Response>;
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (url === "https://www.googleapis.com/oauth2/v3/certs") {
+          if (stage === "jwks") return new Response("no", { status: 500 });
+          const other = await generateKeyPair("RS256");
+          return Response.json({
+            keys: [{ ...(await exportJWK(other.publicKey)), kid: "fixture" }],
+          });
+        }
+        return real(url, init);
+      });
+      const done = await finish(flow);
+      expect(done.headers.get("location")).toBe("/login?error=google_failed");
+      expect(warn).toHaveBeenLastCalledWith("google_callback_failed", {
+        stage,
+      });
+    },
+  );
 });
 
 describe("Google 会话生命周期与写入保护", () => {

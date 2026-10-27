@@ -38,8 +38,31 @@ describe("Google OAuth 中间件安全策略", () => {
     expect(result.headers.get("Content-Security-Policy")).toContain(
       "form-action 'self' https://accounts.google.com;",
     );
-    expect(result.headers.get("Referrer-Policy")).toBe("no-referrer");
+    // no-referrer 会令原生表单 POST 发送 Origin: null 并被 CSRF 校验拒绝。
+    expect(result.headers.get("Referrer-Policy")).toBe("same-origin");
   });
+  it.each(["google", "password", "sites"])(
+    "%s 模式 /login 不使用 no-referrer，保证同源表单携带真实 Origin",
+    (mode) => {
+      const result = secureResponse(
+        new Response("", { headers: { "Content-Type": "text/html" } }),
+        new URL("https://site.test/login"),
+        mode,
+      );
+      expect(result.headers.get("Referrer-Policy")).toBe("same-origin");
+    },
+  );
+  it.each(["/api/auth/google/start", "/api/auth/session", "/api/auth/logout"])(
+    "认证接口 %s 保持 no-referrer",
+    (path) => {
+      const result = secureResponse(
+        new Response(null, { status: 303, headers: { Location: "/" } }),
+        new URL(`https://site.test${path}`),
+        "google",
+      );
+      expect(result.headers.get("Referrer-Policy")).toBe("no-referrer");
+    },
+  );
   it.each(["sites", "password"])("不扩大 %s 模式表单的外站权限", (mode) => {
     const result = secureResponse(
       new Response("", { headers: { "Content-Type": "text/html" } }),
