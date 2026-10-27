@@ -86,5 +86,6 @@ npm run test:integrations
 
 - [导航性能测量模块](src/modules/navigation-performance/README.md)
 - [统一日志与脱敏模块](src/modules/log/README.md)
+- [第三方嵌入模块](src/modules/embed/README.md)：YouTube / Bilibili / X 提供方注册表，同时服务编辑器、服务端校验、阅读页渲染与 CSP frame-src
 
 - [工作台常驻外壳](src/components/studio/README.md)、[会话导航与身份生命周期](src/modules/studio-navigation/README.md)

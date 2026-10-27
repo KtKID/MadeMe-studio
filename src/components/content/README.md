@@ -26,4 +26,4 @@ Dashboard 使用由 `postSchema.pick` 派生的 `PostSummary`，正文仅在编�
 
 ## 视频块渲染
 
-BlockNote 视频块的“嵌入”页签接受任意链接，`BlockReader` 通过 `videoSource()` 分流：站内 `/api/files/...` 与 `.mp4/.webm/.mov/.ogv` 等直链用 `<video>`；YouTube 页面链接改用 `SafeEmbed`（youtube-nocookie iframe）；其他网页（如 Bilibili 播放页）降级为“在 <域名> 观看视频”跳转卡片。空 url（上传未完成留下的块）不渲染。`safeUrl()` 对空串、纯空白和非 `/` 开头的相对路径返回 `undefined`，不再生成 `https://local.invalid/` 占位地址。Bilibili 站内播放尚未支持（需决定是否加入嵌入白名单）。测试见 `tests/video-rendering.test.tsx`。
+BlockNote 视频块的“嵌入”页签接受任意链接，`BlockReader` 通过 `videoSource()` 分流：站内 `/api/files/...` 与 `.mp4/.webm/.mov/.ogv` 等直链用 `<video>`；匹配 `src/modules/embed` 注册表中 iframe 提供方（YouTube、Bilibili）的链接改用 `SafeEmbed` 播放器；其他网页降级为“在 <域名> 观看视频”跳转卡片。空 url（上传未完成留下的块）不渲染。`safeUrl()` 对空串、纯空白和非 `/` 开头的相对路径返回 `undefined`，不再生成 `https://local.invalid/` 占位地址。嵌入规则（提供方、id 校验、iframe 属性）全部来自 [src/modules/embed](../../modules/embed/README.md)，见 `tests/embed-rendering.test.tsx`。测试见 `tests/video-rendering.test.tsx`。

@@ -6,8 +6,6 @@ import BlockReader, {
 import { safeUrl } from "../src/components/shared/ui";
 import { MAX_MEDIA_BYTES, mediaUploadProblem } from "../src/shared/contracts";
 
-const bilibili =
-  "https://www.bilibili.com/video/BV1KW4y1j7AF/?spm_id_from=333.788&vd_source=x";
 const render = (url: string) =>
   renderToStaticMarkup(
     <BlockReader blocks={[{ type: "video", props: { url, name: "" } }]} />,
@@ -34,11 +32,12 @@ describe("视频块渲染（生产文章 cf-46630d 复现）", () => {
     expect(videoSource("https://cdn.example.com/clip.mp4")?.kind).toBe("file");
     expect(render("https://cdn.example.com/clip.webm")).toContain("<video");
   });
-  it("Bilibili 等网页链接降级为跳转卡片而不是无法播放的 <video>", () => {
-    const html = render(bilibili);
+  it("未登记平台的网页链接降级为跳转卡片而不是无法播放的 <video>", () => {
+    // Bilibili 已由 src/modules/embed 注册表接管（见 tests/embed-rendering.test.tsx）。
+    const html = render("https://vimeo.com/123456?share=copy");
     expect(html).not.toContain("<video");
     expect(html).toContain("video-link");
-    expect(html).toContain("在 www.bilibili.com 观看视频");
+    expect(html).toContain("在 vimeo.com 观看视频");
     expect(html).toContain('rel="noopener noreferrer"');
   });
   it("视频块里的 YouTube 页面链接改用隐私增强 iframe", () => {

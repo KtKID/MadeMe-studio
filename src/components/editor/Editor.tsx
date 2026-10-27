@@ -42,7 +42,15 @@ import {
 import type { EditorBlock, AIAction, Revision } from "../../shared/contracts";
 import { mediaUploadProblem } from "../../shared/contracts";
 import { clientLog } from "../../modules/log/client";
-import { embedUrl, SafeEmbed } from "../content/BlockReader";
+import { SafeEmbed } from "../content/BlockReader";
+import {
+  embedProviders,
+  embedRejectMessage,
+  parseEmbed,
+  reportEmbedRejection,
+  supportedEmbedLabel,
+} from "../../modules/embed";
+import { en as blockNoteEn } from "@blocknote/core/locales";
 import MediaLibrary from "../media/MediaLibrary";
 import { resolveMode } from "../shared/appearance";
 import { EditClock, hasDocumentContent } from "./editor-state";
@@ -63,6 +71,42 @@ const embed = createReactBlockSpec(
 const schema = BlockNoteSchema.create({
   blockSpecs: { ...defaultBlockSpecs, embed: embed() },
 });
+/**
+ * 媒体块面板文案：视频块同时支持“从电脑上传”和“粘贴链接”（直链文件或嵌入注册表中的平台）。
+ * 只覆盖 file_panel，其余沿用 BlockNote 英文默认。
+ */
+const blockNoteDictionary = {
+  ...blockNoteEn,
+  file_panel: {
+    upload: {
+      ...blockNoteEn.file_panel.upload,
+      title: "从电脑上传",
+      file_placeholder: {
+        ...blockNoteEn.file_panel.upload.file_placeholder,
+        image: "选择图片",
+        video: "选择视频文件（MP4 / WebM，≤ 25 MB）",
+        audio: "选择音频文件",
+        file: "选择文件",
+      },
+      upload_error: "上传失败，原因见编辑器顶部提示",
+    },
+    embed: {
+      ...blockNoteEn.file_panel.embed,
+      title: "粘贴链接",
+      embed_button: {
+        ...blockNoteEn.file_panel.embed.embed_button,
+        image: "插入图片",
+        video: "插入视频",
+        audio: "插入音频",
+        file: "插入文件",
+      },
+      url_placeholder: `文件直链，或 ${embedProviders
+        .filter((p) => p.kind === "iframe")
+        .map((p) => p.name)
+        .join(" / ")} 视频页链接`,
+    },
+  },
+};
 const actionNames: Record<AIAction, string> = {
   rewrite: "换一种说法",
   polish: "润色文字",
@@ -149,6 +193,7 @@ export default function Editor({
   const [publishOpen, setPublishOpen] = useState(false);
   const [embedOpen, setEmbedOpen] = useState(false);
   const [embedValue, setEmbedValue] = useState("");
+  const embedCheck = parseEmbed(embedValue);
   const [selection, setSelection] = useState("");
   const [aiAction, setAiAction] = useState<AIAction>("polish");
   const [aiText, setAiText] = useState("");
@@ -171,6 +216,7 @@ export default function Editor({
   const leaveGuard = leaveGuardRef.current;
   const editor = useCreateBlockNote({
     schema,
+    dictionary: blockNoteDictionary,
     initialContent: post?.blocks.length
       ? (post.blocks as unknown as PartialBlock<typeof schema.blockSchema>[])
       : undefined,
@@ -1137,8 +1183,9 @@ export default function Editor({
       {embedOpen && (
         <Modal title="嵌入来自外面的灵感" onClose={() => setEmbedOpen(false)}>
           <p className="muted">
-            支持 YouTube 视频与 X 动态链接。只接受 HTTPS
-            白名单地址，不执行用户脚本。
+            支持 {supportedEmbedLabel()}链接。只接受 HTTPS
+            白名单地址，不执行用户脚本。短链接（如
+            b23.tv）请先在浏览器打开再复制完整地址。
           </p>
           <label>
             内容链接
@@ -1146,20 +1193,29 @@ export default function Editor({
               type="url"
               value={embedValue}
               onChange={(e) => setEmbedValue(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=…"
+              placeholder="https://www.bilibili.com/video/BV… 或 https://www.youtube.com/watch?v=…"
             />
           </label>
-          {embedValue && <SafeEmbed url={embedValue} />}
+          {embedValue && <SafeEmbed url={embedValue} silent />}
+          {embedValue && !embedCheck.ok && (
+            <p className="muted" role="status">
+              {embedRejectMessage(embedCheck.reason)}
+            </p>
+          )}
           <div className="modal-actions">
             <button className="button" onClick={() => setEmbedOpen(false)}>
               取消
             </button>
             <button
               className="button primary"
-              disabled={!embedUrl(embedValue)}
+              disabled={!embedCheck.ok}
               onClick={() => {
+                if (!embedCheck.ok) {
+                  reportEmbedRejection("editor", embedCheck);
+                  return;
+                }
                 editor.insertBlocks(
-                  [{ type: "embed", props: { url: embedValue } }],
+                  [{ type: "embed", props: { url: embedCheck.match.url } }],
                   editor.getTextCursorPosition().block,
                   "after",
                 );

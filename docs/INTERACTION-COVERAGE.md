@@ -80,7 +80,7 @@ TypeScript AST 读取第一方 `src/**/*.tsx` 的 JSX 开始标签及属性，�
 | EDIT-06 | 冲突提示 → 导出备份/加载最新 | 409不覆盖；取消不动；确认GET后替换全部字段；后续输入保护 | H409；E接口409；U EditClock | reload 延迟期间输入覆盖风险 R2 |
 | EDIT-07 | 添加/移除封面 | 媒体选中写cover；移除dirty；取消不变；保存重读 | B封面保存；H媒体授权 | 缺图/非图片/重复选择 |
 | EDIT-08 | 媒体打开/插入图片音视频附件 | 选中正确block类型和URL；关闭dirty；下载不误跳转 | H媒体；B图片 | 4种类型/失败完整UI |
-| EDIT-09 | 嵌入打开/取消/插入 | 合法支持URL；非法明确错误；插入一次；Esc保留正文 | U embed/URL渲染 | Modal→插块→阅读 E2E |
+| EDIT-09 | 嵌入打开/取消/插入 | 合法支持URL；非法明确错误；插入一次；Esc保留正文 | U embed/URL渲染；`tests/unit/embed-registry.test.ts`（YouTube/Bilibili/X 解析、恶意 URL、CSP）、`tests/embed-rendering.test.tsx` | Modal→插块→阅读 E2E |
 | EDIT-10 | Markdown 文件选择/取消/覆盖确认 | 无文件不变；大文件拒绝；有正文取消不变；确认解析并dirty；同文件可重选 | U内容检测；H解析；E取消源码 | 文件选择取消实测不完整；异步覆盖风险 R2 |
 | EDIT-11 | Markdown 导出 | 标题/正文/图片正确，下载文件非 [object Promise]，不导航 | B下载文件检查 | 表格/嵌套/附件往返与导出异常 |
 | EDIT-12 | 历史打开/列表/恢复某版本 | 新建无历史；GET失败明确；取消不改；恢复POST带CAS；不自动发布 | H revisions；E源码有限 | 恢复等待新输入风险 R2、无历史空态 |

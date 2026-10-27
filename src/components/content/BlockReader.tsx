@@ -1,5 +1,10 @@
 import type { CSSProperties, ReactNode } from "react";
 import { safeUrl } from "../shared/ui";
+import {
+  parseEmbed,
+  reportEmbedRejection,
+  supportedEmbedLabel,
+} from "../../modules/embed";
 type Block = {
   id?: string;
   type?: string;
@@ -92,66 +97,69 @@ function Inline({ value }: { value: unknown }): ReactNode {
     );
   });
 }
+/** 兼容旧调用：返回注册表匹配结果的简化形态（type = 提供方 id，embed = iframe 地址）。 */
 export function embedUrl(
   value: unknown,
-): { type: "youtube" | "x"; url: string; embed?: string } | null {
-  if (typeof value !== "string") return null;
-  try {
-    const u = new URL(value);
-    if (u.protocol !== "https:") return null;
-    if (["youtube.com", "www.youtube.com", "youtu.be"].includes(u.hostname)) {
-      const id =
-        u.hostname === "youtu.be"
-          ? u.pathname.slice(1)
-          : u.searchParams.get("v") || u.pathname.split("/").filter(Boolean)[1];
-      if (id && /^[\w-]{11}$/.test(id))
-        return {
-          type: "youtube",
-          url: u.href,
-          embed: `https://www.youtube-nocookie.com/embed/${id}`,
-        };
-    }
-    if (
-      ["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(
-        u.hostname,
-      ) &&
-      /^\/[a-zA-Z0-9_]+\/status\/\d+\/?$/.test(u.pathname)
-    )
-      return { type: "x", url: u.href };
-    return null;
-  } catch {
-    return null;
-  }
+): { type: string; url: string; embed?: string } | null {
+  const result = parseEmbed(value);
+  if (!result.ok) return null;
+  return {
+    type: result.match.provider.id,
+    url: result.match.url,
+    embed: result.match.playerUrl,
+  };
 }
-export function SafeEmbed({ url }: { url: unknown }) {
-  const embed = embedUrl(url);
-  if (!embed)
+/**
+ * 按 src/modules/embed 注册表渲染嵌入：iframe 类用提供方配置的属性，link 类渲染安全跳转卡片。
+ * silent 用于编辑器弹窗的实时预览，避免每次按键都写拒绝日志。
+ */
+export function SafeEmbed({
+  url,
+  silent = false,
+}: {
+  url: unknown;
+  silent?: boolean;
+}) {
+  const result = parseEmbed(url);
+  if (!result.ok) {
+    if (!silent) reportEmbedRejection("reader", result);
     return (
       <div className="embed-fallback">
-        无法显示：仅支持有效的 YouTube 或 X 内容链接。
+        无法显示：仅支持有效的 {supportedEmbedLabel()}链接。
       </div>
     );
-  return embed.type === "youtube" ? (
-    <div className="video-embed">
-      <iframe
-        src={embed.embed}
-        title="YouTube 视频"
-        loading="lazy"
-        sandbox="allow-scripts allow-same-origin allow-presentation"
-        referrerPolicy="strict-origin-when-cross-origin"
-        allowFullScreen
-      />
-    </div>
-  ) : (
+  }
+  const { provider, playerUrl, url: href } = result.match;
+  if (provider.kind === "iframe" && provider.frame && playerUrl)
+    return (
+      <div
+        className="video-embed"
+        data-embed={provider.id}
+        style={{ aspectRatio: provider.frame.aspectRatio }}
+      >
+        <iframe
+          src={playerUrl}
+          title={provider.frame.title}
+          loading="lazy"
+          allow={provider.frame.allow}
+          sandbox={provider.frame.sandbox}
+          referrerPolicy={provider.frame.referrerPolicy}
+          allowFullScreen
+        />
+      </div>
+    );
+  return (
     <a
       className="x-embed"
-      href={embed.url}
+      data-embed={provider.id}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
     >
-      <span className="x-logo">𝕏</span>
+      <span className="x-logo">{provider.id === "x" ? "𝕏" : "↗"}</span>
       <span>
-        在 X 上阅读这条动态<small>{embed.url}</small>
+        {provider.linkLabel || `在 ${provider.name} 查看`}
+        <small>{href}</small>
       </span>
       <span>↗</span>
     </a>
@@ -159,9 +167,9 @@ export function SafeEmbed({ url }: { url: unknown }) {
 }
 const directVideoPath = /\.(mp4|m4v|webm|ogv|ogg|mov)$/i;
 /**
- * BlockNote 视频块的“嵌入”页签接受任意链接。只有站内媒体或直链视频文件交给
- * <video>；YouTube 页面改用 SafeEmbed；其他网页（如 Bilibili 播放页）无法被
- * <video> 播放，降级为跳转卡片，而不是渲染一个永远 0:00 的播放器。
+ * BlockNote 视频块同时支持“上传”和“粘贴链接”两种来源：站内媒体或直链视频文件交给
+ * <video>；匹配嵌入注册表中 iframe 提供方（YouTube、Bilibili…）的链接用对应播放器；
+ * 其他网页降级为跳转卡片，而不是渲染一个永远 0:00 的播放器。
  */
 export function videoSource(
   url: string | undefined,
@@ -172,10 +180,13 @@ export function videoSource(
   | null {
   if (!url) return null;
   if (url.startsWith("/")) return { kind: "file", src: url };
-  if (embedUrl(url)?.type === "youtube") return { kind: "embed", url };
+  const embed = parseEmbed(url);
+  if (embed.ok && embed.match.provider.kind === "iframe")
+    return { kind: "embed", url };
   try {
     const u = new URL(url);
     if (directVideoPath.test(u.pathname)) return { kind: "file", src: url };
+    if (!embed.ok) reportEmbedRejection("reader", embed, { block: "video" });
     return { kind: "link", url: u.href, host: u.hostname };
   } catch {
     return null;

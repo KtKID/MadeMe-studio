@@ -34,3 +34,7 @@ AI 面板关闭/重开使旧请求的建议失效；改变处理动作会清除�
 ## 媒体上传失败提示
 
 BlockNote 上传面板会吞掉 `uploadFile` 抛出的异常、只显示通用“上传失败”，块以空 url 留在正文里。`uploadFile` 因此先用共享的 `mediaUploadProblem()`（`src/shared/contracts.ts`，与服务端共用 `MAX_MEDIA_BYTES` = 25 MB 与 MIME 清单）做上传前检查：拒绝时写 `editor.upload_rejected` 日志（只含 reason/mime/size，不含文件名）并在编辑器提示栏显示中文原因；服务端拒绝或网络失败由 `api()` 记录 `api.request_failed` / `api.network_failed`，编辑器显示“上传失败：<原因>”。视频只支持 MP4/WebM，MOV/MKV 需先转码。
+
+## 嵌入与视频块文案
+
+工具栏“嵌入”弹窗和 BlockNote 媒体面板（“从电脑上传 / 粘贴链接”）的支持清单、拒绝提示都来自 [src/modules/embed](../../modules/embed/README.md)。弹窗用 `parseEmbed` 实时校验，插入的是规范化后的链接。b23.tv 短链会提示作者粘贴完整地址。实时预览不写日志，点“插入”被拒绝时才写日志。

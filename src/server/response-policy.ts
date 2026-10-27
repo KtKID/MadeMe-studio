@@ -1,3 +1,10 @@
+import { embedFrameOrigins } from "../modules/embed/registry";
+
+/** iframe 只允许本站与嵌入注册表登记的播放器来源（about:srcdoc 预览不受 frame-src 限制）。 */
+export const frameSrcDirective = [
+  "frame-src 'self'",
+  ...embedFrameOrigins(),
+].join(" ");
 // 动态 HTML 不共享缓存；静态哈希资源保留原缓存策略。
 export function secureResponse(
   response: Response,
@@ -24,7 +31,7 @@ export function secureResponse(
     response.headers.set("Vary", "Cookie");
     response.headers.set(
       "Content-Security-Policy",
-      "object-src 'none'; base-uri 'self'; form-action 'self'" +
+      `${frameSrcDirective}; object-src 'none'; base-uri 'self'; form-action 'self'` +
         (authMode === "google" && url.pathname === "/login"
           ? " https://accounts.google.com"
           : "") +

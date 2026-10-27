@@ -132,7 +132,12 @@ describe("输入安全单元测试", () => {
         { type: "embed", props: { url: "https://evil.test/watch" } },
       ]),
     ).toThrow();
-    expect(isSafeEmbed("https://youtube.com/watch?v=test")).toBe(true);
+    // 嵌入改由 src/modules/embed 严格解析：视频 id 必须合法。
+    expect(isSafeEmbed("https://youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
+    expect(isSafeEmbed("https://youtube.com/watch?v=test")).toBe(false);
+    expect(
+      isSafeEmbed("https://www.bilibili.com/video/BV1KW4y1j7AF/?p=2"),
+    ).toBe(true);
     expect(isSafeEmbed("https://youtube.com.evil.test/")).toBe(false);
     expect(() =>
       validateContent([

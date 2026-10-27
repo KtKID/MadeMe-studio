@@ -45,3 +45,7 @@
 ## 工作台首屏数据
 
 文章列表使用 owner-only `loadDashboardPageData` + `listSummaries`，SQL 仅提取共享 `postSummarySchema` 的 12 个字段；正文、发布快照及密码摘要不进入列表传输。访客仍先经过原公开发布快照筛选，不使用草稿摘要替代。媒体与连接页面鉴权之后 SSR 读取安全初始列表，避免 hydration 后额外 GET；查询失败以明确错误传给界面，不把失败当空列表已就绪。私有 HTML/图片继续 `private, no-store`。
+
+## 嵌入与 CSP
+
+HTML 响应的 `frame-src` 由 `response-policy.ts` 的 `frameSrcDirective` 生成，内容为 `'self'` 加上 `src/modules/embed` 注册表中的播放器来源。`validateContent` 用同一个 `parseEmbed` 校验 embed 块，拒绝时写 `embed.rejected` 日志（只含 reason 和 host）并返回 422 `UNSAFE_EMBED`。

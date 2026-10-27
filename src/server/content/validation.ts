@@ -1,4 +1,9 @@
 import {
+  embedProviders,
+  parseEmbed,
+  reportEmbedRejection,
+} from "../../modules/embed";
+import {
   blocksSchema,
   type EditorBlock,
   type Post,
@@ -41,40 +46,26 @@ export function validateContent(blocks: EditorBlock[]) {
       const object = value as Record<string, unknown>;
       if (object.type === "embed") {
         const props = object.props as { url?: string } | undefined;
-        if (props?.url && !isSafeEmbed(props.url))
-          throw new AppError(
-            422,
-            "UNSAFE_EMBED",
-            "Only YouTube and X embeds are supported.",
-          );
+        if (props?.url) {
+          const result = parseEmbed(props.url);
+          if (!result.ok) {
+            reportEmbedRejection("server_validation", result);
+            throw new AppError(
+              422,
+              "UNSAFE_EMBED",
+              `Only ${embedProviders.map((p) => p.name).join(", ")} embeds are supported.`,
+            );
+          }
+        }
       }
       for (const [k, v] of Object.entries(object)) visit(v, depth + 1, k);
     }
   }
   visit(blocks, 0);
 }
+/** 嵌入链接是否可保存：与阅读页、编辑器共用 src/modules/embed 的严格解析。 */
 export function isSafeEmbed(url: string) {
-  try {
-    const u = new URL(url);
-    return (
-      u.protocol === "https:" &&
-      [
-        "www.youtube.com",
-        "youtube.com",
-        "youtu.be",
-        "www.youtube-nocookie.com",
-        "x.com",
-        "www.x.com",
-        "twitter.com",
-        "www.twitter.com",
-      ].includes(u.hostname) &&
-      !u.username &&
-      !u.password
-    );
-  } catch {
-    // 判定函数：作者输入的无效 URL 视为不允许嵌入，调用方返回 422 并经 errorResponse 记录。
-    return false;
-  }
+  return parseEmbed(url).ok;
 }
 export function referencesMedia(post: Post, id: string) {
   const url = `/api/files/${id}`;
