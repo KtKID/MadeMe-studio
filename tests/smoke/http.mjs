@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 // 真实 HTTP 冒烟：由隔离运行器启动构建后的本地服务。
-const origin = process.env.BASE_URL || "http://127.0.0.1:4321";
+import { devOrigin } from "../../scripts/dev-config.mjs";
+const origin = process.env.BASE_URL || devOrigin();
 const page = await fetch(origin);
 assert.equal(page.status, 200);
 assert.match(await page.text(), /<title>MadeMe(?:\s|·)/);

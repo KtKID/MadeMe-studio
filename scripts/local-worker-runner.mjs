@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { DEV_PORT, SECOND_PORT, devOrigin } from "./dev-config.mjs";
 import { access, mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -41,7 +42,8 @@ export async function runLocalWorkerSuite({ instances, testFile }) {
       detached: process.platform !== "win32",
       env: {
         ...process.env,
-        BASE_URL: "http://127.0.0.1:4321",
+        BASE_URL: devOrigin(DEV_PORT),
+        SECOND_BASE_URL: devOrigin(SECOND_PORT),
         WRANGLER_LOG_PATH: join(temporaryRoot, `${name}.log`),
         XDG_CONFIG_HOME: configHome,
         WRANGLER_SEND_METRICS: "false",

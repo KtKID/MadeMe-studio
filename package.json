@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/run-astro.mjs dev --host 127.0.0.1",
+    "dev": "node scripts/run-astro.mjs dev",
     "build": "node scripts/run-astro.mjs build && node scripts/package-worker.mjs",
     "check": "node scripts/run-astro.mjs check",
     "test": "vitest run",

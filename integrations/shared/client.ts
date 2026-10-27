@@ -1,7 +1,10 @@
 import { createPostSchema, postMutationResponseSchema, publishInputSchema, type PostReceipt } from '../../src/shared/contracts.ts';
 
 /** 三种按需发布入口复用同一个请求协议，不另造 BlockNote JSON。 */
-export const MAX_MARKDOWN_BYTES = 512 * 1024;
+import { DEFAULT_CONFIG } from '../../src/modules/config/defaults.ts';
+import { KiB, OPAQUE_TOKEN_PATTERN } from '../../src/modules/config/limits.ts';
+/** 与站内编辑器“Markdown 导入上限”的默认值同源（src/modules/config）。 */
+export const MAX_MARKDOWN_BYTES = DEFAULT_CONFIG.upload.markdownImportMaxKB * KiB;
 export const REQUIRED_DRAFT_SCOPE = 'posts:write';
 export const REQUIRED_PUBLISH_SCOPE = 'posts:publish';
 type ClientOptions = { site: string; token: string; fetchImpl?: typeof fetch };
@@ -31,7 +34,7 @@ export function hostPermissionPattern(site: string): string {
 }
 
 export function normalizeToken(value: string): string {
-  if (typeof value !== 'string' || !/^mm_[a-f0-9]{64}$/.test(value.trim())) {
+  if (typeof value !== 'string' || !OPAQUE_TOKEN_PATTERN.test(value.trim())) {
     throw new Error('Enter a valid MadeMe API token from Studio → Integrations.');
   }
   return value.trim();
@@ -43,7 +46,7 @@ export function normalizeMarkdown(value: string): string {
   if (!markdown.trim()) throw new Error('Choose a non-empty Markdown note or selection.');
   if (markdown.includes('\0')) throw new Error('Markdown cannot contain NUL bytes.');
   if (new TextEncoder().encode(markdown).byteLength > MAX_MARKDOWN_BYTES) {
-    throw new Error('Markdown exceeds the integration limit of 512 KiB.');
+    throw new Error(`Markdown exceeds the integration limit of ${MAX_MARKDOWN_BYTES / KiB} KiB.`);
   }
   return markdown;
 }

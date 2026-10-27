@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-const base = "http://127.0.0.1:4321";
+import { devOrigin, SECOND_PORT } from "../../scripts/dev-config.mjs";
+const base = process.env.BASE_URL || devOrigin();
+const secondBase = process.env.SECOND_BASE_URL || devOrigin(SECOND_PORT);
 async function request(path, { method = "GET", body, headers = {} } = {}) {
   return fetch(base + path, {
     method,
@@ -56,7 +58,7 @@ assert.equal(
   200,
 );
 assert.equal((await request("/api/posts", { headers })).status, 401);
-const independent = await fetch("http://127.0.0.1:4322/api/auth/session", {
+const independent = await fetch(`${secondBase}/api/auth/session`, {
   headers: owner,
 });
 assert.deepEqual(await independent.json(), {
@@ -64,7 +66,7 @@ assert.deepEqual(await independent.json(), {
   configured: false,
   authenticated: false,
 });
-const page = await fetch("http://127.0.0.1:4322/login");
+const page = await fetch(`${secondBase}/login`);
 assert.equal(page.status, 200);
 assert.ok(
   page.headers

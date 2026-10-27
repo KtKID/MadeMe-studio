@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { build, version as esbuildVersion } from 'esbuild';
+import { OPAQUE_TOKEN_PATTERN } from '../../src/modules/config/limits.ts';
+// 打包产物里不允许出现形似真实令牌的字符串（格式同 src/modules/config，不锚定首尾、忽略大小写）。
+const TOKEN_LIKE = new RegExp(OPAQUE_TOKEN_PATTERN.source.replace(/^\^|\$$/g, ''), 'i');
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const output = resolve(process.argv[2] || '/tmp/mademe-integrations-delivery');
 await mkdir(output, { recursive: true });
@@ -21,7 +24,7 @@ const records = [];
 for (const path of sourceFiles) {
   // 业务实现固定在已提交版本；仅交付说明可以读取本次编辑后的工作副本。
   const bytes = path.endsWith('.md') ? await readFile(resolve(root, path)) : execFileSync('git', ['show', `${commit}:${path}`], { cwd: root });
-  if (/mm_[a-f0-9]{64}/i.test(bytes.toString())) throw new Error(`疑似真实 Token: ${path}`);
+  if (TOKEN_LIKE.test(bytes.toString())) throw new Error(`疑似真实 Token: ${path}`);
   await mkdir(dirname(resolve(source, path)), { recursive: true });
   await writeFile(resolve(source, path), bytes);
   records.push({ path, sha256: hash(bytes), provenance: path.endsWith('.md') ? 'working-tree-doc' : commit });

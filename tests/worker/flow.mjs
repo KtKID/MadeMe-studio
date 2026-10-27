@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const base = "http://127.0.0.1:4321";
+import { devOrigin, SECOND_PORT } from "../../scripts/dev-config.mjs";
+const base = process.env.BASE_URL || devOrigin();
+const secondBase = process.env.SECOND_BASE_URL || devOrigin(SECOND_PORT);
 async function api(path, method = "GET", body, reader = false) {
-  const origin = reader ? "http://127.0.0.1:4322" : base;
+  const origin = reader ? secondBase : base;
   const headers = { Origin: origin };
   if (body) headers["Content-Type"] = "application/json";
   const response = await fetch(origin + path, {
@@ -85,7 +87,7 @@ assert.ok(mediaHTML.includes("initialMedia"));
 const integrationPage = await fetch(base + "/studio/integrations");
 assert.equal(integrationPage.status, 200);
 assert.ok((await integrationPage.text()).includes("initialTokens"));
-const readerMedia = await fetch("http://127.0.0.1:4322/studio/media");
+const readerMedia = await fetch(`${secondBase}/studio/media`);
 assert.ok(!(await readerMedia.text()).includes("valid-image.png"));
 const original = readFileSync(
   new URL("../fixtures/valid-image.png", import.meta.url),
@@ -133,7 +135,7 @@ assert.equal(unsatisfiable.headers.get("Cache-Control"), "private, no-store");
 assert.equal((await unsatisfiable.arrayBuffer()).byteLength, 0);
 // 仅上传并关联 postId 不等于发布引用，访客不得读取或探测媒体长度。
 for (const method of ["GET", "HEAD"]) {
-  const denied = await fetch("http://127.0.0.1:4322" + media.url, {
+  const denied = await fetch(secondBase + media.url, {
     method,
     headers: { Range: `bytes=${original.length}-` },
   });
