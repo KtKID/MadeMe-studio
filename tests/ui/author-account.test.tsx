@@ -8,7 +8,12 @@ vi.mock("react", async (original) => ({
 import StudioShell from "../../src/components/studio/StudioShell";
 import LoginPanel from "../../src/components/auth/LoginPanel";
 import { ownerAccount } from "../../src/server/auth/account";
-import { accountInitial } from "../../src/shared/auth";
+import {
+  accountInitial,
+  accountPresentation,
+  sanitizeDisplayName,
+} from "../../src/shared/auth";
+import { ownerDisplayName } from "../../src/server/auth/account";
 import { defaultSettings } from "../../src/shared/contracts";
 import type { StudioPageData } from "../../src/server/page-data";
 import type { RuntimeEnv } from "../../src/server/runtime";
@@ -18,6 +23,7 @@ afterEach(() => vi.unstubAllGlobals());
 function initial(
   authenticated: boolean,
   account?: string | null,
+  accountName?: string | null,
 ): StudioPageData {
   return {
     settings: defaultSettings,
@@ -29,6 +35,7 @@ function initial(
     tokensError: "",
     trustedIdentity: null,
     ...(account === undefined ? {} : { account }),
+    ...(accountName === undefined ? {} : { accountName }),
     capabilities: {
       authenticated,
       aiConfigured: false,
@@ -57,6 +64,15 @@ describe("侧边栏作者账号展示", () => {
     expect(html).toContain('aria-hidden="true">O<');
     expect(html).not.toContain("作者登录 / 账号与退出");
     expect(html).toContain('href="/login?returnTo=%2Fstudio"');
+  });
+  it("有 Google 昵称时优先显示昵称，悬停提示包含邮箱", () => {
+    const html = shell(initial(true, "owner@gmail.com", "小明"));
+    expect(html).toContain('class="author-account-name">小明<');
+    expect(html).toContain('aria-hidden="true">小<');
+    expect(html).toContain("已登录：小明（owner@gmail.com）（账号与退出）");
+    expect(shell(initial(false, "owner@gmail.com", "小明"))).not.toContain(
+      "小明",
+    );
   });
   it("未登录或缺少账号时保持原“作者登录”文案，不泄露账号", () => {
     for (const data of [
@@ -112,9 +128,32 @@ describe("ownerAccount 仅向已验证作者返回配置邮箱", () => {
       }),
     ).toBe(null);
   });
+  it("昵称仅 Google 作者可见", () => {
+    const named = { owner: true, displayName: "小明" };
+    expect(ownerDisplayName(env({ AUTH_MODE: "google" }), named)).toBe("小明");
+    expect(ownerDisplayName(env({ AUTH_MODE: "password" }), named)).toBe(null);
+    expect(
+      ownerDisplayName(env({ AUTH_MODE: "google" }), {
+        owner: false,
+        displayName: "小明",
+      }),
+    ).toBe(null);
+    expect(accountPresentation(null, "a@b.test")).toEqual({
+      label: "a@b.test",
+      title: "已登录：a@b.test（账号与退出）",
+    });
+    expect(accountPresentation(null, null)).toBe(null);
+  });
+  it("清洗昵称：控制/双向/零宽字符、空白折叠、64 码点截断", () => {
+    expect(sanitizeDisplayName(" a\u200b\u202eb\t\n c ")).toBe("ab c");
+    expect(sanitizeDisplayName("   ")).toBe(null);
+    expect(sanitizeDisplayName(42)).toBe(null);
+    expect(Array.from(sanitizeDisplayName("😀".repeat(80))!)).toHaveLength(64);
+  });
   it("头像字母取首个字母或数字", () => {
     expect(accountInitial("owner@gmail.com")).toBe("O");
     expect(accountInitial("_9x@a.test")).toBe("9");
     expect(accountInitial(null)).toBe("A");
+    expect(accountInitial("小明")).toBe("小");
   });
 });

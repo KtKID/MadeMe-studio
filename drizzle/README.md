@@ -4,4 +4,6 @@
 
 应用前使用当前部署的正式 D1 绑定执行迁移，备份已有数据库。部署与生产迁移是独立操作，不由测试或本地构建自动触发。
 
+`0004_google_session_display_name.sql` 为 `google_author_sessions` 追加可空 `display_name`（Google 昵称）。生产执行前先 `wrangler d1 export --remote` 备份；必须先迁移再部署读取该列的代码。
+
 后端测试使用 Node SQLite 在内存数据库执行同一迁移，验证真实 SQL 与事务。该测试验证 SQLite/D1 兼容语法和仓库行为，不替代目标 Cloudflare 环境的迁移确认。

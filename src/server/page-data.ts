@@ -15,7 +15,7 @@ import type { BootstrapResponse, Post, Settings } from "../shared/contracts";
 import { getEnv, type RequestContext } from "./runtime";
 import { authenticate, ownerConfigured } from "./auth/identity";
 import { canReadPost } from "./auth/access";
-import { ownerAccount } from "./auth/account";
+import { ownerAccount, ownerDisplayName } from "./auth/account";
 import { D1PostRepository, type StoredPost } from "./content/repository";
 import { publicPosts } from "./content/service";
 import { readSettings, redactSettings } from "./settings";
@@ -64,13 +64,19 @@ export async function loadPageData(
 export async function loadEditorPageData(
   context: RequestContext,
   options: PostLoadOptions,
-): Promise<BootstrapResponse & { account: string | null }> {
+): Promise<
+  BootstrapResponse & { account: string | null; accountName: string | null }
+> {
   const { env, identity, data } = await loadPageDataWithIdentity(
     context,
     false,
     options,
   );
-  return { ...data, account: ownerAccount(env, identity) };
+  return {
+    ...data,
+    account: ownerAccount(env, identity),
+    accountName: ownerDisplayName(env, identity),
+  };
 }
 async function loadPageDataWithIdentity(
   context: RequestContext,
@@ -200,6 +206,8 @@ export type StudioPageData = DashboardBootstrap & {
   trustedIdentity: string | null;
   /** 已验证作者本人的账号名（邮箱）；未登录或非单作者模式为 null/缺省。 */
   account?: string | null;
+  /** Google 昵称；缺失时界面回退显示 account。 */
+  accountName?: string | null;
   initialMedia: Media[];
   initialTokens: APIToken[];
   postsError: string;
@@ -215,6 +223,7 @@ export async function loadStudioPageData(
     posts: [],
     trustedIdentity: identity.trustedIdentity,
     account: ownerAccount(env, identity),
+    accountName: ownerDisplayName(env, identity),
     initialMedia: [],
     initialTokens: [],
     postsError: "",

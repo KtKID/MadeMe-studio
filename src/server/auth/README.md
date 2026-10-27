@@ -27,7 +27,7 @@
 
 - `src/shared/auth.ts` 是登录请求、登录/退出/会话响应和站内 `returnTo` 校验的单一协议来源。
 - `POST /api/auth/login` 接受 `{email,password,returnTo?}`；返回 `{ok:true,returnTo}`，不返回密码、邮箱配置、哈希或会话令牌正文。
-- `POST /api/auth/logout` 撤销 D1 中当前会话并清空 Cookie；`GET /api/auth/session` 返回 `{mode,configured,authenticated}`；仅当当前请求本身已通过作者验证（password/google 模式）时额外返回 `account`（即配置的 `OWNER_EMAIL`，规范化小写），未登录、伪造身份头、Bearer 令牌均不返回。
+- `POST /api/auth/logout` 撤销 D1 中当前会话并清空 Cookie；`GET /api/auth/session` 返回 `{mode,configured,authenticated}`；仅当当前请求本身已通过作者验证（password/google 模式）时额外返回 `account`（Google 模式且有昵称时再加 `accountName`）（即配置的 `OWNER_EMAIL`，规范化小写），未登录、伪造身份头、Bearer 令牌均不返回。
 - 登录和退出都强制 HTTPS、同源 Origin、Fetch Metadata；Bearer 不能豁免这两个端点的 CSRF 检查。普通 API 中 Bearer 始终覆盖 Cookie 身份，不能获得作者权限。
 - Cookie 为 `__Host-mm_author`，固定 Path=/，Secure、HttpOnly、SameSite=Strict，不设置 Domain。D1 只保存 256 位随机令牌的 SHA-256 摘要。重新登录原子撤销当前旧会话并颁发新令牌；8 小时绝对过期，无滑动延长。第一版尚不提供独立空闲超时策略。可直接撤销 `author_sessions.revoked_at`，邮箱、密码摘要或 SESSION_SECRET 变更也会使所有旧会话失效。
 - 登录在 KDF 前以 D1 执行全局单作者每 5 分钟最多 5 次尝试限制，不信任请求 IP 或邮箱作为限流键。此策略防止伪造 IP/换邮箱绕过，但攻击者也可能消耗窗口造成短时拒绝服务；独立生产发布前应结合可信边缘 WAF/访问限制评估可用性，不能通过信任任意客户端头修复。
@@ -47,11 +47,11 @@
 
 必需配置：D1、固定 HTTPS `APP_ORIGIN`（仅 origin，不带路径和尾斜线）、Google Web OAuth `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、明确 `OWNER_EMAIL`、至少 32 字符随机 `SESSION_SECRET`。可选 `OWNER_GOOGLE_SUB` 进一步绑定 Google 稳定主体。第一版 Gmail 作者可仅用邮箱白名单；非 Gmail 邮箱必须同时提供 `OWNER_GOOGLE_SUB`，不把第三方邮箱的 `email_verified` 误当作 Google 持续掌握邮箱所有权的证明。所有实际值通过部署私有配置注入，不写仓库、不发聊天、不放前端。
 
-- `POST /api/auth/google/start` 接收同源 HTTPS 的 `application/x-www-form-urlencoded` 表单，仅接受可选 `returnTo`。服务器生成 state、nonce、PKCE verifier；返回 303 Google 授权地址。固定 `openid email`，不申请 offline 或 profile 权限。
+- `POST /api/auth/google/start` 接收同源 HTTPS 的 `application/x-www-form-urlencoded` 表单，仅接受可选 `returnTo`。服务器生成 state、nonce、PKCE verifier；返回 303 Google 授权地址。固定 `openid email profile`（profile 仅用于读取 ID token 的 `name` 昵称），不申请 offline 或任何 Google API 权限。
 - 回调固定为 `${APP_ORIGIN}/api/auth/google/callback`，必须在 OAuth 客户端中登记完全一致的地址。只允许硬编码 Google token/JWKS HTTPS 端点；5 秒超时、64 KiB 响应上限、禁止网络重定向（Workers fetch 仅支持 `redirect: "follow" | "manual"`，传 `"error"` 会直接抛 TypeError；因此使用 `"manual"`，任何非 2xx 响应——含 3xx——均视为失败），不接受请求提供的 discovery URL 或 JWKS URL。
 - `__Host-mm_google_oauth` 是 HttpOnly、Secure、SameSite=Lax 的浏览器绑定 Cookie。D1 临时流程十分钟有效；state 与 Cookie 均存摘要，PKCE verifier 只短暂存在流程表。`DELETE ... RETURNING` 原子单次消费，重复/并发回调不可再次换票；失败需重新开始登录。
 - 使用 `jose` 验证 RS256 签名、Google issuer、audience、iat/exp、nonce、azp 和 verified email。JWT 自带的远程 key URL 不参与取钥。成功还必须满足预配置作者白名单/主体，绝不首次访问认领管理员。
-- Google access token、refresh token、ID token 不落库，不返回前端；应用会话采用独立随机 opaque Cookie `__Host-mm_google_author`。D1 `google_author_sessions` 仅存 token SHA-256 摘要、配置指纹与时间；八小时绝对过期。重新登录撤销当前旧会话，退出服务端撤销；邮箱、主体、客户端 ID/secret、APP_ORIGIN、SESSION_SECRET 任何配置变化均使旧会话与待完成流程失效。
+- Google access token、refresh token、ID token 不落库，不返回前端；应用会话采用独立随机 opaque Cookie `__Host-mm_google_author`。D1 `google_author_sessions` 仅存 token SHA-256 摘要、配置指纹、时间与已清洗昵称 `display_name`（0004）；八小时绝对过期。重新登录撤销当前旧会话，退出服务端撤销；邮箱、主体、客户端 ID/secret、APP_ORIGIN、SESSION_SECRET 任何配置变化均使旧会话与待完成流程失效。
 - `POST /api/auth/logout` 与所有浏览器写 API 保留同源 Origin/Fetch Metadata 检查；Google Cookie 不豁免 CSRF。Bearer API Token 保持现有显式 scope 授权，不继承 Google 作者权限。
 - 回调错误仅跳到固定 `google_failed` / `google_denied`，不反射提供方错误、邮箱或授权码；Worker 日志经统一日志接口记录 `auth.google.callback_failed`，字段仅含 `requestId`/`path`、`stage`、`outcome`、异常类型与固定错误码（不含异常消息）；provider 请求失败另记 `auth.google.provider_failed`（端点名、HTTP 状态、是否超时）；`stage` 为固定标签 `flow`/`provider_error`/`code`/`token`/`jwks`/`verify`/`claims`/`binding`/`owner`/`session`，不记录 code、token、state、邮箱或提供方错误内容；`/api/auth/*`（含 start 的 303 跳转与携带 code/state 的回调）设置 no-referrer；`/login` 设置 same-origin，使同源原生表单 POST 携带真实 Origin（no-referrer 会让浏览器发送 `Origin: null` 而被同源校验拒绝），同时不向外站发送 Referer。认证入口配置错误返回 503，来源错误返回 403，未登录作者操作返回 401。
 - 追加迁移 `0003_google_author_auth.sql`，不修改旧表/旧迁移。切换 AUTH_MODE 和创建真实凭据必须经过独立部署确认，不自动改变线上 Sites 模式。
@@ -61,6 +61,7 @@
 ## 作者账号名展示
 
 - `account.ts` 的 `ownerAccount(env, identity)` 是账号名的唯一来源：仅 `identity.owner` 且 `AUTH_MODE` 为 `google` / `password` 时返回 `OWNER_EMAIL`（trim + 小写，必须是合法邮箱），否则 `null`。Sites 与本地开发身份不返回账号名。
-- 不新增 D1 字段：会话只会在登录邮箱与 `OWNER_EMAIL` 一致时颁发（Google 回调校验已验证邮箱，密码模式校验配置邮箱），所以配置值就是当前会话的账号。Google 显示名需要 `profile` scope 与新迁移，目前未启用（见 `reports/2026-10-27-studio-account-name.md`）。
+- 邮箱不另存：会话只会在登录邮箱与 `OWNER_EMAIL` 一致时颁发（Google 回调校验已验证邮箱，密码模式校验配置邮箱），所以配置值就是当前会话的账号。
+- Google 昵称：回调从已验签 ID token 读取可选 `name`，经 `sanitizeDisplayName`（`src/shared/auth.ts`：NFC、去控制/格式/双向/零宽字符、空白折叠、64 码点截断，异常类型忽略且不阻止登录）后写入 `google_author_sessions.display_name`（迁移 `0004`，可空）。`ownerDisplayName` 仅对 Google 作者本人返回；会话响应字段为 `accountName`。显示优先级：昵称 > 邮箱；迁移前登录的旧会话无昵称，退出重新登录后生效。密码模式只显示邮箱。见 `reports/2026-10-27-google-nickname.md`。
 - 使用方：`/api/auth/session` 与 `/login`（`getAuthPresentation`）、工作台 `loadStudioPageData` 与编辑器 `loadEditorPageData` 的 `account` 字段。账号名属于个人信息，只出现在作者本人的 no-store 响应/页面中，绝不写入日志。
 - 测试：`tests/ui/author-account.test.tsx`（模式矩阵与侧边栏渲染）、`tests/backend/google-auth.test.ts`、`tests/backend/author-auth.test.ts`（会话形状、退出后消失、日志不含邮箱）。

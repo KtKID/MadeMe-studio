@@ -50,6 +50,7 @@ describe("Google 追加迁移与协议", () => {
         "created_at",
         "expires_at",
         "revoked_at",
+        "display_name",
       ]);
     } finally {
       db.close();

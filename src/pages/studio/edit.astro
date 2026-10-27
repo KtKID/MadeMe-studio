@@ -10,7 +10,12 @@ const post = data.capabilities.authenticated
 if (!post) Astro.response.status = data.capabilities.authenticated ? 404 : 403;
 ---
 
-<Studio title="编辑文章" settings={data.settings} account={data.account}>
+<Studio
+  title="编辑文章"
+  settings={data.settings}
+  account={data.account}
+  accountName={data.accountName}
+>
   {post ? (
     <Editor
       post={post}

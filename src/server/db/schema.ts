@@ -109,4 +109,5 @@ export const googleAuthorSessions = sqliteTable("google_author_sessions", {
   createdAt: integer("created_at").notNull(),
   expiresAt: integer("expires_at").notNull(),
   revokedAt: integer("revoked_at"),
+  displayName: text("display_name"),
 });

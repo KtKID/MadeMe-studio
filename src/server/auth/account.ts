@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sanitizeDisplayName } from "../../shared/auth";
 import type { RuntimeEnv } from "../runtime";
 import type { Identity } from "./identity";
 
@@ -19,4 +20,17 @@ export function ownerAccount(
   if (env.AUTH_MODE !== "google" && env.AUTH_MODE !== "password") return null;
   const email = env.OWNER_EMAIL?.trim().toLowerCase();
   return email && z.email().max(254).safeParse(email).success ? email : null;
+}
+
+/**
+ * Google 作者本人的昵称（登录时 ID token `name`，已清洗）。仅 `google` 模式且
+ * 已验证作者；密码模式、旧会话（迁移 0004 之前登录）或 Google 未提供时返回 null，
+ * 调用方回退显示邮箱。昵称同样属于个人信息，绝不写入日志。
+ */
+export function ownerDisplayName(
+  env: RuntimeEnv,
+  identity: Pick<Identity, "owner" | "displayName">,
+): string | null {
+  if (!identity.owner || env.AUTH_MODE !== "google") return null;
+  return sanitizeDisplayName(identity.displayName);
 }

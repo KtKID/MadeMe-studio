@@ -8,7 +8,7 @@ import {
   authLogoutResponseSchema,
   authSessionResponseSchema,
 } from "../../shared/auth";
-import { ownerAccount } from "./account";
+import { ownerAccount, ownerDisplayName } from "./account";
 import { AppError } from "../errors";
 import { boundedBody, json } from "../http";
 import type { RuntimeEnv } from "../runtime";
@@ -67,7 +67,7 @@ export function passwordAuthConfigured(env: RuntimeEnv): boolean {
 }
 export function getAuthPresentation(
   env: RuntimeEnv,
-  identity: Pick<Identity, "owner">,
+  identity: Pick<Identity, "owner" | "displayName">,
 ) {
   const mode =
     env.AUTH_MODE === "google"
@@ -85,11 +85,13 @@ export function getAuthPresentation(
         : mode === "sites" && !!(env.OWNER_ID || env.OWNER_EMAIL);
   const authenticated = configured && identity.owner;
   const account = authenticated ? ownerAccount(env, identity) : null;
+  const accountName = authenticated ? ownerDisplayName(env, identity) : null;
   return authSessionResponseSchema.parse({
     mode,
     configured,
     authenticated,
     ...(account ? { account } : {}),
+    ...(accountName ? { accountName } : {}),
   });
 }
 async function configVersion(env: RuntimeEnv) {

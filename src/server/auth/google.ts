@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   googleIdentityClaimsSchema,
   googleStartRequestSchema,
+  sanitizeDisplayName,
 } from "../../shared/auth";
 import { AppError } from "../errors";
 import { logger, requestLogContext } from "../../modules/log/server";
@@ -221,7 +222,7 @@ async function start(request: Request, env: RuntimeEnv) {
     client_id: env.GOOGLE_CLIENT_ID!,
     redirect_uri: env.APP_ORIGIN! + CALLBACK,
     response_type: "code",
-    scope: "openid email",
+    scope: "openid email profile",
     state,
     nonce,
     code_challenge: challenge,
@@ -362,13 +363,15 @@ async function callback(request: Request, env: RuntimeEnv) {
     statements.push(
       env
         .DB!.prepare(
-          "INSERT INTO google_author_sessions (token_hash,config_version,created_at,expires_at) VALUES (?,?,?,?)",
+          "INSERT INTO google_author_sessions (token_hash,config_version,created_at,expires_at,display_name) VALUES (?,?,?,?,?)",
         )
         .bind(
           await sha256(session),
           await version(env),
           now,
           now + SESSION_SECONDS * 1000,
+          // 昵称只用于作者本人界面展示；不写日志。
+          sanitizeDisplayName(identity.name),
         ),
     );
     await env.DB!.batch(statements);
@@ -403,28 +406,41 @@ async function callback(request: Request, env: RuntimeEnv) {
     );
   }
 }
-export async function googleSessionOwner(
+/** 有效 Google 作者会话返回 `{displayName}`（旧会话/无昵称为 null），否则返回 null。 */
+export async function googleSession(
   request: Request,
   env: RuntimeEnv,
-): Promise<boolean> {
+): Promise<{ displayName: string | null } | null> {
   if (
     !googleAuthConfigured(env) ||
     new URL(request.url).origin !== env.APP_ORIGIN
   )
-    return false;
+    return null;
   const token = readCookie(request, SESSION_COOKIE);
-  if (!token) return false;
+  if (!token) return null;
   const row = await env
     .DB!.prepare(
-      "SELECT config_version,expires_at FROM google_author_sessions WHERE token_hash=? AND revoked_at IS NULL",
+      "SELECT config_version,expires_at,display_name FROM google_author_sessions WHERE token_hash=? AND revoked_at IS NULL",
     )
     .bind(await sha256(token))
-    .first<{ config_version: string; expires_at: number }>();
-  return (
-    !!row &&
-    row.expires_at > Date.now() &&
-    constantTimeEqual(row.config_version, await version(env))
-  );
+    .first<{
+      config_version: string;
+      expires_at: number;
+      display_name: string | null;
+    }>();
+  if (
+    !row ||
+    row.expires_at <= Date.now() ||
+    !constantTimeEqual(row.config_version, await version(env))
+  )
+    return null;
+  return { displayName: sanitizeDisplayName(row.display_name) };
+}
+export async function googleSessionOwner(
+  request: Request,
+  env: RuntimeEnv,
+): Promise<boolean> {
+  return !!(await googleSession(request, env));
 }
 export async function handleGoogleLogout(request: Request, env: RuntimeEnv) {
   configured(env);

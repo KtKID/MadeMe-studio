@@ -5,7 +5,12 @@ import { loadEditorPageData } from "../../server/page-data";
 const data = await loadEditorPageData(Astro, { posts: "none" });
 ---
 
-<Studio title="写新文章" settings={data.settings} account={data.account}>
+<Studio
+  title="写新文章"
+  settings={data.settings}
+  account={data.account}
+  accountName={data.accountName}
+>
   <Editor
     settings={data.settings}
     authenticated={data.capabilities.authenticated}

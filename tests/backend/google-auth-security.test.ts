@@ -139,7 +139,7 @@ describe("独立 Google JWT 真实签名边界", () => {
     ).toString("base64url");
     expect(challenge).toBe(flow.url.searchParams.get("code_challenge"));
     expect(flow.url.searchParams.has("access_type")).toBe(false);
-    expect(flow.url.searchParams.get("scope")).toBe("openid email");
+    expect(flow.url.searchParams.get("scope")).toBe("openid email profile");
     expect(JSON.stringify(sessions())).not.toMatch(
       /fixture-(access|refresh)-secret/,
     );

@@ -138,7 +138,7 @@ describe("Google 单作者 OAuth 安全边界", () => {
     expect(flow.target.searchParams.get("redirect_uri")).toBe(
       "https://site.test/api/auth/google/callback",
     );
-    expect(flow.target.searchParams.get("scope")).toBe("openid email");
+    expect(flow.target.searchParams.get("scope")).toBe("openid email profile");
     expect(flow.response.headers.get("set-cookie")).toContain("SameSite=Lax");
     const done = await finish(flow);
     expect(done.status).toBe(303);
@@ -186,6 +186,57 @@ describe("Google 单作者 OAuth 安全边界", () => {
     expect(afterLogout).not.toHaveProperty("account");
     // 账号名只返回给作者本人，绝不进入日志。
     expect(logs.raw()).not.toContain("owner@gmail.com");
+  });
+  it("Google 昵称经清洗存入会话并只返回给作者本人；无昵称/旧会话回退邮箱", async () => {
+    const logs = captureLogs();
+    claims = {
+      ...claims,
+      name: "  小\u202e明\u0000  Ｍing\n" + "长".repeat(100),
+    };
+    const done = await finish(await start());
+    const cookie = done.headers
+      .getSetCookie()
+      .find((v) => v.startsWith("__Host-mm_google_author="))!
+      .split(";")[0];
+    const session = (await (
+      await call("session", { headers: { cookie } })
+    ).json()) as { account?: string; accountName?: string };
+    expect(session.account).toBe("owner@gmail.com");
+    expect(session.accountName).toBe("小明 Ｍing " + "长".repeat(64 - 8));
+    expect(Array.from(session.accountName as string)).toHaveLength(64);
+    const row = env.DB.sqlite
+      .prepare("SELECT display_name FROM google_author_sessions")
+      .get() as { display_name: string };
+    expect(row.display_name).toBe(session.accountName);
+    expect(logs.raw()).not.toContain("小明");
+    expect(logs.raw()).not.toContain("owner@gmail.com");
+    // 迁移前的旧会话没有昵称：仅返回邮箱。
+    env.DB.sqlite.exec("UPDATE google_author_sessions SET display_name=NULL");
+    const legacy = await (
+      await call("session", { headers: { cookie } })
+    ).json();
+    expect(legacy).toEqual({
+      mode: "google",
+      configured: true,
+      authenticated: true,
+      account: "owner@gmail.com",
+    });
+    // 未登录不返回昵称。
+    expect(await (await call("session")).json()).not.toHaveProperty(
+      "accountName",
+    );
+  });
+  it("昵称缺失或类型异常不阻止登录", async () => {
+    claims = { ...claims, name: { evil: true } };
+    const done = await finish(await start());
+    expect(done.headers.get("location")).toBe("/studio/settings");
+    const cookie = done.headers
+      .getSetCookie()
+      .find((v) => v.startsWith("__Host-mm_google_author="))!
+      .split(";")[0];
+    expect(
+      await (await call("session", { headers: { cookie } })).json(),
+    ).not.toHaveProperty("accountName");
   });
   it("浏览器绑定不匹配和重放不能签发会话", async () => {
     const flow = await start();

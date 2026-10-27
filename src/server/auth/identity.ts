@@ -1,4 +1,4 @@
-import { googleAuthConfigured, googleSessionOwner } from "./google";
+import { googleAuthConfigured, googleSession } from "./google";
 import type { TokenScope } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
 import { AppError } from "../errors";
@@ -9,6 +9,8 @@ export type Identity = {
   trustedIdentity: string | null;
   tokenId?: string;
   scopes: TokenScope[];
+  /** 仅 Google 作者会话：登录时记录的已清洗昵称；仅用于作者本人界面。 */
+  displayName?: string | null;
 };
 export function trustedIdentity(
   request: Request,
@@ -49,20 +51,24 @@ export async function authenticate(
         email === env.OWNER_EMAIL.trim().toLowerCase());
   const base: Identity = { owner, trustedIdentity: id, scopes: [] };
   const auth = request.headers.get("authorization");
-  if (!auth)
-    return env.AUTH_MODE === "google"
+  if (!auth) {
+    if (env.AUTH_MODE === "google") {
+      const session = await googleSession(request, env);
+      return {
+        owner: !!session,
+        trustedIdentity: null,
+        scopes: [],
+        displayName: session?.displayName ?? null,
+      };
+    }
+    return env.AUTH_MODE === "password"
       ? {
-          owner: await googleSessionOwner(request, env),
+          owner: await passwordSessionOwner(request, env),
           trustedIdentity: null,
           scopes: [],
         }
-      : env.AUTH_MODE === "password"
-        ? {
-            owner: await passwordSessionOwner(request, env),
-            trustedIdentity: null,
-            scopes: [],
-          }
-        : base;
+      : base;
+  }
   if (!auth.startsWith("Bearer ") || !env.DB)
     throw new AppError(401, "INVALID_TOKEN", "Invalid API token.");
   const token = auth.slice(7);

@@ -9,7 +9,7 @@
 - `media-clicks.test.tsx`：实际媒体组件的按钮/文件输入/延迟响应回归，详见用例。
 
 - `settings-clicks.test.tsx`：实际设置五个面板、导航/模型/提示词/主题控件、保存失败重试及 dirty 状态。API 为隔离 mock，不改变生产设置。
-- `author-account.test.tsx`：工作台侧边栏账号名渲染（登录/未登录/缺账号）、登录页账号展示、`ownerAccount` 模式矩阵与头像字母。
+- `author-account.test.tsx`：工作台侧边栏账号名渲染（Google 昵称优先/邮箱回退/未登录/缺账号）、昵称清洗、登录页账号展示、`ownerAccount` 模式矩阵与头像字母。
 - `public-auth-clicks.test.tsx`：公开列表筛选、密码解锁、现有登录表单校验/重复提交/失败重试；不配置真实认证或使用真实凭据。
 
 这不是浏览器 E2E。jsdom 没有真实布局、Canvas、文件选择器或浏览器 beforeunload 界面，不能用此结果证明 Chrome/Safari 原生弹窗、视觉或上传端到端已验收。真实浏览器操作与 Worker/D1/R2 HTTP 测试分别记录。

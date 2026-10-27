@@ -26,11 +26,41 @@ export const authSessionResponseSchema = z.object({
   authenticated: z.boolean(),
   /** 仅在已验证作者本人的会话中出现；未登录时不返回该字段。 */
   account: z.email().max(254).optional(),
+  /** Google 昵称（ID token `name`，已清洗）；仅 Google 作者本人且会话已记录时出现。 */
+  accountName: z.string().min(1).max(64).optional(),
 });
-/** 侧边栏头像字母：取账号首个字母或数字，缺省为 "A"。 */
+/** 侧边栏头像字母：取首个字母或数字（支持中文等 Unicode 字母），缺省为 "A"。 */
 export function accountInitial(account: string | null | undefined): string {
-  const match = account?.match(/[a-z0-9]/i);
+  const match = account?.match(/[\p{L}\p{N}]/u);
   return match ? match[0].toUpperCase() : "A";
+}
+/** 侧栏显示：Google 昵称优先，回退邮箱；悬停提示带邮箱以区分同名账号。 */
+export function accountPresentation(
+  name: string | null | undefined,
+  email: string | null | undefined,
+): { label: string; title: string } | null {
+  const label = name || email;
+  if (!label) return null;
+  const who = name && email ? `${name}（${email}）` : label;
+  return { label, title: `已登录：${who}（账号与退出）` };
+}
+export const DISPLAY_NAME_MAX = 64;
+/**
+ * 清洗外部提供的显示名（Google `name` 声明）：非字符串/空白返回 null；
+ * NFC 规范化，移除控制字符、格式字符（含双向覆盖、零宽字符），折叠空白，
+ * 按码点截断到 64。React/Astro 输出时仍会转义，此处防止视觉欺骗与超长存储。
+ */
+export function sanitizeDisplayName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value
+    .slice(0, 1024)
+    .normalize("NFC")
+    .replace(/\s+/gu, " ")
+    .replace(/[\p{Cc}\p{Cf}\p{Co}\p{Cn}]/gu, "")
+    .replace(/ {2,}/g, " ")
+    .trim();
+  if (!cleaned) return null;
+  return Array.from(cleaned).slice(0, DISPLAY_NAME_MAX).join("").trim() || null;
 }
 export const authLoginResponseSchema = z.object({
   ok: z.literal(true),
@@ -57,6 +87,8 @@ export const googleIdentityClaimsSchema = z.object({
   email_verified: z.literal(true),
   nonce: z.string().min(1).max(256),
   azp: z.string().optional(),
+  /** 需 `profile` scope；可缺失或异常，异常时忽略而不阻止登录，由 sanitizeDisplayName 清洗。 */
+  name: z.unknown().optional(),
   iat: z.number().int(),
   exp: z.number().int(),
 });
