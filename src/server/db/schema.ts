@@ -88,3 +88,25 @@ export const authorSessions = sqliteTable("author_sessions", {
   expiresAt: integer("expires_at").notNull(),
   revokedAt: integer("revoked_at"),
 });
+
+// Google OAuth 临时流程与密码会话隔离，避免认证模式互相接受 Cookie。
+export const googleAuthFlows = sqliteTable(
+  "google_auth_flows",
+  {
+    stateHash: text("state_hash").primaryKey(),
+    browserHash: text("browser_hash").notNull(),
+    verifier: text("verifier").notNull(),
+    nonce: text("nonce").notNull(),
+    returnTo: text("return_to").notNull(),
+    configVersion: text("config_version").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+  },
+  (t) => [index("google_auth_flows_expiry").on(t.expiresAt)],
+);
+export const googleAuthorSessions = sqliteTable("google_author_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  configVersion: text("config_version").notNull(),
+  createdAt: integer("created_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  revokedAt: integer("revoked_at"),
+});

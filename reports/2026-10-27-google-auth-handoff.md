@@ -2,6 +2,13 @@
 
 工程交接　2026 年 10 月 27 日 UTC
 
+> Git 交接更新：Google 登录源码、迁移与测试现随本报告保存在独立分支 `feat/google-auth`。另一台服务器可直接拉取该分支；下文关于未提交工作区和源码 ZIP 的描述保留为打包时的历史记录。分支提交不表示依赖安装、完整测试或部署成功。
+
+```sh
+git clone --branch feat/google-auth --single-branch https://github.com/KtKID/MadeMe-studio.git
+cd MadeMe-studio
+```
+
 ## 1 结论与处理顺序
 
 **当前服务器没有完成 Google 登录验证，也没有完成独立 Cloudflare 部署。** Google 单作者认证代码已写入隔离工作区，可以交给下一位开发者审查和继续验证；现阶段只能标记为待审查实现，不能标记为登录可用或生产就绪。

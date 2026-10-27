@@ -5,7 +5,12 @@ export function secureResponse(
   authMode?: string,
 ): Response {
   response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set(
+    "Referrer-Policy",
+    url.pathname.startsWith("/api/auth/") || url.pathname === "/login"
+      ? "no-referrer"
+      : "strict-origin-when-cross-origin",
+  );
   response.headers.set(
     "Permissions-Policy",
     "camera=(), microphone=(), geolocation=()",
@@ -16,7 +21,10 @@ export function secureResponse(
     response.headers.set(
       "Content-Security-Policy",
       "object-src 'none'; base-uri 'self'; form-action 'self'" +
-        (authMode === "password" &&
+        (authMode === "google" && url.pathname === "/login"
+          ? " https://accounts.google.com"
+          : "") +
+        (["password", "google"].includes(authMode || "") &&
         (url.pathname === "/login" || url.pathname.startsWith("/studio"))
           ? "; frame-ancestors 'none'"
           : ""),

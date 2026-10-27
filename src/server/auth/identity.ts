@@ -1,3 +1,4 @@
+import { googleAuthConfigured, googleSessionOwner } from "./google";
 import type { TokenScope } from "../../shared/contracts";
 import type { RuntimeEnv } from "../runtime";
 import { AppError } from "../errors";
@@ -13,7 +14,7 @@ export function trustedIdentity(
   request: Request,
   env: RuntimeEnv,
 ): string | null {
-  if (env.AUTH_MODE === "password") return null;
+  if (["password", "google"].includes(env.AUTH_MODE || "")) return null;
   const host = new URL(request.url).hostname;
   if (
     env.ENVIRONMENT === "development" &&
@@ -26,6 +27,7 @@ export function trustedIdentity(
   return request.headers.get("oai-authenticated-user-id") || null;
 }
 export function ownerConfigured(env: RuntimeEnv) {
+  if (env.AUTH_MODE === "google") return googleAuthConfigured(env);
   if (env.AUTH_MODE === "password") return passwordAuthConfigured(env);
   return !!env.OWNER_ID || (env.AUTH_MODE === "sites" && !!env.OWNER_EMAIL);
 }
@@ -48,13 +50,19 @@ export async function authenticate(
   const base: Identity = { owner, trustedIdentity: id, scopes: [] };
   const auth = request.headers.get("authorization");
   if (!auth)
-    return env.AUTH_MODE === "password"
+    return env.AUTH_MODE === "google"
       ? {
-          owner: await passwordSessionOwner(request, env),
+          owner: await googleSessionOwner(request, env),
           trustedIdentity: null,
           scopes: [],
         }
-      : base;
+      : env.AUTH_MODE === "password"
+        ? {
+            owner: await passwordSessionOwner(request, env),
+            trustedIdentity: null,
+            scopes: [],
+          }
+        : base;
   if (!auth.startsWith("Bearer ") || !env.DB)
     throw new AppError(401, "INVALID_TOKEN", "Invalid API token.");
   const token = auth.slice(7);

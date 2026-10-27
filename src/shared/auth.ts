@@ -21,7 +21,7 @@ export const authLoginRequestSchema = z
   })
   .strict();
 export const authSessionResponseSchema = z.object({
-  mode: z.enum(["sites", "password", "unconfigured"]),
+  mode: z.enum(["sites", "password", "google", "unconfigured"]),
   configured: z.boolean(),
   authenticated: z.boolean(),
 });
@@ -33,3 +33,23 @@ export const authLogoutResponseSchema = z.object({ ok: z.literal(true) });
 
 /** 无 MFA 的独立作者新凭据采用长口令；登录本身不据此透露凭据策略。 */
 export const authorPasswordConfigurationSchema = z.string().min(15).max(1024);
+
+/** Google OAuth 的应用输入和固定失败代码；不接受客户端指定提供方或回调地址。 */
+export const googleStartRequestSchema = z
+  .object({
+    returnTo: z.string().max(2048).optional().transform(safeReturnTo),
+  })
+  .strict();
+export const googleLoginErrorSchema = z.enum([
+  "google_failed",
+  "google_denied",
+]);
+export const googleIdentityClaimsSchema = z.object({
+  sub: z.string().min(1).max(255),
+  email: z.email().max(254),
+  email_verified: z.literal(true),
+  nonce: z.string().min(1).max(256),
+  azp: z.string().optional(),
+  iat: z.number().int(),
+  exp: z.number().int(),
+});

@@ -1,7 +1,9 @@
 ---
 import Base from "./Base.astro";
 import { getEnv } from "../server/runtime";
-const passwordAuth = getEnv(Astro).AUTH_MODE === "password";
+const passwordAuth = ["password", "google"].includes(
+  getEnv(Astro).AUTH_MODE ?? "",
+);
 import {
   Feather,
   FileText,

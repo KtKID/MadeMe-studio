@@ -19,7 +19,9 @@ const initialPath = route(Astro.url.pathname) ?? "/studio";
   <StudioShell
     initial={data}
     initialPath={initialPath}
-    passwordAuth={getEnv(Astro).AUTH_MODE === "password"}
+    passwordAuth={["password", "google"].includes(
+      getEnv(Astro).AUTH_MODE ?? "",
+    )}
     client:load
   />
 </Base>

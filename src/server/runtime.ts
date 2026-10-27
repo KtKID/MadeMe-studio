@@ -39,6 +39,10 @@ export interface RuntimeEnv {
   OWNER_EMAIL?: string;
   AUTH_MODE?: string;
   AUTH_PASSWORD_HASH?: string;
+  APP_ORIGIN?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  OWNER_GOOGLE_SUB?: string;
   ENVIRONMENT?: string;
   ALLOW_LOCAL_DEV_IDENTITY?: string;
   DEV_OWNER_ID?: string;

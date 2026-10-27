@@ -1,3 +1,4 @@
+import { googleAuthConfigured, handleGoogleLogout } from "./google";
 import { z } from "zod";
 import {
   authorPasswordConfigurationSchema,
@@ -66,15 +67,19 @@ export function getAuthPresentation(
   identity: Pick<Identity, "owner">,
 ) {
   const mode =
-    env.AUTH_MODE === "password"
-      ? "password"
-      : env.AUTH_MODE === "sites"
-        ? "sites"
-        : "unconfigured";
+    env.AUTH_MODE === "google"
+      ? "google"
+      : env.AUTH_MODE === "password"
+        ? "password"
+        : env.AUTH_MODE === "sites"
+          ? "sites"
+          : "unconfigured";
   const configured =
-    mode === "password"
-      ? passwordAuthConfigured(env)
-      : mode === "sites" && !!(env.OWNER_ID || env.OWNER_EMAIL);
+    mode === "google"
+      ? googleAuthConfigured(env)
+      : mode === "password"
+        ? passwordAuthConfigured(env)
+        : mode === "sites" && !!(env.OWNER_ID || env.OWNER_EMAIL);
   return authSessionResponseSchema.parse({
     mode,
     configured,
@@ -143,6 +148,8 @@ export async function handleAuth(
       "HTTPS_REQUIRED",
       "HTTPS is required for author sign-in.",
     );
+  if (env.AUTH_MODE === "google" && action === "logout")
+    return handleGoogleLogout(request, env);
   if (!passwordAuthConfigured(env))
     throw new AppError(
       503,

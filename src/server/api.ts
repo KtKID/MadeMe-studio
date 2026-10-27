@@ -1,3 +1,4 @@
+import { handleGoogleAuth } from "./auth/google";
 import { handleAuth } from "./auth/password";
 import {
   createPostSchema,
@@ -55,6 +56,8 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
   let response: Response;
   try {
     const env = getEnv(context);
+    if (path[0] === "auth" && path[1] === "google" && path.length === 3)
+      return await handleGoogleAuth(request, env, path[2]);
     if (path[0] === "auth" && path.length === 2)
       return await handleAuth(request, env, path[1]);
     const identity = await authenticate(request, env);

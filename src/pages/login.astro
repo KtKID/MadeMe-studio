@@ -11,6 +11,12 @@ const session = getAuthPresentation(
   await authenticate(Astro.request, env),
 );
 const returnTo = safeReturnTo(Astro.url.searchParams.get("returnTo"));
+// 只序列化允许的错误码，不把任意查询内容下发到组件。
+const requestedError = Astro.url.searchParams.get("error");
+const loginError =
+  requestedError === "google_denied" || requestedError === "google_failed"
+    ? requestedError
+    : undefined;
 Astro.response.headers.set("Cache-Control", "no-store");
 Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
 ---
@@ -20,12 +26,20 @@ Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
     <a class="brand" href="/">
       MadeMe
     </a>
-    <noscript>作者登录需要 JavaScript 才能安全提交，请启用后刷新。</noscript>
+    {session.mode === "password" && (
+      <noscript>密码登录需要 JavaScript 才能安全提交，请启用后刷新。</noscript>
+    )}
+    {session.mode === "google" && (
+      <noscript>
+        Google 登录可直接提交；作者账号退出需要启用 JavaScript。
+      </noscript>
+    )}
     <div class="auth-panel">
       <LoginPanel
         secureTransport={Astro.url.protocol === "https:"}
         session={session}
         returnTo={returnTo}
+        loginError={loginError}
         client:load
       />
     </div>

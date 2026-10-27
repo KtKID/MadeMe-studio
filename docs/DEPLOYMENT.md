@@ -79,3 +79,14 @@ Chrome、Obsidian 与 CLI 使用短有效期、最小 scope 的 API Token。真�
 密码哈希采用 PBKDF2-SHA256 600,000 次；不支持这一策略的运行时返回 503，不降低参数。Cloudflare 生产运行时的迭代限制与 CPU 预算必须单独验证，本地 Node/workerd 通过不能证明生产可用。正式环境选择尚待确认，不得将当前密码模式称作已完成生产认证验收。详见[认证模块边界](../src/server/auth/README.md)。
 
 登录页面仅在 HTTPS 下显示密码表单；会话 Cookie 为 HttpOnly、Secure、SameSite=Strict，8 小时绝对到期。新登录轮换会话，退出服务器端撤销；更换邮箱、密码摘要或签名密钥使旧会话失效。第一版无空闲续期、无公开注册或邮件找回密码服务。
+
+
+## Google 单作者模式（实现准备，未部署验收）
+
+新增 `AUTH_MODE=google` 面向独立 Workers 部署，使用 Google OIDC 授权码流程，要求 HTTPS、state、浏览器绑定、PKCE 和 nonce，作者邮箱必须事先显式配置，不允许首位访问者认领。非 Gmail 邮箱还需固定 `OWNER_GOOGLE_SUB`。实际作者邮箱不写入源码或前端包。
+
+部署配置名称：`APP_ORIGIN`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`OWNER_EMAIL`、`SESSION_SECRET`，可选 `OWNER_GOOGLE_SUB`。Google Web OAuth 客户端的回调地址必须精确为 `APP_ORIGIN` 加 `/api/auth/google/callback`；只请求 `openid email`，不请求离线刷新或其它 Google API 权限。真实凭据创建和持久配置须单独授权；不通过聊天传递密钥。
+
+部署前需应用追加迁移 `0003_google_author_auth.sql`。临时流程十分钟到期并原子消费；应用作者会话为八小时随机不透明令牌，数据库保存哈希，支持退出撤销与配置轮换失效。不存储 Google access/refresh/id token。
+
+当前仅为待验证实现，生产预览继续 `AUTH_MODE=sites`。真实 Google OAuth、目标 Cloudflare 配置、生产 CPU/会话/越权、数据库迁移与备份恢复均必须记录实际结果后才允许称作上线完成。新增签名库的安装及完整测试若被环境权限阻塞，应明确记录，不使用本地 UI mock 结果替代。

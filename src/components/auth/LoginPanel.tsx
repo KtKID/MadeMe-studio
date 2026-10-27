@@ -6,11 +6,13 @@ type Props = {
   session: z.infer<typeof authSessionResponseSchema>;
   returnTo: string;
   secureTransport?: boolean;
+  loginError?: string;
 };
 export default function LoginPanel({
   session,
   returnTo,
   secureTransport = false,
+  loginError,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -18,6 +20,33 @@ export default function LoginPanel({
   const [error, setError] = useState("");
   const inFlight = useRef(false);
   const passwordInput = useRef<HTMLInputElement>(null);
+  // 原生跳转被取消或从 Google 返回 BFCache 时，恢复可提交状态。
+  useEffect(() => {
+    if (session.mode !== "google" || session.authenticated) return;
+    const restore = () => {
+      inFlight.current = false;
+      setBusy(false);
+    };
+    window.addEventListener("pageshow", restore);
+    return () => window.removeEventListener("pageshow", restore);
+  }, [session.mode, session.authenticated]);
+  const callbackError =
+    session.mode === "google"
+      ? loginError === "google_denied"
+        ? "登录未完成或此账号未获授权。本站仅允许预先配置的作者访问。"
+        : loginError === "google_failed"
+          ? "Google 登录未完成，请重新尝试。"
+          : ""
+      : "";
+  function startGoogle(event: SubmitEvent<HTMLFormElement>) {
+    // 首次提交保留浏览器原生 POST；不以 fetch 追随跨域 OAuth 重定向。
+    if (inFlight.current) {
+      event.preventDefault();
+      return;
+    }
+    inFlight.current = true;
+    setBusy(true);
+  }
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (inFlight.current) return;
@@ -69,16 +98,22 @@ export default function LoginPanel({
         </a>
       </section>
     );
-  if (session.mode === "password" && !secureTransport)
+  if (
+    (session.mode === "password" || session.mode === "google") &&
+    !secureTransport
+  )
     return (
       <section>
         <h1>请使用安全连接</h1>
         <p role="status">
-          作者登录仅支持 HTTPS。请通过本站 HTTPS 地址访问后再输入密码。
+          作者登录仅支持 HTTPS。请通过本站 HTTPS 地址访问后再登录。
         </p>
       </section>
     );
-  if (session.mode !== "password" || !session.configured)
+  if (
+    (session.mode !== "password" && session.mode !== "google") ||
+    !session.configured
+  )
     return (
       <section>
         <h1>作者登录暂不可用</h1>
@@ -96,9 +131,9 @@ export default function LoginPanel({
           ? "你已通过作者身份验证。"
           : "仅供站点作者使用，不开放注册。"}
       </p>
-      {error && (
+      {(error || (!session.authenticated && callbackError)) && (
         <p role="alert" className="notice notice-error">
-          {error}
+          {error || callbackError}
         </p>
       )}
       {session.authenticated ? (
@@ -115,6 +150,22 @@ export default function LoginPanel({
             {busy ? "正在退出…" : "退出作者账号"}
           </button>
         </div>
+      ) : session.mode === "google" ? (
+        <form
+          method="post"
+          action="/api/auth/google/start"
+          onSubmit={startGoogle}
+        >
+          <input type="hidden" name="returnTo" value={safeReturnTo(returnTo)} />
+          <button className="button primary" type="submit" disabled={busy}>
+            {busy ? "正在前往 Google…" : "使用 Google 登录"}
+          </button>
+          <p role="status" aria-live="polite">
+            {busy
+              ? "即将前往 Google 验证身份，请勿重复提交。"
+              : "仅允许已配置的作者账号，不开放注册。"}
+          </p>
+        </form>
       ) : (
         <form method="post" action="/api/auth/login" onSubmit={submit}>
           <label htmlFor="author-email">作者邮箱</label>
