@@ -1,8 +1,10 @@
 import {
-  embedProviders,
-  parseEmbed,
-  reportEmbedRejection,
-} from "../../modules/embed";
+  findContentProblems,
+  isAllowedLink,
+  summarizeProblems,
+} from "../../modules/content-check";
+import { parseEmbed, reportEmbedRejection } from "../../modules/embed";
+import { logger } from "../../modules/log/server";
 import {
   blocksSchema,
   type EditorBlock,
@@ -17,6 +19,31 @@ export function validateContent(blocks: EditorBlock[]) {
       "CONTENT_TOO_LARGE",
       "Article content is too large.",
     );
+  // 链接问题按块定位，返回“第 N 个视频块……”的中文原因与 details.problems，
+  // 编辑器直接显示；日志只记录原因、块类型与序号，不记录链接本身。
+  const problems = findContentProblems(blocks);
+  if (problems.length) {
+    const first = problems[0];
+    if (first.embed) reportEmbedRejection("server_validation", first.embed);
+    logger.info("content.rejected", {
+      code: first.code,
+      reason: first.reason,
+      blockType: first.blockType,
+      ordinal: first.ordinal,
+      field: first.field,
+      count: problems.length,
+    });
+    throw new AppError(422, first.code, summarizeProblems(problems), {
+      problems: problems.slice(0, 20).map((p) => ({
+        reason: p.reason,
+        blockType: p.blockType,
+        ordinal: p.ordinal,
+        field: p.field,
+        ...(p.blockId ? { blockId: p.blockId } : {}),
+        message: p.message,
+      })),
+    });
+  }
   let count = 0;
   function visit(value: unknown, depth: number, key = "") {
     if (++count > 50000 || depth > 30)
@@ -25,39 +52,21 @@ export function validateContent(blocks: EditorBlock[]) {
         "INVALID_CONTENT",
         "Article nesting or size exceeds the limit.",
       );
+    // 兜底：findContentProblems 只看块的 props / content，这里覆盖其余任意位置。
     if (
       typeof value === "string" &&
       ["url", "href", "src"].includes(key) &&
-      value
-    ) {
-      if (
-        !/^https:\/\//i.test(value) &&
-        !/^\/api\/files\/[a-zA-Z0-9-]+$/.test(value) &&
-        !(key === "href" && /^mailto:[^\s<>]+$/.test(value))
-      )
-        throw new AppError(
-          422,
-          "UNSAFE_URL",
-          "Content links must use HTTPS, email, or uploaded media.",
-        );
-    }
+      value &&
+      !isAllowedLink(key, value)
+    )
+      throw new AppError(
+        422,
+        "UNSAFE_URL",
+        "文章里有无效链接：只支持 https://、mailto: 或站内上传的文件。",
+      );
     if (Array.isArray(value)) for (const item of value) visit(item, depth + 1);
     else if (value && typeof value === "object") {
       const object = value as Record<string, unknown>;
-      if (object.type === "embed") {
-        const props = object.props as { url?: string } | undefined;
-        if (props?.url) {
-          const result = parseEmbed(props.url);
-          if (!result.ok) {
-            reportEmbedRejection("server_validation", result);
-            throw new AppError(
-              422,
-              "UNSAFE_EMBED",
-              `Only ${embedProviders.map((p) => p.name).join(", ")} embeds are supported.`,
-            );
-          }
-        }
-      }
       for (const [k, v] of Object.entries(object)) visit(v, depth + 1, k);
     }
   }

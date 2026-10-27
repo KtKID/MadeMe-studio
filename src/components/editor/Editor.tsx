@@ -44,15 +44,23 @@ import {
   acceptedVideoFormatsLabel,
   mediaUploadProblem,
 } from "../../shared/contracts";
-import { clientLog } from "../../modules/log/client";
+import { clientCaught, clientLog } from "../../modules/log/client";
 import { SafeEmbed } from "../content/BlockReader";
 import {
-  embedProviders,
   embedRejectMessage,
-  parseEmbed,
+  installEmbedAutoHeight,
+  parseEmbedInput,
   reportEmbedRejection,
   supportedEmbedLabel,
+  videoEmbedProviderNames,
 } from "../../modules/embed";
+import {
+  adviseVideoBlocks,
+  findContentProblems,
+  summarizeProblems,
+  type VideoAdvice,
+} from "../../modules/content-check";
+import { describeEditorError, type EditorAction } from "./errors";
 import { en as blockNoteEn } from "@blocknote/core/locales";
 import MediaLibrary from "../media/MediaLibrary";
 import { resolveMode } from "../shared/appearance";
@@ -103,10 +111,7 @@ const blockNoteDictionary = {
         audio: "插入音频",
         file: "插入文件",
       },
-      url_placeholder: `文件直链，或 ${embedProviders
-        .filter((p) => p.kind === "iframe")
-        .map((p) => p.name)
-        .join(" / ")} 视频页链接`,
+      url_placeholder: `文件直链，或 ${videoEmbedProviderNames().join(" / ")} 视频页链接`,
     },
   },
 };
@@ -196,7 +201,17 @@ export default function Editor({
   const [publishOpen, setPublishOpen] = useState(false);
   const [embedOpen, setEmbedOpen] = useState(false);
   const [embedValue, setEmbedValue] = useState("");
-  const embedCheck = parseEmbed(embedValue);
+  // 嵌入弹窗同时接受链接与官方嵌入代码；嵌入代码只取出链接，本身不保存、不渲染。
+  const embedCheck = parseEmbedInput(embedValue);
+  const embedInsertUrl = embedCheck.ok
+    ? embedCheck.fromSnippet
+      ? embedCheck.match.canonicalUrl
+      : embedCheck.match.url
+    : "";
+  const [videoAdvice, setVideoAdvice] = useState<
+    Exclude<VideoAdvice, { action: "normalize" }>[]
+  >([]);
+  const errorRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState("");
   const [aiAction, setAiAction] = useState<AIAction>("polish");
   const [aiText, setAiText] = useState("");
@@ -253,6 +268,26 @@ export default function Editor({
     },
   });
   useEffect(() => {
+    installEmbedAutoHeight();
+    refreshVideoAdvice();
+    // 只在挂载时执行一次；之后由 BlockNote onChange 刷新。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    // 弹窗打开时错误同时显示在弹窗里；没有弹窗时把顶部错误滚进视野，避免“没反应”。
+    if (
+      error &&
+      !publishOpen &&
+      !embedOpen &&
+      panel !== "ai" &&
+      panel !== "revisions"
+    )
+      errorRef.current?.scrollIntoView?.({
+        block: "nearest",
+        behavior: "smooth",
+      });
+  }, [error, publishOpen, embedOpen, panel]);
+  useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (leaveGuard.shouldBlockUnload()) {
         event.preventDefault();
@@ -287,6 +322,77 @@ export default function Editor({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   });
+  /** 滚动到出问题的块并短暂高亮。 */
+  function focusBlock(blockId: string) {
+    const element = document.querySelector<HTMLElement>(
+      `.bn-block-outer[data-id="${blockId.replace(/[^\w-]/g, "")}"]`,
+    );
+    if (!element) return;
+    element.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    element.classList.add("block-attention");
+    window.setTimeout(() => element.classList.remove("block-attention"), 3000);
+  }
+  /**
+   * 检查视频块里粘贴的平台链接 / 嵌入代码：YouTube、Bilibili 的嵌入代码自动换成规范链接；
+   * X 动态与认不出的嵌入代码给出提示和一键修正（改为嵌入块 / 移除）。
+   */
+  function refreshVideoAdvice() {
+    const advice = adviseVideoBlocks(editor.document);
+    for (const item of advice) {
+      if (item.action !== "normalize") continue;
+      editor.updateBlock(item.blockId, {
+        props: { url: item.url },
+      } as Parameters<typeof editor.updateBlock>[1]);
+      clientLog("info", "editor.video_snippet_normalized", {
+        provider: item.provider,
+      });
+    }
+    setVideoAdvice(
+      advice.filter(
+        (item): item is Exclude<VideoAdvice, { action: "normalize" }> =>
+          item.action !== "normalize",
+      ),
+    );
+  }
+  function convertVideoToEmbed(
+    item: Extract<VideoAdvice, { action: "convert" }>,
+  ) {
+    editor.replaceBlocks(
+      [item.blockId],
+      [{ type: "embed", props: { url: item.url } }],
+    );
+    clientLog("info", "editor.video_converted_to_embed", {
+      provider: item.provider,
+    });
+    markDirty();
+    setError("");
+    refreshVideoAdvice();
+  }
+  function removeVideoBlock(item: VideoAdvice) {
+    editor.removeBlocks([item.blockId]);
+    clientLog("info", "editor.video_block_removed", { reason: item.action });
+    markDirty();
+    setError("");
+    refreshVideoAdvice();
+  }
+  /** 只有版本冲突才显示“载入最新版本”；链接标识冲突、文章已删除也是 409，但不是版本问题。 */
+  function isVersionConflict(e: unknown) {
+    return (
+      e instanceof ApiError &&
+      e.status === 409 &&
+      e.code !== "SLUG_CONFLICT" &&
+      e.code !== "POST_DELETED"
+    );
+  }
+  /** 统一展示失败：中文原因 + 操作名；ApiError 已由 api() 记录，其余异常在这里记录。 */
+  function fail(action: EditorAction, e: unknown) {
+    setError(describeEditorError(action, e));
+    if (!(e instanceof ApiError)) clientCaught(`editor.${action}_failed`, e);
+    const problems = (e as ApiError | undefined)?.details as
+      { problems?: { blockId?: unknown }[] } | undefined;
+    const blockId = problems?.problems?.[0]?.blockId;
+    if (typeof blockId === "string") focusBlock(blockId);
+  }
   function changed(setter: (v: string) => void, value: string) {
     setter(value);
     markDirty();
@@ -309,7 +415,37 @@ export default function Editor({
   async function save(
     keepLock = false,
   ): Promise<{ post: Post; sequence: number } | undefined> {
-    if (lock.current || !authenticated) return;
+    const action: EditorAction = keepLock ? "publish" : "save";
+    // 已有操作进行中：按钮已禁用并显示进度（仅快捷键会走到这里），不重复提交。
+    if (lock.current) return;
+    if (!authenticated) {
+      setError(
+        `${action === "publish" ? "发布" : "保存"}失败：你还没有作者权限，请先登录。`,
+      );
+      clientLog("warn", "editor.save_blocked", {
+        action,
+        reason: "unauthenticated",
+      });
+      return;
+    }
+    // 保存前用与服务端相同的规则检查链接，直接指出是哪一个块。
+    const problems = findContentProblems(editor.document);
+    if (problems.length) {
+      const first = problems[0];
+      setMessage("");
+      setError(
+        `${action === "publish" ? "发布" : "保存"}失败：${summarizeProblems(problems)}`,
+      );
+      clientLog("warn", "editor.save_blocked", {
+        action,
+        reason: first.reason,
+        blockType: first.blockType,
+        ordinal: first.ordinal,
+        count: problems.length,
+      });
+      if (first.blockId) focusBlock(first.blockId);
+      return;
+    }
     lock.current = true;
     const base = currentRef.current;
     const sequence = editClock.current.snapshot();
@@ -347,8 +483,8 @@ export default function Editor({
       succeeded = true;
       return { post: result.post, sequence };
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) setConflict(true);
-      setError((e as Error).message);
+      if (isVersionConflict(e)) setConflict(true);
+      fail(action, e);
     } finally {
       if (!keepLock || !succeeded) {
         setBusy("");
@@ -389,8 +525,8 @@ export default function Editor({
           : "已发布。读者现在可以看到这次更新。",
       );
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) setConflict(true);
-      setError((e as Error).message);
+      if (isVersionConflict(e)) setConflict(true);
+      fail("publish", e);
     } finally {
       lock.current = false;
       setBusy("");
@@ -434,7 +570,7 @@ export default function Editor({
       if (!applied)
         setError("载入期间你又修改了文章，已保留本地输入；请备份后重新载入。");
     } catch (e) {
-      setError((e as Error).message);
+      fail("reload", e);
     } finally {
       lock.current = false;
       setBusy("");
@@ -483,7 +619,7 @@ export default function Editor({
       if (!applied)
         setError("读取文件期间你又修改了文章，已取消导入并保留本地输入。");
     } catch (e) {
-      setError((e as Error).message);
+      fail("import", e);
     } finally {
       lock.current = false;
       setBusy("");
@@ -537,7 +673,7 @@ export default function Editor({
       });
       if (aiSession.current.isCurrent(session)) setAiText(data.text);
     } catch (e) {
-      if (aiSession.current.isCurrent(session)) setError((e as Error).message);
+      if (aiSession.current.isCurrent(session)) fail("ai", e);
     } finally {
       lock.current = false;
       setBusy("");
@@ -583,7 +719,7 @@ export default function Editor({
       );
       setRevisions(r.revisions);
     } catch (e) {
-      setError((e as Error).message);
+      fail("revisions", e);
     }
   }
   async function restore(version: number) {
@@ -630,12 +766,45 @@ export default function Editor({
           "服务器草稿已恢复历史版本；你在等待期间的新输入已保留，仍未保存。",
         );
     } catch (e) {
-      setError((e as Error).message);
+      fail("restore", e);
     } finally {
       lock.current = false;
       setBusy("");
     }
   }
+  const modalError = error ? <Notice kind="error">{error}</Notice> : null;
+  const adviceList = videoAdvice.length ? (
+    <Notice>
+      {videoAdvice.map((item) => (
+        <span className="editor-video-advice" key={item.blockId}>
+          <span>{item.message}</span>
+          {item.action === "convert" ? (
+            <button
+              className="button small"
+              disabled={!!busy}
+              onClick={() => convertVideoToEmbed(item)}
+            >
+              改为嵌入块
+            </button>
+          ) : (
+            <button
+              className="button small"
+              disabled={!!busy}
+              onClick={() => removeVideoBlock(item)}
+            >
+              移除这个视频块
+            </button>
+          )}
+          <button
+            className="text-button"
+            onClick={() => focusBlock(item.blockId)}
+          >
+            定位
+          </button>
+        </span>
+      ))}
+    </Notice>
+  ) : null;
   return (
     <div className={`editor-shell ${inline ? "inline-editor" : ""}`}>
       {leaveOpen && (
@@ -717,7 +886,8 @@ export default function Editor({
           你还没有作者权限。正文可预览，保存与发布需要可信作者身份。
         </Notice>
       )}
-      {error && <Notice kind="error">{error}</Notice>}
+      <div ref={errorRef}>{modalError}</div>
+      {adviceList}
       {message && (
         <Notice kind="success">
           {message}
@@ -819,6 +989,7 @@ export default function Editor({
             onChange={() => {
               markDirty();
               setMessage("");
+              refreshVideoAdvice();
             }}
             formattingToolbar={false}
           >
@@ -919,9 +1090,8 @@ export default function Editor({
                       onPublished?.(r.post);
                       setMessage("已撤下公开版本，草稿仍保留。");
                     } catch (e) {
-                      if (e instanceof ApiError && e.status === 409)
-                        setConflict(true);
-                      setError((e as Error).message);
+                      if (isVersionConflict(e)) setConflict(true);
+                      fail("unpublish", e);
                     } finally {
                       lock.current = false;
                       setBusy("");
@@ -952,6 +1122,7 @@ export default function Editor({
       )}
       {panel === "ai" && (
         <Modal title="AI 写作搭档" onClose={closeAI}>
+          {modalError}
           {!aiConfigured && (
             <Notice>
               尚未配置 AI 服务端密钥。到
@@ -1083,6 +1254,7 @@ export default function Editor({
       )}
       {panel === "revisions" && (
         <Modal title="每一步，都有迹可循" onClose={() => setPanel(null)}>
+          {modalError}
           {!current ? (
             <p>保存文章后即可查看版本历史。</p>
           ) : revisions.length ? (
@@ -1123,6 +1295,9 @@ export default function Editor({
           }}
         >
           <p className="muted">将先保存草稿，再发布当前完整版本。</p>
+          {/* 保存或发布失败时原因显示在弹窗里：弹窗遮住了编辑器顶部的提示栏。 */}
+          {modalError}
+          {adviceList}
           <label>
             谁可以阅读
             <select
@@ -1186,21 +1361,27 @@ export default function Editor({
       {embedOpen && (
         <Modal title="嵌入来自外面的灵感" onClose={() => setEmbedOpen(false)}>
           <p className="muted">
-            支持 {supportedEmbedLabel()}链接。只接受 HTTPS
-            白名单地址，不执行用户脚本。短链接（如
+            支持 {supportedEmbedLabel()}
+            。可以粘贴链接，也可以直接粘贴平台的官方嵌入代码（只取出其中的链接，代码本身不会被保存或执行）。短链接（如
             b23.tv）请先在浏览器打开再复制完整地址。
           </p>
           <label>
-            内容链接
-            <input
-              type="url"
+            内容链接或嵌入代码
+            <textarea
+              rows={3}
               value={embedValue}
               onChange={(e) => setEmbedValue(e.target.value)}
-              placeholder="https://www.bilibili.com/video/BV… 或 https://www.youtube.com/watch?v=…"
+              placeholder="https://www.bilibili.com/video/BV…、https://x.com/用户名/status/…，或官方嵌入代码"
             />
           </label>
-          {embedValue && <SafeEmbed url={embedValue} silent />}
-          {embedValue && !embedCheck.ok && (
+          {embedCheck.ok && embedCheck.fromSnippet && (
+            <p className="muted" role="status">
+              已从嵌入代码中识别出 {embedCheck.match.provider.name} 链接：
+              {embedInsertUrl}
+            </p>
+          )}
+          {embedCheck.ok && <SafeEmbed url={embedInsertUrl} silent />}
+          {embedValue.trim() && !embedCheck.ok && (
             <p className="muted" role="status">
               {embedRejectMessage(embedCheck.reason)}
             </p>
@@ -1218,10 +1399,14 @@ export default function Editor({
                   return;
                 }
                 editor.insertBlocks(
-                  [{ type: "embed", props: { url: embedCheck.match.url } }],
+                  [{ type: "embed", props: { url: embedInsertUrl } }],
                   editor.getTextCursorPosition().block,
                   "after",
                 );
+                if (embedCheck.fromSnippet)
+                  clientLog("info", "editor.embed_snippet_parsed", {
+                    provider: embedCheck.match.provider.id,
+                  });
                 markDirty();
                 setEmbedOpen(false);
                 setEmbedValue("");

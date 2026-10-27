@@ -49,6 +49,7 @@ export function parseEmbed(value: unknown): EmbedParseResult {
       provider,
       target,
       url: u.href,
+      canonicalUrl: provider.canonicalUrl?.(target) ?? u.href,
       playerUrl:
         provider.kind === "iframe" ? provider.playerUrl?.(target) : undefined,
     },
@@ -62,13 +63,16 @@ export function embedFrameOrigins(): string[] {
 
 /** 面向作者的支持清单文案，例如 "YouTube、Bilibili 视频与 X 动态"。 */
 export function supportedEmbedLabel(): string {
-  const video = embedProviders
-    .filter((p) => p.kind === "iframe")
-    .map((p) => p.name);
+  const video = videoEmbedProviderNames();
   const links = embedProviders
-    .filter((p) => p.kind === "link")
+    .filter((p) => p.content === "post")
     .map((p) => p.name);
   return `${video.join("、")} 视频${links.length ? `与 ${links.join("、")} 动态` : ""}`;
+}
+
+/** 可以放进视频块的平台名（YouTube、Bilibili…）。 */
+export function videoEmbedProviderNames(): string[] {
+  return embedProviders.filter((p) => p.content === "video").map((p) => p.name);
 }
 
 /** 面向作者的拒绝原因。 */
@@ -80,6 +84,10 @@ export function embedRejectMessage(reason: string): string {
       return "嵌入链接必须以 https:// 开头。";
     case "unsupported_host":
       return `暂不支持该网站，目前支持 ${supportedEmbedLabel()}。`;
+    case "snippet_without_link":
+      return `没有在这段嵌入代码里找到支持的链接，目前支持 ${supportedEmbedLabel()}。`;
+    case "too_long":
+      return "粘贴的内容太长，请只复制链接或官方嵌入代码。";
     case "invalid_id":
     case "invalid_path":
       return "没有识别出视频或动态编号，请复制完整的内容页地址。";

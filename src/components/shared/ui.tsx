@@ -11,6 +11,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    /** 服务端 error.details（如内容检查的 problems、字段路径），不含敏感数据。 */
+    public details?: unknown,
   ) {
     super(message);
   }
@@ -56,7 +58,12 @@ export async function api<T>(
       status: response.status,
       code: error.code,
     });
-    throw new ApiError(response.status, error.code, error.message);
+    throw new ApiError(
+      response.status,
+      error.code,
+      error.message,
+      (error as { details?: unknown }).details,
+    );
   }
   try {
     return parseApiResponse(data, url, method) as T;

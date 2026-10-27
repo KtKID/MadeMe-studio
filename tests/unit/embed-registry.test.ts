@@ -37,8 +37,10 @@ describe("嵌入注册表", () => {
     for (const p of embedProviders) {
       expect(p.name).toBeTruthy();
       expect(p.hostnames.length).toBeGreaterThan(0);
+      expect(["video", "post"]).toContain(p.content);
       if (p.kind === "iframe") {
-        expect(p.frame?.aspectRatio).toBeTruthy();
+        // 固定比例的播放器给 aspectRatio，高度随内容变化的动态给 initialHeight。
+        expect(p.frame?.aspectRatio || p.frame?.initialHeight).toBeTruthy();
         expect(p.playerUrl).toBeTypeOf("function");
         expect(p.frameOrigins.every((o) => o.startsWith("https://"))).toBe(
           true,
@@ -46,6 +48,7 @@ describe("嵌入注册表", () => {
       } else expect(p.frameOrigins).toEqual([]);
     }
     expect(embedFrameOrigins()).toEqual([
+      "https://platform.twitter.com",
       "https://player.bilibili.com",
       "https://www.youtube-nocookie.com",
     ]);
@@ -139,12 +142,47 @@ describe("YouTube（迁移自旧实现）", () => {
   });
 });
 
-describe("X（迁移自旧实现）", () => {
-  it("动态链接为跳转卡片，无 iframe", () => {
-    const m = ok("https://x.com/example/status/123");
-    expect(m.provider.kind).toBe("link");
-    expect(m.playerUrl).toBeUndefined();
+describe("X 动态", () => {
+  it("x.com / twitter.com 动态 → 官方静态嵌入页，规范链接去掉追踪参数", () => {
+    const m = ok(
+      "https://x.com/op7418/status/2115000078104691168?ref_src=twsrc%5Etfw",
+    );
+    expect(m.provider.kind).toBe("iframe");
+    expect(m.provider.content).toBe("post");
+    expect(m.target).toEqual({ id: "2115000078104691168", handle: "op7418" });
+    expect(m.playerUrl).toBe(
+      "https://platform.twitter.com/embed/Tweet.html?id=2115000078104691168&dnt=true",
+    );
+    expect(m.canonicalUrl).toBe(
+      "https://x.com/op7418/status/2115000078104691168",
+    );
+    expect(ok("https://twitter.com/jack/status/20").target.id).toBe("20");
+    expect(ok("https://mobile.twitter.com/jack/status/20/").target.id).toBe(
+      "20",
+    );
+    expect(ok("https://x.com/jack/status/20/photo/1").target.id).toBe("20");
+  });
+  it("接受没有用户名的 /i/web/status/ 与 /i/status/", () => {
+    for (const u of [
+      "https://x.com/i/web/status/2115000078104691168",
+      "https://twitter.com/i/status/2115000078104691168",
+    ]) {
+      const m = ok(u);
+      expect(m.target).toEqual({ id: "2115000078104691168" });
+      expect(m.canonicalUrl).toBe(
+        "https://x.com/i/web/status/2115000078104691168",
+      );
+    }
+  });
+  it("拒绝非动态路径与畸形 id", () => {
     expect(reason("https://x.com/example")).toBe("invalid_path");
+    expect(reason("https://x.com/example/status/abc")).toBe("invalid_path");
+    expect(reason("https://x.com/a/status/123456789012345678901")).toBe(
+      "invalid_path",
+    );
+    expect(reason("https://platform.x.com/widgets.js")).toBe(
+      "unsupported_host",
+    );
   });
 });
 
@@ -223,7 +261,7 @@ describe("服务端校验与日志", () => {
 describe("CSP frame-src 来自注册表", () => {
   it("HTML 响应只允许本站与登记的播放器来源", () => {
     expect(frameSrcDirective).toBe(
-      "frame-src 'self' https://player.bilibili.com https://www.youtube-nocookie.com",
+      "frame-src 'self' https://platform.twitter.com https://player.bilibili.com https://www.youtube-nocookie.com",
     );
     for (const path of ["/p/cf-46630d", "/studio", "/login"]) {
       const csp = secureResponse(

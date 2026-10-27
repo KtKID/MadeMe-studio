@@ -25,6 +25,7 @@ export const bilibili: EmbedProvider = {
   // b23.tv 短链需要请求一次跳转才能拿到 BV 号；渲染与校验期间绝不发起网络请求。
   shortLinkHosts: ["b23.tv", "www.b23.tv", "b23.wtf"],
   kind: "iframe",
+  content: "video",
   frameOrigins: ["https://player.bilibili.com"],
   frame: {
     title: "Bilibili 视频",
@@ -70,5 +71,12 @@ export const bilibili: EmbedProvider = {
     if (start) q.set("t", String(start));
     q.set("autoplay", "0");
     return `https://player.bilibili.com/player.html?${q}`;
+  },
+  canonicalUrl({ id, part, start }) {
+    const q = new URLSearchParams();
+    if (part) q.set("p", String(part));
+    if (start) q.set("t", String(start));
+    const query = q.toString();
+    return `https://www.bilibili.com/video/${id}/${query ? `?${query}` : ""}`;
   },
 };

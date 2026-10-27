@@ -17,6 +17,7 @@ export const youtube: EmbedProvider = {
     "www.youtube-nocookie.com",
   ],
   kind: "iframe",
+  content: "video",
   frameOrigins: ["https://www.youtube-nocookie.com"],
   frame: {
     title: "YouTube 视频",
@@ -47,4 +48,6 @@ export const youtube: EmbedProvider = {
   playerUrl: ({ id, start }) =>
     `https://www.youtube-nocookie.com/embed/${id}` +
     (start ? `?start=${start}` : ""),
+  canonicalUrl: ({ id, start }) =>
+    `https://www.youtube.com/watch?v=${id}` + (start ? `&t=${start}s` : ""),
 };

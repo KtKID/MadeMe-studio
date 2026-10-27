@@ -44,10 +44,19 @@ describe("嵌入渲染（注册表驱动）", () => {
       renderToStaticMarkup(<SafeEmbed url="https://youtu.be/dQw4w9WgXcQ" />),
     ).toContain('src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"');
     const x = renderToStaticMarkup(
-      <SafeEmbed url="https://x.com/a/status/1" />,
+      <SafeEmbed url="https://x.com/a/status/1?ref_src=twsrc" />,
     );
-    expect(x).toContain("在 X 上阅读这条动态");
-    expect(x).not.toContain("<iframe");
+    // X 改为官方静态嵌入页 iframe，下方始终保留“在 X 查看”降级链接（规范链接）。
+    expect(x).toContain(
+      'src="https://platform.twitter.com/embed/Tweet.html?id=1&amp;dnt=true"',
+    );
+    expect(x).toContain("data-auto-height");
+    expect(x).toContain(
+      'sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"',
+    );
+    expect(x).not.toContain("allow-top-navigation");
+    expect(x).toContain('href="https://x.com/a/status/1"');
+    expect(x).toContain("在 X 查看 @a 的动态");
   });
   it("上传文件与直链仍是 <video>，其他网页仍是跳转卡片", () => {
     expect(video("/api/files/abc")).toContain('<video src="/api/files/abc"');

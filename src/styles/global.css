@@ -3078,3 +3078,45 @@ kbd {
   height: auto;
   max-width: 100%;
 }
+/* X 等高度随内容变化的嵌入：高度由 src/modules/embed/autoHeight.ts 调整。 */
+.post-embed {
+  margin: 20px auto;
+  max-width: 550px;
+}
+.post-embed iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
+}
+.post-embed iframe[data-embed-state="unavailable"] {
+  display: none;
+}
+.post-embed figcaption {
+  margin-top: 6px;
+  font-size: 12px;
+  text-align: right;
+}
+.post-embed figcaption a {
+  color: var(--muted);
+}
+.post-embed iframe[data-embed-state="unavailable"] + figcaption {
+  text-align: left;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13px;
+}
+.editor-video-advice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.block-attention {
+  outline: 2px solid var(--danger, #d4443b);
+  outline-offset: 4px;
+  border-radius: 6px;
+}

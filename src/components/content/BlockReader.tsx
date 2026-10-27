@@ -129,25 +129,52 @@ export function SafeEmbed({
       </div>
     );
   }
-  const { provider, playerUrl, url: href } = result.match;
-  if (provider.kind === "iframe" && provider.frame && playerUrl)
+  const { provider, playerUrl, url: href, canonicalUrl, target } = result.match;
+  if (provider.kind === "iframe" && provider.frame && playerUrl) {
+    const frame = provider.frame;
+    if (frame.initialHeight)
+      // 高度随内容变化的动态（X）：iframe 高度由 installEmbedAutoHeight 按提供方消息调整；
+      // 下方始终保留跳转链接，iframe 加载失败（动态被删、网络被墙）时它就是降级内容。
+      return (
+        <figure className="post-embed" data-embed={provider.id}>
+          <iframe
+            src={playerUrl}
+            title={frame.title}
+            loading="lazy"
+            allow={frame.allow || undefined}
+            sandbox={frame.sandbox}
+            referrerPolicy={frame.referrerPolicy}
+            data-auto-height=""
+            data-provider={provider.id}
+            style={{ height: frame.initialHeight }}
+          />
+          <figcaption>
+            <a href={canonicalUrl} target="_blank" rel="noopener noreferrer">
+              {`${provider.linkLabel || `在 ${provider.name} 查看`}${
+                target.handle ? ` @${target.handle} 的动态` : " 这条动态"
+              } ↗`}
+            </a>
+          </figcaption>
+        </figure>
+      );
     return (
       <div
         className="video-embed"
         data-embed={provider.id}
-        style={{ aspectRatio: provider.frame.aspectRatio }}
+        style={{ aspectRatio: frame.aspectRatio }}
       >
         <iframe
           src={playerUrl}
-          title={provider.frame.title}
+          title={frame.title}
           loading="lazy"
-          allow={provider.frame.allow}
-          sandbox={provider.frame.sandbox}
-          referrerPolicy={provider.frame.referrerPolicy}
+          allow={frame.allow}
+          sandbox={frame.sandbox}
+          referrerPolicy={frame.referrerPolicy}
           allowFullScreen
         />
       </div>
     );
+  }
   return (
     <a
       className="x-embed"
@@ -156,7 +183,7 @@ export function SafeEmbed({
       target="_blank"
       rel="noopener noreferrer"
     >
-      <span className="x-logo">{provider.id === "x" ? "𝕏" : "↗"}</span>
+      <span className="x-logo">↗</span>
       <span>
         {provider.linkLabel || `在 ${provider.name} 查看`}
         <small>{href}</small>
@@ -168,7 +195,7 @@ export function SafeEmbed({
 const directVideoPath = /\.(mp4|m4v|webm|ogv|ogg|mov)$/i;
 /**
  * BlockNote 视频块同时支持“上传”和“粘贴链接”两种来源：站内媒体或直链视频文件交给
- * <video>；匹配嵌入注册表中 iframe 提供方（YouTube、Bilibili…）的链接用对应播放器；
+ * <video>；匹配嵌入注册表的链接（YouTube、Bilibili 播放器；X 动态等旧数据也按嵌入渲染）；
  * 其他网页降级为跳转卡片，而不是渲染一个永远 0:00 的播放器。
  */
 export function videoSource(
@@ -183,6 +210,8 @@ export function videoSource(
   const embed = parseEmbed(url);
   if (embed.ok && embed.match.provider.kind === "iframe")
     return { kind: "embed", url };
+  // 以 "<" 开头的嵌入代码不是链接：不渲染（编辑器会提示并阻止保存）。
+  if (url.trimStart().startsWith("<")) return null;
   try {
     const u = new URL(url);
     if (directVideoPath.test(u.pathname)) return { kind: "file", src: url };

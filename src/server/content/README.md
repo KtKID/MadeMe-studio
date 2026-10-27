@@ -4,7 +4,7 @@
 
 - `service.ts`：草稿、发布、撤回、软删除、恢复、修订恢复的业务约束。
 - `repository.ts`：仓库接口与 D1 实现；业务层可独立验证。
-- `validation.ts`：块树尺寸/深度、链接协议、嵌入提供商与媒体引用检查。
+- `validation.ts`：块树尺寸/深度、链接协议、嵌入提供商与媒体引用检查。链接与嵌入规则来自 `src/modules/content-check`，拒绝时返回 422，`message` 为按块定位的中文原因（如“第 2 个视频块……”），`details.problems` 给出 blockId / blockType / ordinal，并记 `content.rejected` 日志（不含 URL）。
 - `markdown.ts`：保守 Markdown 导入，生成 BlockNote JSON；HTML 作为字面文本，不执行或直接插入 DOM。
 
 ## 数据语义

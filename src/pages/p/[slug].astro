@@ -121,3 +121,9 @@ const capabilities = authenticated
     </footer>
   </div>
 </Base>
+<script>
+  // X 等嵌入的高度自适应与加载失败降级（只是第一方脚本，不加载第三方脚本）。
+  import { installEmbedAutoHeight } from "../../modules/embed/autoHeight";
+  installEmbedAutoHeight();
+  document.addEventListener("astro:page-load", () => installEmbedAutoHeight());
+</script>
