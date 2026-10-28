@@ -64,7 +64,7 @@ describe("浏览器目录授权边界", () => {
     expect(isDirectoryPickerSupported()).toBe(false);
     await expect(pickDirectory()).rejects.toThrow("浏览器不支持");
   });
-  it("从 documents 开始，只在显式调用后显示选择器", async () => {
+  it("配置目录仅申请读取能力，从 documents 开始且只由点击打开", async () => {
     const handle = directory();
     const picker = vi.fn().mockResolvedValue(handle);
     vi.stubGlobal("window", {
@@ -75,7 +75,7 @@ describe("浏览器目录授权边界", () => {
     expect(picker).not.toHaveBeenCalled();
     await expect(pickDirectory()).resolves.toBe(handle);
     expect(picker).toHaveBeenCalledWith({
-      mode: "readwrite",
+      mode: "read",
       startIn: "documents",
     });
   });

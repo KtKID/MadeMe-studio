@@ -107,3 +107,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 - 修复裸按钮和默认 fieldset/legend 边框，复用现有按钮、表单、卡片与共享 Modal；没有新增全局 CSS 覆盖或业务行为。
 - 4 项样式接线回归先红后绿，覆盖明暗模式及普通下载分支；全仓 78 文件 / 621 项通过，check 无 errors/warnings、5 hints，build 与 HTTP 冒烟通过。
 - 原始截图已检查；实际组件静态视觉夹具被云浏览器 `data:` URL 策略拒绝，未绕过。修复后真实页面截图及移动端视觉仍未验收，不以 DOM 测试替代。详见 [修复报告](../reports/2026-10-28-obsidian-ui-style-consistency.md)。
+
+## 本地写权限时机（2026-10-28）
+
+目录选择改为只读；实际文章保存前查询 granted/prompt/denied，配置保存不请求写权限。先红后绿，最终78文件624项通过，check无错误/警告、5 hints，build与HTTP冒烟通过。系统必要授权仍保留，当前未完成真实Chrome授权弹窗验收。详见 [权限时机报告](../reports/2026-10-28-obsidian-write-permission.md)。

@@ -151,11 +151,20 @@ export default function SaveButton({
       // 快照转换是同步操作；先固定它，避免转换失败时留下未处理的权限 Promise。
       if ((!mode && !createDirectories) || !snapshot.current)
         snapshot.current = prepareExport(getSnapshot(), window.location.origin);
-      // requestPermission 仍在同一次用户手势中调用，之前没有等待网络或数据库。
-      const permission = selected.handle.requestPermission?.({
-        mode: "readwrite",
-      });
-      if (permission && (await permission) !== "granted")
+      // 查询不会弹窗；已授权直接继续，被拒绝则停止，不能自动反复请求。
+      const permission =
+        (await selected.handle.queryPermission?.({ mode: "readwrite" })) ??
+        "prompt";
+      if (permission === "denied")
+        throw new Error(
+          "目录写入权限已被拒绝，未保存文章。请在浏览器设置中调整权限，或主动选择其他位置。",
+        );
+      // 仅此实际保存点击路径可请求写权限；首次写入/授权过期仍可能出现系统确认。
+      if (
+        permission !== "granted" &&
+        (await selected.handle.requestPermission?.({ mode: "readwrite" })) !==
+          "granted"
+      )
         throw new Error("目录权限已失效。请重新授权或选择其他位置；尚未保存。");
       const isVault = await verifyVault(selected.handle);
       const saved = await saveToDirectory(selected.handle, snapshot.current, {

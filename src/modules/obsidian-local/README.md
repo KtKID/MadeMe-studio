@@ -38,3 +38,5 @@ Markdown 转换本身有损；特殊块/样式需核对。平台视频和嵌入�
 ## 界面设计契约
 
 设置与保存弹窗复用现有 `.button` / `.primary` / `.small`、`.button-group`、`.form-stack`、`.form-grid`、`.config-card`、`.form-hint` 及共享 Modal / `.modal-actions`。不使用裸按钮或浏览器默认 fieldset 边框，不定义本模块独立主题。busy 状态仍禁用输入与操作。样式接线测试与真实截图验收分开记录，详见 [样式修复报告](../../../reports/2026-10-28-obsidian-ui-style-consistency.md)。
+
+配置目录的系统选择器仅请求读取；保存/编辑预设只写 IndexedDB，不申请 vault 写权限。实际点击保存文章时才查询写权限：已授权直接继续、需询问时申请一次、已拒绝则停止并提示调整权限。浏览器必要的原生读取/写入授权仍可能出现，站内确认框不能替代或绕过它。

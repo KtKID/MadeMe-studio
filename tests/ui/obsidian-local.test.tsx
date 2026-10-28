@@ -163,6 +163,8 @@ it("设置编辑预设只调用本地持久化，并可删除不删文件", asyn
   });
   fireEvent.click(screen.getByText("保存本地预设"));
   await screen.findByText("本地预设已保存，仅此浏览器可用。");
+  expect(h.permission).not.toHaveBeenCalled();
+  expect(h.save).not.toHaveBeenCalled();
   expect(h.put.mock.calls[0][0]).toMatchObject({
     id: "p",
     name: "工作笔记",
@@ -283,3 +285,44 @@ it("不支持目录授权的普通下载按钮也沿用设计系统", async () =
   for (const button of container.querySelectorAll("button"))
     expect(button.matches(".button,.icon-button")).toBe(true);
 });
+
+it.each(["granted", "denied", "prompt"])(
+  "实际保存前查询写权限，不无条件请求：%s",
+  async (state) => {
+    const query = vi.fn().mockResolvedValue(state);
+    h.list.mockResolvedValue([
+      {
+        preset: {
+          id: "p",
+          name: "本地库",
+          vaultName: "vault",
+          noteDirectory: "笔记",
+          imageRule: "../asset",
+          isVault: true,
+        },
+        handle: {
+          name: "vault",
+          queryPermission: query,
+          requestPermission: h.permission,
+        },
+      },
+    ]);
+    render(<SaveButton getSnapshot={snapshot} />);
+    fireEvent.click(screen.getByText("保存到 Obsidian"));
+    await screen.findByText("本地库");
+    expect(query).not.toHaveBeenCalled();
+    expect(h.permission).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("保存本次快照"));
+    if (state === "denied") {
+      await screen.findByText(/写入权限已被拒绝/);
+      expect(h.save).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByText("保存本次快照"));
+      await waitFor(() => expect(query).toHaveBeenCalledTimes(2));
+      expect(h.permission).not.toHaveBeenCalled();
+    } else {
+      await screen.findByText(/已保存到本地/);
+      expect(h.permission).toHaveBeenCalledTimes(state === "prompt" ? 1 : 0);
+    }
+    expect(query).toHaveBeenCalledWith({ mode: "readwrite" });
+  },
+);
