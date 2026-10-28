@@ -49,3 +49,5 @@ Markdown 转换本身有损；特殊块/样式需核对。平台视频和嵌入�
 `open.ts` 保留相对路径校验与参数编码，恢复原有 best-effort URI：已授权目录 `name` + 已保存相对路径。仅沿用现有 `.obsidian` 检测，不扫描更多位置，不移动文件，不猜绝对路径或读取应用登记表。浏览器句柄只暴露名称及授权树内访问，不能可靠验证 Obsidian 实际登记的仓库名称。
 
 因此原 `Vault not found` 根问题尚未解决，恢复入口不是修复成功声明。旧版擅加的登记身份输入、根确认 checkbox、提示和限制已按用户要求撤回，不能再要求用户为此完成额外配置。官方协议参考：[Obsidian URI](https://obsidian.md/help/uri)。
+
+编辑器入口的工具栏样式只作用于直属按钮；本模块保存 Modal 通过 portal 挂至 body，避免快捷栏的后代按钮样式污染弹窗。共享 Modal 本身及其它弹窗不改。回归包含真实全量 CSS 的 cascade、按钮 padding/字号/hover/disabled/focus、主题 token、焦点恢复和 SSR；jsdom状态模拟不代替真实浏览器截图。

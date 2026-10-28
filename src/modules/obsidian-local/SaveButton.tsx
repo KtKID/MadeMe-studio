@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { buildObsidianUri } from "./open";
 import { useRef, useState } from "react";
 import { Modal, Notice, downloadText } from "../../components/shared/ui";
@@ -229,173 +230,175 @@ export default function SaveButton({
       >
         保存到 Obsidian
       </button>
-      {open && (
-        <Modal title="保存到 Obsidian" onClose={close}>
-          <p className="form-hint">
-            保存点击时的当前稿快照，不会发布文章。Markdown
-            转换可能丢失特殊块样式；平台视频保留链接，不下载视频。
-          </p>
-          {error && <Notice kind="error">{error}</Notice>}
-          {!supported ? (
-            <>
-              <p className="form-hint">
-                当前浏览器不支持目录授权。普通下载仅含 Markdown
-                和原图片链接，不代表图片已落盘或已同步 Obsidian。
-              </p>
-              <button className="button" type="button" onClick={fallback}>
-                仅下载 Markdown
-              </button>
-            </>
-          ) : (
-            <>
-              <label>
-                保存预设
-                <select
-                  aria-label="保存预设"
-                  disabled={busy}
-                  value={
-                    records.some((r) => r.preset.id === selected?.preset.id)
-                      ? selected?.preset.id
-                      : ""
-                  }
-                  onChange={(event) => {
-                    request.current++;
-                    const record = records.find(
-                      (r) => r.preset.id === event.target.value,
-                    );
-                    setSelected(record);
-                    setDirectory(record?.preset.noteDirectory ?? "");
-                    setConflict(false);
-                    setMissing(false);
-                    setResult(undefined);
-                    snapshot.current = null;
-                  }}
-                >
-                  <option value="">选择预设或其他位置</option>
-                  {records.map((record) => (
-                    <option key={record.preset.id} value={record.preset.id}>
-                      {record.preset.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {selected && (
-                <>
-                  <p className="form-hint">
-                    目标：{selected.handle.name}/{directory || "（根目录）"}
-                    ；图片规则：{selected.preset.imageRule}
-                  </p>
-                  {!selected.preset.isVault && (
-                    <p className="form-hint">
-                      这是普通文件夹，不能报告为已同步 Obsidian。请选择包含
-                      .obsidian 的仓库根目录。
-                    </p>
-                  )}
-                  <button
-                    className="button"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void chooseChild()}
-                  >
-                    浏览文章子目录
-                  </button>
-                </>
-              )}
-              <div className="button-group">
-                <button
-                  className="button"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void chooseOther()}
-                >
-                  选择其他位置
-                </button>
-                <button
-                  className="button"
-                  type="button"
-                  disabled={busy}
-                  onClick={fallback}
-                >
+      {open &&
+        createPortal(
+          <Modal title="保存到 Obsidian" onClose={close}>
+            <p className="form-hint">
+              保存点击时的当前稿快照，不会发布文章。Markdown
+              转换可能丢失特殊块样式；平台视频保留链接，不下载视频。
+            </p>
+            {error && <Notice kind="error">{error}</Notice>}
+            {!supported ? (
+              <>
+                <p className="form-hint">
+                  当前浏览器不支持目录授权。普通下载仅含 Markdown
+                  和原图片链接，不代表图片已落盘或已同步 Obsidian。
+                </p>
+                <button className="button" type="button" onClick={fallback}>
                   仅下载 Markdown
                 </button>
-              </div>
-              <p className="form-hint">
-                普通下载仅保留网站图片链接，不代表图片已落盘。
-              </p>
-              {!records.length && (
-                <p className="form-hint">
-                  可先在设置 → 同步 Obsidian
-                  中添加预设；此处临时选择不会改动预设。
-                </p>
-              )}
-              {result && (
-                <Notice kind="success">
-                  {result.isVault
-                    ? "已保存到本地目录"
-                    : "已保存到普通文件夹（未同步 Obsidian）"}
-                  ：{result.path}
-                  {result.openUri && (
-                    <p className="form-hint">
-                      <a href={result.openUri}>在 Obsidian 中打开</a>
-                      （需要本机已安装，点击后请自行确认打开结果）
-                    </p>
-                  )}
-                </Notice>
-              )}
-            </>
-          )}
-          <div className="modal-actions button-group">
-            <button
-              className="button"
-              type="button"
-              disabled={busy}
-              onClick={close}
-            >
-              取消
-            </button>
-            {supported && (
+              </>
+            ) : (
               <>
-                {missing && (
+                <label>
+                  保存预设
+                  <select
+                    aria-label="保存预设"
+                    disabled={busy}
+                    value={
+                      records.some((r) => r.preset.id === selected?.preset.id)
+                        ? selected?.preset.id
+                        : ""
+                    }
+                    onChange={(event) => {
+                      request.current++;
+                      const record = records.find(
+                        (r) => r.preset.id === event.target.value,
+                      );
+                      setSelected(record);
+                      setDirectory(record?.preset.noteDirectory ?? "");
+                      setConflict(false);
+                      setMissing(false);
+                      setResult(undefined);
+                      snapshot.current = null;
+                    }}
+                  >
+                    <option value="">选择预设或其他位置</option>
+                    {records.map((record) => (
+                      <option key={record.preset.id} value={record.preset.id}>
+                        {record.preset.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selected && (
+                  <>
+                    <p className="form-hint">
+                      目标：{selected.handle.name}/{directory || "（根目录）"}
+                      ；图片规则：{selected.preset.imageRule}
+                    </p>
+                    {!selected.preset.isVault && (
+                      <p className="form-hint">
+                        这是普通文件夹，不能报告为已同步 Obsidian。请选择包含
+                        .obsidian 的仓库根目录。
+                      </p>
+                    )}
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void chooseChild()}
+                    >
+                      浏览文章子目录
+                    </button>
+                  </>
+                )}
+                <div className="button-group">
                   <button
                     className="button"
-                    disabled={busy}
-                    onClick={() => void save(undefined, true)}
-                  >
-                    创建目录并保存
-                  </button>
-                )}
-                {conflict ? (
-                  <div className="button-group">
-                    <button
-                      className="button"
-                      disabled={busy}
-                      onClick={() => void save("copy")}
-                    >
-                      另存副本
-                    </button>
-                    <button
-                      className="button"
-                      disabled={busy}
-                      onClick={() => void save("overwrite")}
-                    >
-                      确认覆盖本地修改
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    className="button primary"
                     type="button"
-                    disabled={busy || !selected}
-                    onClick={() => void save()}
+                    disabled={busy}
+                    onClick={() => void chooseOther()}
                   >
-                    {busy ? "正在保存…" : "保存本次快照"}
+                    选择其他位置
                   </button>
+                  <button
+                    className="button"
+                    type="button"
+                    disabled={busy}
+                    onClick={fallback}
+                  >
+                    仅下载 Markdown
+                  </button>
+                </div>
+                <p className="form-hint">
+                  普通下载仅保留网站图片链接，不代表图片已落盘。
+                </p>
+                {!records.length && (
+                  <p className="form-hint">
+                    可先在设置 → 同步 Obsidian
+                    中添加预设；此处临时选择不会改动预设。
+                  </p>
+                )}
+                {result && (
+                  <Notice kind="success">
+                    {result.isVault
+                      ? "已保存到本地目录"
+                      : "已保存到普通文件夹（未同步 Obsidian）"}
+                    ：{result.path}
+                    {result.openUri && (
+                      <p className="form-hint">
+                        <a href={result.openUri}>在 Obsidian 中打开</a>
+                        （需要本机已安装，点击后请自行确认打开结果）
+                      </p>
+                    )}
+                  </Notice>
                 )}
               </>
             )}
-          </div>
-        </Modal>
-      )}
+            <div className="modal-actions button-group">
+              <button
+                className="button"
+                type="button"
+                disabled={busy}
+                onClick={close}
+              >
+                取消
+              </button>
+              {supported && (
+                <>
+                  {missing && (
+                    <button
+                      className="button"
+                      disabled={busy}
+                      onClick={() => void save(undefined, true)}
+                    >
+                      创建目录并保存
+                    </button>
+                  )}
+                  {conflict ? (
+                    <div className="button-group">
+                      <button
+                        className="button"
+                        disabled={busy}
+                        onClick={() => void save("copy")}
+                      >
+                        另存副本
+                      </button>
+                      <button
+                        className="button"
+                        disabled={busy}
+                        onClick={() => void save("overwrite")}
+                      >
+                        确认覆盖本地修改
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="button primary"
+                      type="button"
+                      disabled={busy || !selected}
+                      onClick={() => void save()}
+                    >
+                      {busy ? "正在保存…" : "保存本次快照"}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </Modal>,
+          document.body,
+        )}
     </>
   );
 }

@@ -127,3 +127,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## Obsidian 文字入口 hover（2026-10-28）
 
 仅用写作快捷栏内专用选择器取消该入口的灰色悬停背景；其它按钮hover、键盘focus-visible、点击与busy不变。先红后绿，全仓80文件637项通过，check无errors/warnings、5 hints，build及HTTP冒烟通过。未推送部署；实际浏览器截图仍未验收。详见[悬停修复报告](../reports/2026-10-28-obsidian-trigger-hover.md)。
+
+## Obsidian 弹窗样式边界（2026-10-28）
+
+全量CSS cascade复现工具栏祖先规则造成按钮padding=0和hover文字/背景同token；桌面/移动规则收窄直属按钮，仅此保存Modal portal到body，未改共享Modal实现或其它弹窗交互。先红后绿；82文件643项通过，check无errors/warnings、5 hints，build与HTTP冒烟通过。覆盖light/dark、padding/标题/hover/disabled/focus、Tab/Escape/遮罩/焦点恢复/卸载及SSR。真实浏览器视觉待预览验证，未绕过权限，未推送部署。详见[边界修复报告](../reports/2026-10-28-obsidian-modal-style-boundary.md)。

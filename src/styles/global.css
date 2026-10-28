@@ -1324,7 +1324,7 @@ img {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
-.writing-shortcuts button {
+.writing-shortcuts > button {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1334,11 +1334,11 @@ img {
   color: var(--muted);
   font-size: 10px;
 }
-.writing-shortcuts button:hover {
+.writing-shortcuts > button:hover {
   color: var(--accent-hover);
 }
 /* 仅此文字入口取消通用 .button:hover 的灰底，保留键盘焦点轮廓。 */
-.writing-shortcuts .obsidian-save-trigger:hover {
+.writing-shortcuts > .obsidian-save-trigger:hover {
   background: transparent;
 }
 .editor-document .bn-container {
@@ -2707,7 +2707,7 @@ kbd {
   .writing-shortcuts {
     gap: 12px;
   }
-  .writing-shortcuts button {
+  .writing-shortcuts > button {
     font-size: 9px;
   }
   .editor-document .bn-editor {

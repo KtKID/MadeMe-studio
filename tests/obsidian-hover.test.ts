@@ -7,7 +7,7 @@ const css = readFileSync(
 describe("Obsidian文字入口的窄范围hover契约", () => {
   it("只在写作快捷栏该入口取消悬停底色，不新增focus或状态覆盖", () => {
     const rule =
-      /\.writing-shortcuts \.obsidian-save-trigger:hover\s*\{([^}]+)\}/.exec(
+      /\.writing-shortcuts > \.obsidian-save-trigger:hover\s*\{([^}]+)\}/.exec(
         css,
       );
     expect(rule).not.toBeNull();

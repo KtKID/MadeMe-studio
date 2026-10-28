@@ -267,13 +267,13 @@ it.each(["light", "dark"])(
   },
 );
 it("本地保存弹窗与fallback使用共享Modal及按钮样式", async () => {
-  const { container } = render(<SaveButton getSnapshot={snapshot} />);
+  const { baseElement } = render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
-  for (const button of container.querySelectorAll("button"))
+  for (const button of baseElement.querySelectorAll("button"))
     expect(button.matches(".button,.icon-button")).toBe(true);
-  expect(container.querySelector("dialog")).toBeNull();
-  expect(container.querySelector(".modal .modal-actions")).not.toBeNull();
+  expect(baseElement.querySelector("dialog")).toBeNull();
+  expect(baseElement.querySelector(".modal .modal-actions")).not.toBeNull();
   expect(screen.getByText("保存本次快照").classList.contains("primary")).toBe(
     true,
   );
@@ -446,4 +446,39 @@ it("只有打开保存面板的文字入口带无底色悬停标记", async () =
       .getByText("保存本次快照")
       .classList.contains("obsidian-save-trigger"),
   ).toBe(false);
+});
+
+it("保存Modal脱离快捷栏DOM，保留焦点陷阱、遮罩/Escape关闭和恢复焦点", async () => {
+  const { unmount } = render(
+    <div className="writing-shortcuts">
+      <SaveButton getSnapshot={snapshot} />
+    </div>,
+  );
+  const trigger = screen.getByText("保存到 Obsidian");
+  trigger.focus();
+  fireEvent.click(trigger);
+  await screen.findByText("本地库");
+  let dialog = screen.getByRole("dialog");
+  expect(dialog.closest(".writing-shortcuts")).toBeNull();
+  expect(dialog.parentElement?.parentElement).toBe(document.body);
+  const buttons = dialog.querySelectorAll<HTMLButtonElement>(
+    "button:not(:disabled)",
+  );
+  buttons[buttons.length - 1].focus();
+  fireEvent.keyDown(document, { key: "Tab" });
+  expect(document.activeElement).toBe(buttons[0]);
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+  fireEvent.click(trigger);
+  await screen.findByRole("dialog");
+  dialog = screen.getByRole("dialog");
+  fireEvent.click(dialog.parentElement!);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+  fireEvent.click(trigger);
+  await screen.findByRole("dialog");
+  unmount();
+  expect(document.querySelector(".modal-backdrop")).toBeNull();
+  fireEvent.keyDown(document, { key: "Escape" });
 });
