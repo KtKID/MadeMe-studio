@@ -111,3 +111,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## 本地写权限时机（2026-10-28）
 
 目录选择改为只读；实际文章保存前查询 granted/prompt/denied，配置保存不请求写权限。先红后绿，最终78文件624项通过，check无错误/警告、5 hints，build与HTTP冒烟通过。系统必要授权仍保留，当前未完成真实Chrome授权弹窗验收。详见 [权限时机报告](../reports/2026-10-28-obsidian-write-permission.md)。
+
+## Obsidian 配置站内确认（2026-10-28）
+
+用户要求的“是否保存此预设？”共享 Modal 已实现，确认仅写 IndexedDB，取消保留输入、重复确认锁定、失败在框内可见且可重试。3项先红后绿；模块21项UI通过，全仓78文件626项通过，check无错误/警告、5 hints，build和HTTP冒烟通过。实际文件写入的浏览器必要授权仍保留，真实视觉/原生权限未验收。详见 [站内确认报告](../reports/2026-10-28-obsidian-preset-confirmation.md)。

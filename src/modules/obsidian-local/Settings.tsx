@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Notice } from "../../components/shared/ui";
+import { Modal, Notice } from "../../components/shared/ui";
 import { clientLog } from "../log/client";
 import { OBSIDIAN_LOCAL_DEFAULTS } from "../config/limits";
 import {
@@ -32,6 +32,7 @@ export default function ObsidianSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [pending, setPending] = useState<PresetRecord>();
   const lock = useRef(false);
   const mounted = useRef(true);
   const revision = useRef(0);
@@ -99,29 +100,39 @@ export default function ObsidianSettings() {
       setBusy(false);
     }
   }
-  async function save() {
+  function prepareSave() {
     if (!handle || lock.current) return;
+    setError("");
+    setMessage("");
+    const parsed = presetSchema.safeParse({
+      id: id || crypto.randomUUID(),
+      name,
+      vaultName: handle.name,
+      noteDirectory,
+      imageRule,
+      isVault,
+    });
+    if (!parsed.success) {
+      fail(
+        new Error(parsed.error.issues.map((issue) => issue.message).join("；")),
+      );
+      return;
+    }
+    // 站内确认固定这份配置快照；不是文件系统授权，不接触 vault 文件。
+    setPending({ preset: parsed.data, handle });
+  }
+  async function save() {
+    if (!pending || lock.current) return;
     revision.current++;
     lock.current = true;
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      const parsed = presetSchema.safeParse({
-        id: id || crypto.randomUUID(),
-        name,
-        vaultName: handle.name,
-        noteDirectory,
-        imageRule,
-        isVault,
-      });
-      if (!parsed.success)
-        throw new Error(
-          parsed.error.issues.map((issue) => issue.message).join("；"),
-        );
-      await putPreset(parsed.data, handle);
+      await putPreset(pending.preset, pending.handle);
       setRecords(await listPresets());
-      setId(parsed.data.id);
+      setId(pending.preset.id);
+      setPending(undefined);
       setMessage("本地预设已保存，仅此浏览器可用。");
     } catch (error) {
       fail(error);
@@ -269,13 +280,50 @@ export default function ObsidianSettings() {
                 className="button primary"
                 type="button"
                 disabled={busy || !handle}
-                onClick={() => void save()}
+                onClick={prepareSave}
               >
                 保存本地预设
               </button>
             </div>
           </div>
         </div>
+      )}
+      {pending && (
+        <Modal
+          title="是否保存此预设？"
+          onClose={() => {
+            if (!lock.current) setPending(undefined);
+          }}
+        >
+          <p className="form-hint">
+            只保存当前浏览器中的配置，不写入文章或图片，也不申请目录写入权限。
+          </p>
+          <p>
+            预设名称：<strong>{pending.preset.name}</strong>
+          </p>
+          <p>根目录：{pending.handle.name}</p>
+          <p>文章子目录：{pending.preset.noteDirectory || "（根目录）"}</p>
+          <p>图片规则：{pending.preset.imageRule}</p>
+          {error && <Notice kind="error">{error}</Notice>}
+          <div className="modal-actions button-group">
+            <button
+              className="button"
+              type="button"
+              disabled={busy}
+              onClick={() => setPending(undefined)}
+            >
+              取消
+            </button>
+            <button
+              className="button primary"
+              type="button"
+              disabled={busy}
+              onClick={() => void save()}
+            >
+              确认保存预设
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

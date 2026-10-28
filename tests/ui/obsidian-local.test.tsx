@@ -162,6 +162,9 @@ it("设置编辑预设只调用本地持久化，并可删除不删文件", asyn
     target: { value: "工作笔记" },
   });
   fireEvent.click(screen.getByText("保存本地预设"));
+  await screen.findByRole("dialog", { name: "是否保存此预设？" });
+  expect(h.put).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText("确认保存预设"));
   await screen.findByText("本地预设已保存，仅此浏览器可用。");
   expect(h.permission).not.toHaveBeenCalled();
   expect(h.save).not.toHaveBeenCalled();
@@ -326,3 +329,47 @@ it.each(["granted", "denied", "prompt"])(
     expect(query).toHaveBeenCalledWith({ mode: "readwrite" });
   },
 );
+
+it("取消站内预设保存确认保留编辑输入，不请求系统写权限", async () => {
+  render(<ObsidianSettings />);
+  fireEvent.click(await screen.findByText("编辑 本地库"));
+  fireEvent.change(screen.getByLabelText("预设名称"), {
+    target: { value: "待确认的新名称" },
+  });
+  fireEvent.click(screen.getByText("保存本地预设"));
+  await screen.findByRole("dialog", { name: "是否保存此预设？" });
+  expect(screen.getByText("待确认的新名称")).toBeTruthy();
+  fireEvent.click(screen.getByText("取消"));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect((screen.getByLabelText("预设名称") as HTMLInputElement).value).toBe(
+    "待确认的新名称",
+  );
+  expect(h.put).not.toHaveBeenCalled();
+  expect(h.permission).not.toHaveBeenCalled();
+});
+it("重复确认只保存一次，失败留在站内确认框且可重试", async () => {
+  let reject!: (error: Error) => void;
+  h.put.mockImplementationOnce(
+    () =>
+      new Promise((_, r) => {
+        reject = r;
+      }),
+  );
+  render(<ObsidianSettings />);
+  fireEvent.click(await screen.findByText("编辑 本地库"));
+  fireEvent.click(screen.getByText("保存本地预设"));
+  fireEvent.click(await screen.findByText("确认保存预设"));
+  fireEvent.click(screen.getByText("确认保存预设"));
+  expect(h.put).toHaveBeenCalledTimes(1);
+  expect((screen.getByText("取消") as HTMLButtonElement).disabled).toBe(true);
+  await act(async () => reject(new Error("本地数据库保存失败")));
+  const dialog = screen.getByRole("dialog", { name: "是否保存此预设？" });
+  expect(dialog.textContent).toContain("本地数据库保存失败");
+  expect((screen.getByText("确认保存预设") as HTMLButtonElement).disabled).toBe(
+    false,
+  );
+  fireEvent.click(screen.getByText("确认保存预设"));
+  await screen.findByText("本地预设已保存，仅此浏览器可用。");
+  expect(h.put).toHaveBeenCalledTimes(2);
+  expect(h.permission).not.toHaveBeenCalled();
+});
