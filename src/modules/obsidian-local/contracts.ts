@@ -51,10 +51,10 @@ export const presetSchema = z
       .trim()
       .min(1, "请填写预设名称。")
       .max(TEXT_LIMITS.postTitle),
-    // 旧字段只用于目录显示，不再当作 Obsidian 登记身份。
+    // 目录显示名；后两项仅兼容保留历史数据，不参与UI或打开链接前置条件。
     vaultName: z.string().min(1).max(TEXT_LIMITS.url),
-    obsidianVault: z.string().trim().max(TEXT_LIMITS.url).default(""),
-    vaultRootConfirmed: z.boolean().default(false),
+    obsidianVault: z.string().trim().max(TEXT_LIMITS.url).optional(),
+    vaultRootConfirmed: z.boolean().optional(),
     noteDirectory: relativePath.default(OBSIDIAN_LOCAL_DEFAULTS.noteDirectory),
     imageRule: relativePath.min(1).default(OBSIDIAN_LOCAL_DEFAULTS.imageRule),
     isVault: z.boolean(),

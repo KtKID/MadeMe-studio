@@ -119,3 +119,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## Obsidian 打开链接身份（2026-10-28）
 
 保存逻辑/路径保持不变，打开URI改用用户明确配置的登记名称或ID和根确认；旧预设默认禁用猜测链接，保留复制相对路径。新增6项协议/URI和3项UI回归，全仓79文件635项通过，check无errors/warnings、5 hints，build及HTTP冒烟通过。真实应用登记名称/ID仍需用户确认，未完成原生Obsidian唤起验收。详见 [打开链路报告](../reports/2026-10-28-obsidian-open-vault-identity.md)。
+
+## 撤回 Obsidian 额外配置（2026-10-28）
+
+用户拒绝的登记名/ID、根确认checkbox和“未配置”提示/限制已移除；保留原预设流程、样式、站内确认及权限时机，兼容历史字段不丢数据。恢复原best-effort打开入口，不改变成功保存路径；原Vault not found仍未解决。先红后绿，全仓79文件634项通过，check无errors/warnings、5 hints，build及HTTP冒烟通过。未推送部署，真实宿主仍未验收。见[撤回报告](../reports/2026-10-28-obsidian-extra-config-withdrawal.md)。

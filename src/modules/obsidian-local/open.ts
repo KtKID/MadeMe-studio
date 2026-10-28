@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TEXT_LIMITS } from "../config/limits";
-import { presetSchema } from "./contracts";
-/** URI 的 file 必须相对于用户确认的 vault 根，不从浏览器句柄猜绝对路径。 */
+
+/** URI 的 file 必须相对于所选目录，不从浏览器句柄猜绝对路径。 */
 export const vaultRelativeNotePathSchema = z
   .string()
   .min(1)
@@ -14,20 +14,17 @@ export const vaultRelativeNotePathSchema = z
         .split("/")
         .every((part) => part !== "" && part !== "." && part !== ".."),
   );
+/** 仅恢复原有 best-effort 打开入口；浏览器不能验证 Obsidian 的应用登记信息。 */
 export function buildObsidianUri(
-  preset: unknown,
+  rootName: string,
   notePath: string,
   rootHasObsidian: boolean,
 ): string | null {
-  const parsed = presetSchema.safeParse(preset);
   if (
-    !parsed.success ||
     !rootHasObsidian ||
-    !parsed.data.isVault ||
-    !parsed.data.vaultRootConfirmed ||
-    !parsed.data.obsidianVault ||
+    !z.string().min(1).max(TEXT_LIMITS.url).safeParse(rootName).success ||
     !vaultRelativeNotePathSchema.safeParse(notePath).success
   )
     return null;
-  return `obsidian://open?vault=${encodeURIComponent(parsed.data.obsidianVault)}&file=${encodeURIComponent(notePath)}`;
+  return `obsidian://open?vault=${encodeURIComponent(rootName)}&file=${encodeURIComponent(notePath)}`;
 }

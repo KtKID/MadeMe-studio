@@ -24,3 +24,4 @@
 - [2026-10-28：配置阶段不提前申请文件写权限](2026-10-28-obsidian-write-permission.md)：区分 IndexedDB 配置保存与浏览器文件写授权，目录选择只读，实际写入前查询权限，拒绝不循环。
 - [2026-10-28：保存 Obsidian 配置的站内确认](2026-10-28-obsidian-preset-confirmation.md)：复用博客 Modal，确认仅存 IndexedDB；取消保留编辑、重复确认保护和失败重试，不替代系统文件授权。
 - [2026-10-28：Obsidian 打开链接登记身份](2026-10-28-obsidian-open-vault-identity.md)：不再用目录 basename 猜 vault；旧预设安全兼容，登记名称/ID与根目录显式确认，未确认只复制相对路径，不更改保存文件。
+- [2026-10-28：撤回 Obsidian 额外配置](2026-10-28-obsidian-extra-config-withdrawal.md)：移除用户未要求的登记身份/checkbox/前置提示，兼容历史数据并恢复原 best-effort 打开入口；Vault not found 尚未解决。

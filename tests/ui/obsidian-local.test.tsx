@@ -374,65 +374,62 @@ it("重复确认只保存一次，失败留在站内确认框且可重试", asyn
   expect(h.permission).not.toHaveBeenCalled();
 });
 
-it("旧预设导出成功也不猜测打开链接，并可复制已保存的相对路径", async () => {
-  const copy = vi.fn().mockResolvedValue(undefined);
-  const old = Object.getOwnPropertyDescriptor(navigator, "clipboard");
-  Object.defineProperty(navigator, "clipboard", {
-    value: { writeText: copy },
-    configurable: true,
-  });
-  try {
-    render(<SaveButton getSnapshot={snapshot} />);
-    fireEvent.click(screen.getByText("保存到 Obsidian"));
-    await screen.findByText("本地库");
-    fireEvent.click(screen.getByText("保存本次快照"));
-    await screen.findByText(/已保存到本地/);
-    expect(screen.queryByText("在 Obsidian 中打开")).toBeNull();
-    fireEvent.click(screen.getByText("复制本地相对路径"));
-    await screen.findByText("已复制相对路径");
-    expect(copy).toHaveBeenCalledWith("笔记/当前稿.md");
-  } finally {
-    if (old) Object.defineProperty(navigator, "clipboard", old);
-    else Reflect.deleteProperty(navigator, "clipboard");
-  }
-});
-it("打开链接使用独立登记身份，不采用文件夹显示名", async () => {
-  h.list.mockResolvedValue([
-    {
-      preset: {
-        id: "p",
-        name: "本地库",
-        vaultName: "文件夹显示名",
-        obsidianVault: "实际 & 仓库",
-        vaultRootConfirmed: true,
-        noteDirectory: "笔记",
-        imageRule: "../asset",
-        isVault: true,
-      },
-      handle: { name: "文件夹显示名", requestPermission: h.permission },
-    },
-  ]);
+it("恢复原打开入口，不要求填写额外字段或显示前置提示", async () => {
   render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
   fireEvent.click(screen.getByText("保存本次快照"));
   const link = await screen.findByText("在 Obsidian 中打开");
-  expect(new URL(link.getAttribute("href")!).searchParams.get("vault")).toBe(
-    "实际 & 仓库",
-  );
+  const url = new URL(link.getAttribute("href")!);
+  expect(url.searchParams.get("vault")).toBe("vault");
+  expect(url.searchParams.get("file")).toBe("笔记/当前稿.md");
+  expect(screen.queryByText(/尚未确认|不提供打开链接|已登记仓库/)).toBeNull();
+  expect(screen.queryByText("复制本地相对路径")).toBeNull();
+  expect(screen.getByText(/已保存到本地目录/)).toBeTruthy();
 });
-it("编辑旧预设不自动确认登记身份，名称改变后重置根目录确认", async () => {
+it("预设流程不再显示额外登记身份输入、根确认和打开限制摘要", async () => {
   render(<ObsidianSettings />);
   fireEvent.click(await screen.findByText("编辑 本地库"));
-  const input = screen.getByLabelText("Obsidian 已登记仓库名称或 ID（可选）", {
-    exact: false,
-  }) as HTMLInputElement;
-  expect(input.value).toBe("");
-  const box = screen.getByRole("checkbox") as HTMLInputElement;
-  expect(box.checked).toBe(false);
-  fireEvent.change(input, { target: { value: "实际仓库" } });
-  fireEvent.click(box);
-  expect(box.checked).toBe(true);
-  fireEvent.change(input, { target: { value: "其他仓库" } });
-  expect(box.checked).toBe(false);
+  expect(screen.queryByLabelText(/已登记仓库/)).toBeNull();
+  expect(screen.queryByRole("checkbox")).toBeNull();
+  fireEvent.click(screen.getByText("保存本地预设"));
+  const dialog = await screen.findByRole("dialog", {
+    name: "是否保存此预设？",
+  });
+  expect(dialog.textContent).not.toMatch(/打开目标|未配置或未确认|登记仓库/);
+});
+it("编辑旧配置兼容保留已存字段，不删除目录句柄或历史参数", async () => {
+  const handle = { name: "vault", requestPermission: h.permission };
+  h.list.mockResolvedValue([
+    {
+      preset: {
+        id: "p",
+        name: "本地库",
+        vaultName: "vault",
+        obsidianVault: "历史值",
+        vaultRootConfirmed: true,
+        noteDirectory: "笔记",
+        imageRule: "../asset",
+        isVault: true,
+      },
+      handle,
+    },
+  ]);
+  render(<ObsidianSettings />);
+  fireEvent.click(await screen.findByText("编辑 本地库"));
+  fireEvent.change(screen.getByLabelText("预设名称"), {
+    target: { value: "改名" },
+  });
+  fireEvent.click(screen.getByText("保存本地预设"));
+  fireEvent.click(await screen.findByText("确认保存预设"));
+  await screen.findByText("本地预设已保存，仅此浏览器可用。");
+  expect(h.put.mock.calls[0][0]).toMatchObject({
+    id: "p",
+    name: "改名",
+    obsidianVault: "历史值",
+    vaultRootConfirmed: true,
+    noteDirectory: "笔记",
+    imageRule: "../asset",
+  });
+  expect(h.put.mock.calls[0][1]).toBe(handle);
 });

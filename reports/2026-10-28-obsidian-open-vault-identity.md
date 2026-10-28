@@ -1,5 +1,7 @@
 # 2026-10-28：打开 Obsidian 时分离目录句柄与登记仓库身份
 
+> 后续状态：本文中的登记身份输入、根目录 checkbox 及打开前置条件被用户明确拒绝，现已撤回。它们不是当前使用要求；见 [窄范围撤回报告](2026-10-28-obsidian-extra-config-withdrawal.md)。
+
 ## 现象与根因
 
 用户确认文章已成功保存，只有“打开 Obsidian”失败。截图为 Obsidian 原生 `Vault not found`，URL 中 vault=TechNote，file 为 brain/01_笔记/MadeMe.md。
