@@ -115,3 +115,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## Obsidian 配置站内确认（2026-10-28）
 
 用户要求的“是否保存此预设？”共享 Modal 已实现，确认仅写 IndexedDB，取消保留输入、重复确认锁定、失败在框内可见且可重试。3项先红后绿；模块21项UI通过，全仓78文件626项通过，check无错误/警告、5 hints，build和HTTP冒烟通过。实际文件写入的浏览器必要授权仍保留，真实视觉/原生权限未验收。详见 [站内确认报告](../reports/2026-10-28-obsidian-preset-confirmation.md)。
+
+## Obsidian 打开链接身份（2026-10-28）
+
+保存逻辑/路径保持不变，打开URI改用用户明确配置的登记名称或ID和根确认；旧预设默认禁用猜测链接，保留复制相对路径。新增6项协议/URI和3项UI回归，全仓79文件635项通过，check无errors/warnings、5 hints，build及HTTP冒烟通过。真实应用登记名称/ID仍需用户确认，未完成原生Obsidian唤起验收。详见 [打开链路报告](../reports/2026-10-28-obsidian-open-vault-identity.md)。

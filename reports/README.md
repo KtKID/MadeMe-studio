@@ -23,3 +23,4 @@
 - [2026-10-28：Obsidian 本地保存界面样式一致性](2026-10-28-obsidian-ui-style-consistency.md)：修复裸按钮与 fieldset 默认边框，复用既有设计类；解释旧交互测试遗漏及真实视觉验收限制。
 - [2026-10-28：配置阶段不提前申请文件写权限](2026-10-28-obsidian-write-permission.md)：区分 IndexedDB 配置保存与浏览器文件写授权，目录选择只读，实际写入前查询权限，拒绝不循环。
 - [2026-10-28：保存 Obsidian 配置的站内确认](2026-10-28-obsidian-preset-confirmation.md)：复用博客 Modal，确认仅存 IndexedDB；取消保留编辑、重复确认保护和失败重试，不替代系统文件授权。
+- [2026-10-28：Obsidian 打开链接登记身份](2026-10-28-obsidian-open-vault-identity.md)：不再用目录 basename 猜 vault；旧预设安全兼容，登记名称/ID与根目录显式确认，未确认只复制相对路径，不更改保存文件。

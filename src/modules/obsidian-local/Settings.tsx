@@ -23,6 +23,8 @@ export default function ObsidianSettings() {
   const [name, setName] = useState("");
   const [handle, setHandle] = useState<DirectoryHandle>();
   const [isVault, setIsVault] = useState(false);
+  const [obsidianVault, setObsidianVault] = useState("");
+  const [vaultRootConfirmed, setVaultRootConfirmed] = useState(false);
   const [noteDirectory, setNoteDirectory] = useState<string>(
     OBSIDIAN_LOCAL_DEFAULTS.noteDirectory,
   );
@@ -64,6 +66,8 @@ export default function ObsidianSettings() {
     setName("");
     setHandle(undefined);
     setIsVault(false);
+    setObsidianVault("");
+    setVaultRootConfirmed(false);
     setNoteDirectory(OBSIDIAN_LOCAL_DEFAULTS.noteDirectory);
     setImageRule(OBSIDIAN_LOCAL_DEFAULTS.imageRule);
     setError("");
@@ -74,6 +78,8 @@ export default function ObsidianSettings() {
     setName(record.preset.name);
     setHandle(record.handle);
     setIsVault(record.preset.isVault);
+    setObsidianVault(record.preset.obsidianVault ?? "");
+    setVaultRootConfirmed(record.preset.vaultRootConfirmed ?? false);
     setNoteDirectory(record.preset.noteDirectory);
     setImageRule(record.preset.imageRule);
     setError("");
@@ -89,6 +95,7 @@ export default function ObsidianSettings() {
       const chosen = await pickDirectory("documents");
       const vault = await verifyVault(chosen);
       setHandle(chosen);
+      setVaultRootConfirmed(false); // 更换目录后必须重新确认与登记仓库的对应关系。
       setIsVault(vault);
       if (!name) setName(chosen.name);
     } catch (error) {
@@ -111,6 +118,8 @@ export default function ObsidianSettings() {
       noteDirectory,
       imageRule,
       isVault,
+      obsidianVault,
+      vaultRootConfirmed,
     });
     if (!parsed.success) {
       fail(
@@ -253,6 +262,38 @@ export default function ObsidianSettings() {
                 Obsidian。请确认选择的是仓库根目录。
               </Notice>
             )}
+            <label>
+              Obsidian 已登记仓库名称或 ID（可选）
+              <input
+                disabled={busy}
+                value={obsidianVault}
+                onChange={(event) => {
+                  setObsidianVault(event.target.value);
+                  setVaultRootConfirmed(false);
+                }}
+              />
+              <small className="form-hint">
+                请填写 Obsidian 仓库切换器中的实际名称或复制的仓库
+                ID，不是此处预设名称，也不自动采用文件夹名。留空仍可保存文件，但不生成打开链接。
+              </small>
+            </label>
+            <div className="scope-options">
+              <label>
+                <input
+                  type="checkbox"
+                  disabled={busy || !isVault || !obsidianVault.trim()}
+                  checked={vaultRootConfirmed}
+                  onChange={(event) =>
+                    setVaultRootConfirmed(event.target.checked)
+                  }
+                />
+                我确认所选目录就是该 Obsidian 仓库根目录（不是父目录或子目录）
+              </label>
+            </div>
+            <p className="form-hint">
+              浏览器无法读取 Obsidian 的仓库登记信息；发现 .obsidian
+              不能证明名称匹配。若选择的是父目录或子目录，请重新浏览选择真正的仓库根目录。
+            </p>
             <div className="form-grid">
               <label>
                 默认文章子目录
@@ -304,6 +345,12 @@ export default function ObsidianSettings() {
           <p>根目录：{pending.handle.name}</p>
           <p>文章子目录：{pending.preset.noteDirectory || "（根目录）"}</p>
           <p>图片规则：{pending.preset.imageRule}</p>
+          <p>
+            Obsidian 打开目标：
+            {pending.preset.obsidianVault && pending.preset.vaultRootConfirmed
+              ? pending.preset.obsidianVault
+              : "未配置或未确认，不生成打开链接"}
+          </p>
           {error && <Notice kind="error">{error}</Notice>}
           <div className="modal-actions button-group">
             <button

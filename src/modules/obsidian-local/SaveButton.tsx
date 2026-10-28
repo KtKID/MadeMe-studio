@@ -1,3 +1,4 @@
+import { buildObsidianUri } from "./open";
 import { useRef, useState } from "react";
 import { Modal, Notice, downloadText } from "../../components/shared/ui";
 import { clientLog } from "../log/client";
@@ -37,9 +38,10 @@ export default function SaveButton({
   const [missing, setMissing] = useState(false);
   const [result, setResult] = useState<{
     path: string;
-    vault: string;
+    openUri: string | null;
     isVault: boolean;
   }>();
+  const [copied, setCopied] = useState(false);
   const lock = useRef(false);
   const request = useRef(0);
   const snapshot = useRef<PreparedExport | null>(null);
@@ -64,6 +66,7 @@ export default function SaveButton({
     setOpen(true);
     setError("");
     setResult(undefined);
+    setCopied(false);
     setConflict(false);
     setMissing(false);
     snapshot.current = null;
@@ -96,10 +99,13 @@ export default function SaveButton({
         noteDirectory: OBSIDIAN_LOCAL_DEFAULTS.noteDirectory,
         imageRule: OBSIDIAN_LOCAL_DEFAULTS.imageRule,
         isVault,
+        obsidianVault: "",
+        vaultRootConfirmed: false,
       };
       setSelected({ handle, preset });
       setDirectory(preset.noteDirectory);
       setResult(undefined);
+      setCopied(false);
       setConflict(false);
       setMissing(false);
       snapshot.current = null;
@@ -128,6 +134,7 @@ export default function SaveButton({
       normalizePath(relative, selected.preset.imageRule);
       setDirectory(relative);
       setResult(undefined);
+      setCopied(false);
       setConflict(false);
       setMissing(false);
       snapshot.current = null;
@@ -147,6 +154,7 @@ export default function SaveButton({
     setBusy(true);
     setError("");
     setResult(undefined);
+    setCopied(false);
     try {
       // 快照转换是同步操作；先固定它，避免转换失败时留下未处理的权限 Promise。
       if ((!mode && !createDirectories) || !snapshot.current)
@@ -177,7 +185,7 @@ export default function SaveButton({
       setMissing(false);
       setResult({
         path: saved.notePath,
-        vault: selected.preset.vaultName,
+        openUri: buildObsidianUri(selected.preset, saved.notePath, isVault),
         isVault,
       });
     } catch (error) {
@@ -195,6 +203,17 @@ export default function SaveButton({
     } finally {
       lock.current = false;
       setBusy(false);
+    }
+  }
+  async function copyPath() {
+    if (!result) return;
+    try {
+      if (!navigator.clipboard?.writeText)
+        throw new Error("浏览器不支持复制，请手动复制上方相对路径。");
+      await navigator.clipboard.writeText(result.path);
+      setCopied(true);
+    } catch (error) {
+      fail(error);
     }
   }
   function fallback() {
@@ -263,6 +282,7 @@ export default function SaveButton({
                     setConflict(false);
                     setMissing(false);
                     setResult(undefined);
+                    setCopied(false);
                     snapshot.current = null;
                   }}
                 >
@@ -329,16 +349,25 @@ export default function SaveButton({
                     ? "已保存到本地 Obsidian 仓库"
                     : "已保存到普通文件夹（未同步 Obsidian）"}
                   ：{result.path}
-                  {result.isVault && (
+                  {result.openUri ? (
                     <p className="form-hint">
-                      <a
-                        href={`obsidian://open?vault=${encodeURIComponent(result.vault)}&file=${encodeURIComponent(result.path)}`}
-                      >
-                        在 Obsidian 中打开
-                      </a>
+                      <a href={result.openUri}>在 Obsidian 中打开</a>
                       （需要本机已安装，点击后请自行确认打开结果）
                     </p>
+                  ) : (
+                    <p className="form-hint">
+                      尚未确认 Obsidian
+                      已登记仓库及根目录，不提供打开链接。请到设置中配置；已保存的文件不受影响。
+                    </p>
                   )}
+                  <button
+                    className="button small"
+                    type="button"
+                    onClick={() => void copyPath()}
+                  >
+                    复制本地相对路径
+                  </button>
+                  {copied && <span className="form-hint">已复制相对路径</span>}
                 </Notice>
               )}
             </>
