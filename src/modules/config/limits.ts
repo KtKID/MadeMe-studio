@@ -171,3 +171,17 @@ export const GOOGLE_FLOW_SECONDS = 600;
 // ---------- 嵌入 ----------
 /** X 等自适应高度嵌入的高度夹紧范围（像素）。 */
 export const EMBED_HEIGHT_RANGE = { min: 80, max: 4000 } as const;
+
+/** 浏览器本地导出的目录规则与存储版本，不上传服务器。 */
+export const OBSIDIAN_LOCAL_DEFAULTS = {
+  noteDirectory: "笔记",
+  imageRule: "../asset",
+  databaseName: "mademe-obsidian-local",
+  databaseVersion: 1,
+  presetStore: "presets",
+  manifestName: ".mademe-export.json",
+  manifestVersion: 1,
+  fileNameMax: 180,
+  fileSuffixMax: 48,
+  extensionMax: 20,
+} as const;

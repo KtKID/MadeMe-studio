@@ -1,3 +1,4 @@
+import ObsidianSettings from "../../modules/obsidian-local/Settings";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { useEffect, useRef, useState } from "react";
@@ -209,7 +210,9 @@ export default function SettingsPanel({
       if (!checked.success) {
         setError(
           `无法保存：${checked.error.issues
-            .map((issue) => `${issue.path.join(".") || "设置"}：${issue.message}`)
+            .map(
+              (issue) => `${issue.path.join(".") || "设置"}：${issue.message}`,
+            )
             .join("；")}`,
         );
         return;
@@ -303,6 +306,7 @@ export default function SettingsPanel({
             { id: "models", name: "AI 模型", icon: SlidersHorizontal },
             { id: "prompts", name: "提示词", icon: Sparkles },
             { id: "code", name: "自定义代码", icon: Code2 },
+            { id: "obsidian-local", name: "同步 Obsidian", icon: BookOpen },
             ...CONFIG_TABS.map((t) => ({
               id: t.id,
               name: t.label,
@@ -320,6 +324,7 @@ export default function SettingsPanel({
           ))}
         </nav>
         <section className="settings-content">
+          {tab === "obsidian-local" && <ObsidianSettings />}
           {tab === "general" && (
             <>
               <div className="section-heading">

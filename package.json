@@ -14,7 +14,8 @@
     "test:worker": "node scripts/test-worker.mjs",
     "test:integrations": "node --test integrations/tests/*.node.mjs",
     "format": "prettier --write src tests scripts docs *.ts *.mjs",
-    "test:ui": "vitest run tests/ui/"
+    "test:ui": "vitest run tests/ui/",
+    "test:e2e:obsidian": "node scripts/test-obsidian-e2e.mjs"
   },
   "dependencies": {
     "astro": "7.4.2",

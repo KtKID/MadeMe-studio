@@ -1,3 +1,4 @@
+import ObsidianSaveButton from "../../modules/obsidian-local/SaveButton";
 import { useEffect, useRef, useState } from "react";
 import {
   BlockNoteSchema,
@@ -157,6 +158,7 @@ export default function Editor({
   const limits = settings.limits ?? DEFAULT_CONFIG;
   const [current, setCurrent] = useState(post);
   const currentRef = useRef(post);
+  const localArticleId = useRef<string | null>(null);
   const editClock = useRef(new EditClock());
   function updateCurrent(value: Post) {
     currentRef.current = value;
@@ -1001,6 +1003,20 @@ export default function Editor({
               <Download size={14} />
               导出
             </button>
+            <ObsidianSaveButton
+              getSnapshot={() => {
+                // 新稿在当前编辑会话内保持同一身份，不为本地导出提前写入服务器。
+                localArticleId.current ??= crypto.randomUUID();
+                const blocks = structuredClone(editor.document);
+                return {
+                  articleId: currentRef.current?.id ?? localArticleId.current,
+                  title: title || "未命名文章",
+                  markdown: editor.blocksToMarkdownLossy(blocks),
+                  blocks: blocks as EditorBlock[],
+                  ...(cover ? { coverUrl: cover } : {}),
+                };
+              }}
+            />
             <button onClick={loadRevisions}>
               <History size={14} />
               历史

@@ -91,3 +91,4 @@ npm run test:integrations
 - [内容检查模块](src/modules/content-check/README.md)：保存/发布前按块定位问题（“第 N 个视频块……”），编辑器预检与服务端 422 共用同一套中文原因
 
 - [工作台常驻外壳](src/components/studio/README.md)、[会话导航与身份生命周期](src/modules/studio-navigation/README.md)
+- [共享文章本地导出准备](src/modules/local-export/README.md)、[浏览器保存到 Obsidian](src/modules/obsidian-local/README.md)：当前稿、图片与本机目录授权，预设只存此浏览器，不是后台双向同步。
