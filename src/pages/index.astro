@@ -1,4 +1,5 @@
 ---
+import ProductCredit from "../components/shared/ProductCredit";
 import Base from "../layouts/Base.astro";
 import PublicFeed from "../components/content/PublicFeed";
 import { Feather, ArrowUpRight } from "lucide-react";
@@ -67,7 +68,7 @@ const publicPosts = data.posts.filter(
       <span>
         © {new Date().getFullYear()} {settings.siteTitle}
       </span>
-      <span>独立表达，自由生长。</span>
+      <ProductCredit />
       <a href="/rss.xml">RSS ↗</a>
     </footer>
   </div>

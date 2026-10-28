@@ -11,3 +11,7 @@
 设置链接与本document历史由明确的离开保护处理；取消history用go补偿，原生 beforeunload 保护刷新及完整导航。不可用 Astro before-preparation.preventDefault 冒充取消。
 
 身份恢复、一次性secret与测量语义见 [会话导航](../modules/studio-navigation/README.md)。服务端 no-store、owner 权限校验不变，禁止把私有 HTML 设为公共缓存。
+
+## 产品署名
+
+后台页脚通过共享 `ProductCredit` 居中显示产品署名和发布配置版本，移除旧英文标语；保持账号底栏的共享高度。公开首页与文章页使用同一静态组件，版权和 RSS 保留，窄屏署名单独居中一行，不隐藏版本。产品版本不取自站点设置或 npm 包版本。

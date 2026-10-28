@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { PRODUCT_VERSION } from "../../src/modules/config/product.ts";
 
 // 独立布局夹具：真实样式表与两套布局共用的账号标记。
 // 不验证真实认证，也不替代应用级导航测试。
@@ -25,7 +26,7 @@ for (const width of [1440, 1100, 961, 390]) {
                 <span class="author-account-name">${name}</span><small>账号与退出</small>
               </span></a></div></aside>
             <div class="studio-body"><main class="studio-main"></main>
-              <footer class="studio-footer">Made with intention. <span>Powered by MadeMe</span></footer>
+              <footer class="studio-footer"><span class="product-credit">Powered by MadeMe · v${PRODUCT_VERSION}</span></footer>
             </div></div></body></html>`);
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
         if (width <= 960) {

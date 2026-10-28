@@ -1,4 +1,5 @@
 ---
+import ProductCredit from "../../components/shared/ProductCredit";
 import { canIndexPost } from "../../server/response-policy";
 import Base from "../../layouts/Base.astro";
 import BlockReader from "../../components/content/BlockReader";
@@ -120,7 +121,7 @@ const capabilities = authenticated
       <span>
         © {new Date().getFullYear()} {settings.siteTitle}
       </span>
-      <span>独立表达，自由生长。</span>
+      <ProductCredit />
       <a href="/rss.xml">RSS ↗</a>
     </footer>
   </div>

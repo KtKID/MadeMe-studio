@@ -7,3 +7,4 @@ export { DEFAULT_CONFIG } from "./defaults";
 export * from "./schema";
 export * from "./meta";
 export * from "./public";
+export { PRODUCT_VERSION } from "./product.ts";

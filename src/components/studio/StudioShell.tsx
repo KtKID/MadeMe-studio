@@ -1,3 +1,4 @@
+import ProductCredit from "../shared/ProductCredit";
 import { clientCaught } from "../../modules/log/client";
 import {
   useCallback,
@@ -401,7 +402,7 @@ export default function StudioShell({
           </div>
         </main>
         <footer className="studio-footer">
-          Made with intention. <span>Powered by MadeMe</span>
+          <ProductCredit />
         </footer>
       </div>
     </div>

@@ -2,6 +2,8 @@
 
 `ui.tsx` 提供服务端共享 Zod 类型的前端引用、同源 API 调用、错误分类、URL 校验、对话框、空状态和下载辅助函数。敏感凭据不写 localStorage。
 
+`ProductCredit.tsx` 从统一发布配置读取产品版本，博客首页、文章页及两套后台布局共用静态署名 `Powered by MadeMe · v版本`。Astro 直接 SSR，不添加客户端水合；测试见 `tests/product-footer.test.tsx`。
+
 ## 边界与测试
 
 - API 错误保留 HTTP 状态和错误码，409 交给编辑器显式处理。

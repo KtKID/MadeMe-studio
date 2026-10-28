@@ -1,4 +1,5 @@
 ---
+import ProductCredit from "../components/shared/ProductCredit";
 import Base from "./Base.astro";
 import { getEnv } from "../server/runtime";
 import { accountInitial, accountPresentation } from "../shared/auth";
@@ -121,7 +122,7 @@ const links = [
         <slot />
       </main>
       <footer class="studio-footer">
-        Made with intention. <span>Powered by MadeMe</span>
+        <ProductCredit />
       </footer>
     </div>
   </div>

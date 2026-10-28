@@ -14,6 +14,7 @@
 
 ## 文件
 
+- `product.ts`：C 层发布配置 `PRODUCT_VERSION`，当前为 `0.5`，仅用于产品页脚展示；不写入 D1、不暴露作者可编辑字段，不与 npm 包版本或健康接口版本自动绑定。
 - `limits.ts`：C 层常量。上传硬上限 `HARD_MAX_UPLOAD_MB = 50`，MIME 白名单 `MEDIA_TYPES`，正文上限、文本长度 `TEXT_LIMITS`、AI 参数 `AI_PARAMS`、令牌格式 `OPAQUE_TOKEN_PATTERN`、`SESSION_SECRET_MIN_LENGTH`、认证限流 `AUTH_RATE_LIMITS`、PBKDF2 次数等。
 - `endpoints.ts`：AI 供应商与 Google OAuth 端点表；出站白名单 `AI_PROVIDER_HOSTS` 从端点表推导，新增端点不会忘记放行，也不会多放行。
 - `defaults.ts`：A 层默认值 `DEFAULT_CONFIG`（唯一写 25 MB 的地方）。
