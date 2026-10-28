@@ -433,3 +433,17 @@ it("编辑旧配置兼容保留已存字段，不删除目录句柄或历史参�
   });
   expect(h.put.mock.calls[0][1]).toBe(handle);
 });
+
+it("只有打开保存面板的文字入口带无底色悬停标记", async () => {
+  const { container } = render(<SaveButton getSnapshot={snapshot} />);
+  const trigger = screen.getByText("保存到 Obsidian");
+  expect(trigger.classList.contains("obsidian-save-trigger")).toBe(true);
+  fireEvent.click(trigger);
+  await screen.findByText("本地库");
+  expect(container.querySelectorAll(".obsidian-save-trigger")).toHaveLength(1);
+  expect(
+    screen
+      .getByText("保存本次快照")
+      .classList.contains("obsidian-save-trigger"),
+  ).toBe(false);
+});

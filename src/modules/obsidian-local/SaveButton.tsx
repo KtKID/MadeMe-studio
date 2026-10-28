@@ -222,7 +222,7 @@ export default function SaveButton({
   return (
     <>
       <button
-        className="button"
+        className="button obsidian-save-trigger"
         type="button"
         disabled={busy}
         onClick={() => void show()}

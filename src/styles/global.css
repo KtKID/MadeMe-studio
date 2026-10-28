@@ -1337,6 +1337,10 @@ img {
 .writing-shortcuts button:hover {
   color: var(--accent-hover);
 }
+/* 仅此文字入口取消通用 .button:hover 的灰底，保留键盘焦点轮廓。 */
+.writing-shortcuts .obsidian-save-trigger:hover {
+  background: transparent;
+}
 .editor-document .bn-container {
   --bn-font-family: var(--font);
   background: transparent;
