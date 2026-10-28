@@ -241,3 +241,100 @@ it("新分配路径在规划后出现陌生文件，不得接受为覆盖基线"
   ).rejects.toBeInstanceOf(LocalConflictError);
   expect(files.get("笔记/测试.md")).toBe("规划后出现的陌生文件");
 });
+
+// 模拟删除、权限失效和规划后的外部创建，不把 IO 错误当作文件不存在。
+function interceptReads(
+  root: any,
+  onRead: (path: string) => void,
+  path = "",
+): any {
+  return {
+    ...root,
+    getDirectoryHandle: async (name: string, options: any) =>
+      interceptReads(
+        await root.getDirectoryHandle(name, options),
+        onRead,
+        path + name + "/",
+      ),
+    getFileHandle: async (name: string, options: any) => {
+      if (!options?.create) onRead(path + name);
+      return root.getFileHandle(name, options);
+    },
+  };
+}
+
+describe("删除导出文件后重新保存", () => {
+  it("文章已删除时按原跟踪路径重建，而非误报本地修改", async () => {
+    const { root, files } = rootFS();
+    const first = await saveToDirectory(root, prepared, options);
+    files.delete(first.notePath);
+    const saved = await saveToDirectory(
+      root,
+      { ...prepared, title: "新标题" },
+      options,
+    );
+    expect(saved.notePath).toBe(first.notePath);
+    expect(await new Blob([files.get(saved.notePath)!]).text()).toContain(
+      "# 测试",
+    );
+  });
+
+  it("图片已删除时实际补写，不能仅凭清单跳过", async () => {
+    const { root, files } = rootFS();
+    await saveToDirectory(root, prepared, options);
+    files.delete("asset/图.png");
+    await saveToDirectory(root, prepared, options);
+    expect(files.has("asset/图.png")).toBe(true);
+    expect(await new Blob([files.get("asset/图.png")!]).text()).toBe("picture");
+  });
+
+  it("删除文章后下载期间出现陌生文件仍拒绝覆盖", async () => {
+    const { root, files } = rootFS();
+    await saveToDirectory(root, prepared, options);
+    files.delete("笔记/测试.md");
+    let downloaded = false;
+    await expect(
+      saveToDirectory(root, prepared, {
+        ...options,
+        fetchMedia: async () => {
+          downloaded = true;
+          files.set("笔记/测试.md", "陌生文件");
+          return fetchMedia();
+        },
+      }),
+    ).rejects.toBeInstanceOf(LocalConflictError);
+    expect(downloaded).toBe(true);
+    expect(files.get("笔记/测试.md")).toBe("陌生文件");
+  });
+
+  it("补写图片前出现陌生文件仍拒绝覆盖", async () => {
+    const { root, files } = rootFS();
+    await saveToDirectory(root, prepared, options);
+    files.delete("asset/图.png");
+    let reads = 0;
+    const wrapped = interceptReads(root, (path) => {
+      if (path === "asset/图.png" && ++reads === 3) files.set(path, "陌生图片");
+    });
+    await expect(
+      saveToDirectory(wrapped, prepared, options),
+    ).rejects.toBeInstanceOf(LocalConflictError);
+    expect(files.get("asset/图.png")).toBe("陌生图片");
+  });
+
+  it.each(["NotAllowedError", "NotReadableError"])(
+    "%s 不得被当作删除后重建",
+    async (name) => {
+      const { root, files } = rootFS();
+      await saveToDirectory(root, prepared, options);
+      const before = new Map(files);
+      const failure = new DOMException("无法读取", name);
+      const wrapped = interceptReads(root, (path) => {
+        if (path === "笔记/测试.md") throw failure;
+      });
+      await expect(saveToDirectory(wrapped, prepared, options)).rejects.toBe(
+        failure,
+      );
+      expect(files).toEqual(before);
+    },
+  );
+});

@@ -27,3 +27,5 @@
 - [2026-10-28：撤回 Obsidian 额外配置](2026-10-28-obsidian-extra-config-withdrawal.md)：移除用户未要求的登记身份/checkbox/前置提示，兼容历史数据并恢复原 best-effort 打开入口；Vault not found 尚未解决。
 - [2026-10-28：Obsidian 文字入口悬停底色](2026-10-28-obsidian-trigger-hover.md)：只取消编辑器该入口灰底，保留其它按钮反馈、focus-visible及交互逻辑。
 - [2026-10-28：Obsidian 弹窗样式边界](2026-10-28-obsidian-modal-style-boundary.md)：直属工具栏选择器与本弹窗portal隔离，实际CSS cascade复现padding归零/hover同色；保留共享Modal行为，视觉验收单列。
+
+- [2026-10-28：删除本地导出文件后重新保存](2026-10-28-obsidian-deleted-file-save.md)：区分磁盘缺失与本地修改，补回已删除附件，保留权限错误与竞争保护。

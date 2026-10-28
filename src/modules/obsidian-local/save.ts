@@ -246,8 +246,10 @@ async function saveTransaction(
     let notePath = previous?.path;
     const before = notePath ? await read(root, notePath) : null;
     const beforeDigest = before ? await digest(before) : null;
+    // 清单只记录身份和上次版本；磁盘确认缺失时允许原路径重建，不等于内容被修改。
     if (
       previous &&
+      before !== null &&
       beforeDigest !== previous.digest &&
       options.conflict !== "copy" &&
       options.conflict !== "overwrite"
@@ -312,13 +314,17 @@ async function saveTransaction(
       const value = await digest(blob);
       const known = manifest.media[media.id];
       let path: string | undefined;
+      let reuseExisting = false;
       if (
         known &&
         known.path.split("/").slice(0, -1).join("/") === imageDirectory &&
         known.digest === value
       ) {
         const local = await read(root, known.path);
-        if (local && (await digest(local)) === value) path = known.path;
+        if (local && (await digest(local)) === value) {
+          path = known.path;
+          reuseExisting = true;
+        }
       }
       // 文件名只用于展示，身份以媒体 ID 为准；陌生同名文件绝不覆盖。
       let originalName = media.name;
@@ -344,7 +350,8 @@ async function saveTransaction(
         blob,
         digest: value,
         path,
-        write: !known || path !== known.path || value !== known.digest,
+        // 只有磁盘上实际存在且内容匹配才复用；原路径被删后也必须补写。
+        write: !reuseExisting,
       });
     }
     let markdown = prepared.markdown;

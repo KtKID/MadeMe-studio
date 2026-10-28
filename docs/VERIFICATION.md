@@ -131,3 +131,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## Obsidian 弹窗样式边界（2026-10-28）
 
 全量CSS cascade复现工具栏祖先规则造成按钮padding=0和hover文字/背景同token；桌面/移动规则收窄直属按钮，仅此保存Modal portal到body，未改共享Modal实现或其它弹窗交互。先红后绿；82文件643项通过，check无errors/warnings、5 hints，build与HTTP冒烟通过。覆盖light/dark、padding/标题/hover/disabled/focus、Tab/Escape/遮罩/焦点恢复/卸载及SSR。真实浏览器视觉待预览验证，未绕过权限，未推送部署。详见[边界修复报告](../reports/2026-10-28-obsidian-modal-style-boundary.md)。
+
+## 删除本地导出文件后重新保存（2026-10-28）
+
+先红后绿：文章 NotFound 不再与历史清单指纹误判为改稿；缺失图片实际补写。新增 7 项回归，包括权限/IO失败、陌生文件竞争和真实临时目录删除后恢复。82 文件 / 650 项通过；check 240 文件、无 errors/warnings、5 既有 hints；build 与 HTTP smoke 通过。不是用户设备/原生授权验收，未推送部署。详见 [删除后重存报告](../reports/2026-10-28-obsidian-deleted-file-save.md)。

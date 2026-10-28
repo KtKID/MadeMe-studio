@@ -220,3 +220,25 @@ describe("本地导出真实临时文件系统端到端", () => {
         expect(markdown).toContain(`../asset/${encodeURIComponent(file)}`);
     }));
 });
+
+it("真实临时目录删除文章和图片后，原路径恢复正文与完整图片字节", async () => {
+  await isolated(async (root, path) => {
+    const prepared = snapshot();
+    const first = await saveToDirectory(root, prepared, {
+      ...options,
+      createDirectories: true,
+    });
+    await rm(join(path, first.notePath));
+    await rm(join(path, "asset", "图片.png"));
+    const saved = await saveToDirectory(root, prepared, options);
+    expect(saved.notePath).toBe(first.notePath);
+    expect(await readFile(join(path, saved.notePath), "utf8")).toContain(
+      "当前稿正文",
+    );
+    expect(
+      new Uint8Array(await readFile(join(path, "asset", "图片.png"))),
+    ).toEqual(imageBytes);
+    expect(await readdir(join(path, "笔记"))).toEqual(["临时目录验收.md"]);
+    expect(await readdir(join(path, "asset"))).toEqual(["图片.png"]);
+  });
+});
