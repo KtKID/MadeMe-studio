@@ -34,3 +34,7 @@ Markdown 转换本身有损；特殊块/样式需核对。平台视频和嵌入�
 - `tests/obsidian-save.test.ts`：内存目录的完整保存、图片失败不改旧稿、本地冲突、同名媒体、下载期间新修改。
 - `tests/ui/obsidian-local.test.tsx`：真实 React 弹窗与预设 CRUD，边界采用隔离替身。
 - `tests/e2e/obsidian-local.spec.ts`：真实页面当前稿下载及 picker 不支持/取消分支。是否实际跑通见根验证记录；模拟授权不等于原生目录授权/Obsidian 宿主验收。
+
+## 界面设计契约
+
+设置与保存弹窗复用现有 `.button` / `.primary` / `.small`、`.button-group`、`.form-stack`、`.form-grid`、`.config-card`、`.form-hint` 及共享 Modal / `.modal-actions`。不使用裸按钮或浏览器默认 fieldset 边框，不定义本模块独立主题。busy 状态仍禁用输入与操作。样式接线测试与真实截图验收分开记录，详见 [样式修复报告](../../../reports/2026-10-28-obsidian-ui-style-consistency.md)。

@@ -156,7 +156,7 @@ export default function ObsidianSettings() {
           网站当前稿 → 本机 Markdown 与图片，需每次主动保存；不是后台双向同步。
         </p>
       </div>
-      <p>
+      <p className="form-hint">
         目录授权与预设仅存此浏览器的
         IndexedDB，换设备或清除浏览器数据后需重新选择。不会上传目录句柄，也不能用手填绝对路径代替授权。
       </p>
@@ -168,78 +168,114 @@ export default function ObsidianSettings() {
           Markdown，但不代表图片已落盘或已同步 Obsidian。
         </Notice>
       ) : (
-        <>
+        <div className="form-stack">
+          <div className="field-heading">
+            <h3>本地预设</h3>
+            <button
+              className="button small"
+              type="button"
+              disabled={busy}
+              onClick={reset}
+            >
+              新增预设
+            </button>
+          </div>
           {records.map((record) => (
-            <div key={record.preset.id}>
-              <strong>{record.preset.name}</strong>{" "}
-              <span>
+            <div className="config-card" key={record.preset.id}>
+              <strong>{record.preset.name}</strong>
+              <p className="form-hint">
                 {record.preset.vaultName}/{record.preset.noteDirectory}
-              </span>{" "}
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => edit(record)}
-              >
-                编辑 {record.preset.name}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void remove(record)}
-              >
-                删除 {record.preset.name}
-              </button>
+              </p>
+              <div className="button-group">
+                <button
+                  className="button small"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => edit(record)}
+                >
+                  编辑 {record.preset.name}
+                </button>
+                <button
+                  className="button small"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void remove(record)}
+                >
+                  删除 {record.preset.name}
+                </button>
+              </div>
             </div>
           ))}
-          <button type="button" disabled={busy} onClick={reset}>
-            新增预设
-          </button>
-          <fieldset disabled={busy}>
-            <legend>{id ? "编辑预设" : "新增本地预设"}</legend>
+          {/* 沿用设置表单布局，不使用会带浏览器默认边框的 fieldset/legend。 */}
+          <div
+            role="group"
+            aria-label={id ? "编辑预设" : "新增本地预设"}
+            aria-busy={busy}
+          >
+            <div className="field-heading">
+              <h3>{id ? "编辑预设" : "新增本地预设"}</h3>
+            </div>
             <label>
               预设名称
               <input
+                disabled={busy}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
             </label>
-            <p>根目录：{handle?.name ?? "尚未授权"}</p>
-            <button type="button" onClick={() => void browse()}>
-              浏览选择 vault 根目录
-            </button>
+            <div className="field-heading button-group">
+              <span className="form-hint">
+                根目录：{handle?.name ?? "尚未授权"}
+              </span>
+              <button
+                className="button small"
+                type="button"
+                disabled={busy}
+                onClick={() => void browse()}
+              >
+                浏览选择 vault 根目录
+              </button>
+            </div>
             {handle && !isVault && (
               <Notice>
                 未找到 .obsidian：这是普通文件夹，保存时不会显示为已同步
                 Obsidian。请确认选择的是仓库根目录。
               </Notice>
             )}
-            <label>
-              默认文章子目录
-              <input
-                value={noteDirectory}
-                onChange={(event) => setNoteDirectory(event.target.value)}
-              />
-            </label>
-            <label>
-              图片规则（相对文章目录）
-              <input
-                value={imageRule}
-                onChange={(event) => setImageRule(event.target.value)}
-              />
-            </label>
-            <p>
+            <div className="form-grid">
+              <label>
+                默认文章子目录
+                <input
+                  disabled={busy}
+                  value={noteDirectory}
+                  onChange={(event) => setNoteDirectory(event.target.value)}
+                />
+              </label>
+              <label>
+                图片规则（相对文章目录）
+                <input
+                  disabled={busy}
+                  value={imageRule}
+                  onChange={(event) => setImageRule(event.target.value)}
+                />
+              </label>
+            </div>
+            <p className="form-hint">
               默认“笔记”与“../asset”会把图片放到根目录的
               asset；不得越过已授权根目录。不自动创建缺失目录，保存时会再次确认。
             </p>
-            <button
-              type="button"
-              disabled={!handle}
-              onClick={() => void save()}
-            >
-              保存本地预设
-            </button>
-          </fieldset>
-        </>
+            <div className="button-group">
+              <button
+                className="button primary"
+                type="button"
+                disabled={busy || !handle}
+                onClick={() => void save()}
+              >
+                保存本地预设
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

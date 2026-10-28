@@ -101,3 +101,9 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 - 新模块 54 项覆盖当前稿、目录句柄本机保存、取消/权限、媒体完整性、同名与 UTF-8 文件名、已有/新路径本地修改竞态、代码区保真、迟到预设、冲突确认及 fallback。
 - 独立作者 Worker 的 3 项 Playwright 用例在 Chromium 启动阶段遭 `socket() failed: Operation not permitted (1)` 阻塞，未运行页面断言，不算通过；没有绕过限制。
 - 原生目录授权/持久化与真实 Obsidian 唤起仍未验收；Node mkdtemp 字节验证不能替代。没有改私人 vault、部署、合并或创建真实凭据。详见 [实施与验收报告](../reports/2026-10-28-obsidian-local-save.md)。
+
+## Obsidian 新界面样式一致性（2026-10-28）
+
+- 修复裸按钮和默认 fieldset/legend 边框，复用现有按钮、表单、卡片与共享 Modal；没有新增全局 CSS 覆盖或业务行为。
+- 4 项样式接线回归先红后绿，覆盖明暗模式及普通下载分支；全仓 78 文件 / 621 项通过，check 无 errors/warnings、5 hints，build 与 HTTP 冒烟通过。
+- 原始截图已检查；实际组件静态视觉夹具被云浏览器 `data:` URL 策略拒绝，未绕过。修复后真实页面截图及移动端视觉仍未验收，不以 DOM 测试替代。详见 [修复报告](../reports/2026-10-28-obsidian-ui-style-consistency.md)。

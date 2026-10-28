@@ -241,3 +241,45 @@ it("迟到的预设列表不能覆盖用户刚选择的临时目录", async () =
   await waitFor(() => expect(h.save).toHaveBeenCalled());
   expect(h.save.mock.calls[0][0]).toBe(chosen);
 });
+
+// 样式接线回归不是截图验收：防止新增界面再次落回浏览器原生控件。
+it.each(["light", "dark"])(
+  "本地设置复用设计系统控件与主题容器：%s",
+  async (mode) => {
+    document.documentElement.dataset.mode = mode;
+    const { container } = render(<ObsidianSettings />);
+    await screen.findByText("本地库");
+    for (const button of container.querySelectorAll("button"))
+      expect(button.classList.contains("button")).toBe(true);
+    expect(container.querySelector("fieldset")).toBeNull();
+    expect(container.querySelector(".form-stack")).not.toBeNull();
+    expect(container.querySelector(".form-grid")).not.toBeNull();
+    expect(screen.getByText("保存本地预设").classList.contains("primary")).toBe(
+      true,
+    );
+    expect(container.querySelector("[style]")).toBeNull();
+    delete document.documentElement.dataset.mode;
+  },
+);
+it("本地保存弹窗与fallback使用共享Modal及按钮样式", async () => {
+  const { container } = render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("本地库");
+  for (const button of container.querySelectorAll("button"))
+    expect(button.matches(".button,.icon-button")).toBe(true);
+  expect(container.querySelector("dialog")).toBeNull();
+  expect(container.querySelector(".modal .modal-actions")).not.toBeNull();
+  expect(screen.getByText("保存本次快照").classList.contains("primary")).toBe(
+    true,
+  );
+});
+it("不支持目录授权的普通下载按钮也沿用设计系统", async () => {
+  h.supported.mockReturnValue(false);
+  const { container } = render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  expect(screen.getByText("仅下载 Markdown").classList.contains("button")).toBe(
+    true,
+  );
+  for (const button of container.querySelectorAll("button"))
+    expect(button.matches(".button,.icon-button")).toBe(true);
+});
