@@ -1,3 +1,4 @@
+import TypeDropdown from "../../modules/article-types/TypeDropdown";
 import { useArticleTypes } from "../../modules/article-types/client";
 import { DEFAULT_ARTICLE_TYPES } from "../../modules/article-types/contracts";
 import {
@@ -239,26 +240,25 @@ export default function Dashboard({
           </div>
           <div className="list-tools">
             <SearchBox value={query} onChange={setQuery} />
-            <label className="category-filter article-type-filter">
+            <div className="category-filter article-type-filter">
               <SlidersHorizontal size={16} />
-              <select
-                aria-label="按类型筛选"
+              <TypeDropdown
+                label="按类型筛选"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">全部类型</option>
-                {types.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-                {legacyCategories.map((name) => (
-                  <option key={`legacy:${name}`} value={`legacy:${name}`}>
-                    旧分类：{name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={setCategory}
+                options={[
+                  { value: "", label: "全部类型" },
+                  ...types.map((type) => ({
+                    value: type.id,
+                    label: type.name,
+                  })),
+                  ...legacyCategories.map((name) => ({
+                    value: `legacy:${name}`,
+                    label: `旧分类：${name}`,
+                  })),
+                ]}
+              />
+            </div>
           </div>
         </div>
         {filtered.length ? (

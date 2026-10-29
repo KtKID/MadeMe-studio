@@ -1,3 +1,4 @@
+import TypeDropdown from "./TypeDropdown";
 import { useEffect, useId, useRef, useState } from "react";
 import { Busy, Notice } from "../../components/shared/ui";
 import {
@@ -154,30 +155,30 @@ export default function TypeSelector({
   return (
     <div className="article-type-selector">
       <label htmlFor={id}>文章类型</label>
-      <select
+      <TypeDropdown
+        label="文章类型"
         id={id}
         value={selected}
         disabled={disabled}
-        onChange={(e) => {
-          if (e.target.value === "__create__") {
+        onChange={(nextValue) => {
+          if (nextValue === "__create__") {
             setAdding(true);
             return;
           }
-          if (e.target.value === "__legacy__") return;
+          if (nextValue === "__legacy__") return;
           setAdding(false);
-          const type = types.find((t) => t.id === e.target.value);
+          const type = types.find((t) => t.id === nextValue);
           onChange(type?.id ?? null, type?.name ?? "");
         }}
-      >
-        <option value="">未分类</option>
-        {legacy && <option value="__legacy__">{legacyName}（原分类）</option>}
-        {types.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-          </option>
-        ))}
-        <option value="__create__">＋ 新增类型…</option>
-      </select>
+        options={[
+          { value: "", label: "未分类" },
+          ...(legacy
+            ? [{ value: "__legacy__", label: `${legacyName}（原分类）` }]
+            : []),
+          ...types.map((t) => ({ value: t.id, label: t.name })),
+          { value: "__create__", label: "＋ 新增类型…" },
+        ]}
+      />
       {loading && (
         <span className="article-type-hint" role="status">
           正在更新类型…

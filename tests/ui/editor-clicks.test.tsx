@@ -314,9 +314,8 @@ it.each([true, false])(
         aiConfigured={false}
       />,
     );
-    fireEvent.change(screen.getByRole("combobox", { name: "文章类型" }), {
-      target: { value: "ai" },
-    });
+    fireEvent.click(screen.getByRole("combobox", { name: "文章类型" }));
+    fireEvent.click(screen.getByRole("option", { name: "AI" }));
     fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
     await screen.findAllByText(/草稿已保存/);
     const write = h.api.mock.calls.find(

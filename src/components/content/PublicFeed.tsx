@@ -1,3 +1,4 @@
+import TypeDropdown from "../../modules/article-types/TypeDropdown";
 import "../../modules/article-types/styles.css";
 import { useState } from "react";
 import { ArrowUpRight, Pin, Feather, SlidersHorizontal } from "lucide-react";
@@ -43,21 +44,18 @@ export default function PublicFeed({
   return (
     <section className="public-feed" data-layout={theme}>
       <div className="feed-toolbar">
-        <label className="category-filter article-type-filter">
+        <div className="category-filter article-type-filter">
           <SlidersHorizontal size={16} aria-hidden="true" />
-          <select
-            aria-label="文章类型"
+          <TypeDropdown
+            label="文章类型"
             value={category}
-            onChange={(event) => setCategory(event.target.value)}
-          >
-            <option value="">全部文章</option>
-            {types.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={setCategory}
+            options={[
+              { value: "", label: "全部文章" },
+              ...types.map((type) => ({ value: type.id, label: type.name })),
+            ]}
+          />
+        </div>
         <SearchBox
           value={query}
           onChange={setQuery}

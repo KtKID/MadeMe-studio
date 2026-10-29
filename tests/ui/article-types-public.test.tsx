@@ -12,6 +12,18 @@ import PublicFeed from "../../src/components/content/PublicFeed";
 import Dashboard from "../../src/components/content/Dashboard";
 import { defaultSettings, type Post } from "../../src/shared/contracts";
 
+function openTypes(label: string) {
+  const trigger = screen.getByRole("combobox", { name: label });
+  if (trigger.getAttribute("aria-expanded") !== "true")
+    fireEvent.click(trigger);
+  return screen.getByRole("listbox", { name: label });
+}
+function pickType(label: string, name: string) {
+  fireEvent.click(
+    within(openTypes(label)).getByRole("option", { name }),
+  );
+  expect(screen.queryByRole("listbox")).toBeNull();
+}
 const types = [
   { id: "ai", name: "AI" },
   { id: "reflection", name: "感悟" },
@@ -53,23 +65,22 @@ it("首页下拉只按配置显示全部和类型，包含空类型；选择不�
       authenticated={false}
     />,
   );
-  const select = screen.getByRole("combobox", { name: "文章类型" });
   expect(
-    within(select)
+    within(openTypes("文章类型"))
       .getAllByRole("option")
       .map((x) => x.textContent),
   ).toEqual(["全部文章", "AI", "感悟", "空类型"]);
-  fireEvent.change(select, { target: { value: "ai" } });
+  pickType("文章类型", "AI");
   expect(screen.getByRole("heading", { name: "one" })).toBeTruthy();
   expect(screen.queryByRole("heading", { name: "two" })).toBeNull();
   fireEvent.change(screen.getByRole("searchbox"), {
     target: { value: "tagneedle" },
   });
   expect(screen.getByRole("heading", { name: "one" })).toBeTruthy();
-  fireEvent.change(select, { target: { value: "empty" } });
+  pickType("文章类型", "空类型");
   expect(screen.queryByRole("heading", { name: "one" })).toBeNull();
   expect(screen.getByText("没有找到相关文字")).toBeTruthy();
-  fireEvent.change(select, { target: { value: "" } });
+  pickType("文章类型", "全部文章");
   expect(screen.getByRole("heading", { name: "legacy" })).toBeTruthy();
   expect(location.href).toBe(before);
 });
@@ -87,9 +98,7 @@ it("稳定ID更名仍命中，旧无ID文章按精确名字兼容；已删除ID�
       authenticated={false}
     />,
   );
-  fireEvent.change(screen.getByRole("combobox", { name: "文章类型" }), {
-    target: { value: "ai" },
-  });
+  pickType("文章类型", "AI");
   expect(
     screen.getAllByRole("heading", { level: 2 }).map((x) => x.textContent),
   ).toEqual(["stable", "old"]);
@@ -114,12 +123,10 @@ it("后台类型列表包括配置空项，旧未配置分类仍可筛选且不�
       }}
     />,
   );
-  const select = screen.getByRole("combobox", { name: "按类型筛选" });
-  expect(within(select).getByRole("option", { name: "空类型" })).toBeTruthy();
-  const legacy = within(select).getByRole("option", {
-    name: "旧分类：旧分类",
-  }) as HTMLOptionElement;
-  fireEvent.change(select, { target: { value: legacy.value } });
+  expect(
+    within(openTypes("按类型筛选")).getByRole("option", { name: "空类型" }),
+  ).toBeTruthy();
+  pickType("按类型筛选", "旧分类：旧分类");
   expect(screen.getByRole("heading", { name: "legacy" })).toBeTruthy();
   expect(screen.queryByRole("heading", { name: "one" })).toBeNull();
   expect(posts[0].category).toBe("旧名");
@@ -130,7 +137,9 @@ it("后台类型列表包括配置空项，旧未配置分类仍可筛选且不�
       }),
     ),
   );
-  expect(within(select).getByRole("option", { name: "新增类型" })).toBeTruthy();
+  expect(
+    within(openTypes("按类型筛选")).getByRole("option", { name: "新增类型" }),
+  ).toBeTruthy();
 });
 
 it("后台正在筛选的类型被删除后撤下旧条件，不留下看不见的筛选", () => {
@@ -151,7 +160,7 @@ it("后台正在筛选的类型被删除后撤下旧条件，不留下看不见�
     />,
   );
   const select = screen.getByRole("combobox", { name: "按类型筛选" });
-  fireEvent.change(select, { target: { value: "ai" } });
+  pickType("按类型筛选", "AI");
   expect(screen.queryByRole("heading", { name: "two" })).toBeNull();
   act(() =>
     window.dispatchEvent(
@@ -161,20 +170,19 @@ it("后台正在筛选的类型被删除后撤下旧条件，不留下看不见�
     ),
   );
   expect(screen.getByRole("heading", { name: "two" })).toBeTruthy();
-  expect((select as unknown as HTMLSelectElement).value).toBe("");
+  expect(select.textContent).toContain("全部类型");
 });
 
 it("旧AI文章在更名后的首页和后台归入人工智能，历史名不是另一个可选类型", () => {
   const renamed = [{ id: "ai", name: "人工智能", legacyNames: ["AI"] }];
   const posts = [post("legacy-ai", "AI")];
   render(<PublicFeed posts={posts} types={renamed} authenticated={false} />);
-  const select = screen.getByRole("combobox", { name: "文章类型" });
   expect(
-    within(select)
+    within(openTypes("文章类型"))
       .getAllByRole("option")
       .map((option) => option.textContent),
   ).toEqual(["全部文章", "人工智能"]);
-  fireEvent.change(select, { target: { value: "ai" } });
+  pickType("文章类型", "人工智能");
   expect(screen.getByRole("heading", { name: "legacy-ai" })).toBeTruthy();
   expect(screen.queryByText("AI")).toBeNull();
   cleanup();
@@ -194,10 +202,11 @@ it("旧AI文章在更名后的首页和后台归入人工智能，历史名不�
       }}
     />,
   );
-  const dashboardSelect = screen.getByRole("combobox", { name: "按类型筛选" });
   expect(
-    within(dashboardSelect).queryByRole("option", { name: "旧分类：AI" }),
+    within(openTypes("按类型筛选")).queryByRole("option", {
+      name: "旧分类：AI",
+    }),
   ).toBeNull();
-  fireEvent.change(dashboardSelect, { target: { value: "ai" } });
+  pickType("按类型筛选", "人工智能");
   expect(screen.getByRole("heading", { name: "legacy-ai" })).toBeTruthy();
 });

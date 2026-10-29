@@ -18,6 +18,19 @@ vi.mock("../../src/components/shared/ui", async (original) => ({
 }));
 import TypeSelector from "../../src/modules/article-types/TypeSelector";
 import TypeSettings from "../../src/modules/article-types/TypeSettings";
+// 通过真实按钮和弹层选项交互，避免把原生 select 的 change 伪装成自定义控件点击。
+function openTypes() {
+  const trigger = screen.getByRole("combobox", { name: "文章类型" });
+  if (trigger.getAttribute("aria-expanded") !== "true")
+    fireEvent.click(trigger);
+  return screen.getByRole("listbox", { name: "文章类型" });
+}
+function pickType(name: string) {
+  fireEvent.click(
+    within(openTypes()).getByRole("option", { name }),
+  );
+  expect(screen.queryByRole("listbox")).toBeNull();
+}
 const types = [
   { id: "ai", name: "AI" },
   { id: "reflection", name: "感悟" },
@@ -57,7 +70,9 @@ it("加载类型并保留未配置旧分类，不因加载自动修改文章", a
   const change = vi.fn();
   render(<Selector change={change} legacy="旧分类" />);
   await waitFor(() => expect(mock.api).toHaveBeenCalled());
-  expect(screen.getByRole("option", { name: /旧分类/ })).toBeTruthy();
+  expect(
+    within(openTypes()).getByRole("option", { name: /旧分类/ }),
+  ).toBeTruthy();
   expect(change).not.toHaveBeenCalled();
 });
 it("在选择器内新增成功自动选中，设置列表立即同步", async () => {
@@ -69,23 +84,21 @@ it("在选择器内新增成功自动选中，设置列表立即同步", async (
     </>,
   );
   await waitFor(() => expect(mock.api).toHaveBeenCalledTimes(2));
-  fireEvent.change(screen.getByLabelText("文章类型"), {
-    target: { value: "__create__" },
-  });
+  pickType("＋ 新增类型…");
   fireEvent.change(screen.getByLabelText("新类型名称"), {
     target: { value: "设计" },
   });
   fireEvent.click(screen.getByRole("button", { name: "添加并选中" }));
   await waitFor(() => expect(change).toHaveBeenCalledWith("new", "设计"));
-  expect(screen.getByLabelText("文章类型")).toHaveProperty("value", "new");
+  expect(
+    screen.getByRole("combobox", { name: "文章类型" }).textContent,
+  ).toContain("设计");
   expect(screen.getByRole("button", { name: "编辑设计" })).toBeTruthy();
 });
 it("空白和已有名称不能新增，失败保留输入并可重试", async () => {
   render(<Selector />);
   await waitFor(() => expect(mock.api).toHaveBeenCalled());
-  fireEvent.change(screen.getByLabelText("文章类型"), {
-    target: { value: "__create__" },
-  });
+  pickType("＋ 新增类型…");
   const input = screen.getByLabelText("新类型名称");
   const add = screen.getByRole("button", { name: "添加并选中" });
   expect(add).toHaveProperty("disabled", true);
@@ -106,9 +119,7 @@ it("新增等待时防止重复提交，取消后迟到成功不改变文章选�
   render(<Selector change={change} />);
   await waitFor(() => expect(mock.api).toHaveBeenCalled());
   mock.api.mockImplementationOnce(() => pending);
-  fireEvent.change(screen.getByLabelText("文章类型"), {
-    target: { value: "__create__" },
-  });
+  pickType("＋ 新增类型…");
   fireEvent.change(screen.getByLabelText("新类型名称"), {
     target: { value: "设计" },
   });
@@ -136,7 +147,9 @@ it("加载失败给出重试而不清旧选择", async () => {
   await screen.findByText("网络暂不可用");
   fireEvent.click(screen.getByRole("button", { name: "重试加载" }));
   await waitFor(() => expect(screen.queryByText("网络暂不可用")).toBeNull());
-  expect(screen.getByRole("option", { name: /旧类型/ })).toBeTruthy();
+  expect(
+    within(openTypes()).getByRole("option", { name: /旧类型/ }),
+  ).toBeTruthy();
 });
 it("删除用站内确认，可取消且不会直接写入", async () => {
   render(<TypeSettings initialTypes={types} />);
@@ -182,19 +195,23 @@ it("早发出的GET迟到不能覆盖新增成功广播", async () => {
     () => new Promise((resolve) => (finish = resolve)),
   );
   render(<Selector />);
-  fireEvent.change(screen.getByLabelText("文章类型"), {
-    target: { value: "__create__" },
-  });
+  pickType("＋ 新增类型…");
   fireEvent.change(screen.getByLabelText("新类型名称"), {
     target: { value: "设计" },
   });
   fireEvent.click(screen.getByRole("button", { name: "添加并选中" }));
   await waitFor(() =>
-    expect(screen.getByLabelText("文章类型")).toHaveProperty("value", "new"),
+    expect(
+      screen.getByRole("combobox", { name: "文章类型" }).textContent,
+    ).toContain("设计"),
   );
   await act(async () => finish({ types }));
-  expect(screen.getByRole("option", { name: "设计" })).toBeTruthy();
-  expect(screen.getByLabelText("文章类型")).toHaveProperty("value", "new");
+  expect(
+    within(openTypes()).getByRole("option", { name: "设计" }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("combobox", { name: "文章类型" }).textContent,
+  ).toContain("设计");
 });
 
 it("外层保存禁用时不允许更改类型或继续新增", async () => {
@@ -205,9 +222,7 @@ it("外层保存禁用时不允许更改类型或继续新增", async () => {
     onChange: vi.fn(),
   };
   const view = render(<TypeSelector {...props} />);
-  fireEvent.change(screen.getByLabelText("文章类型"), {
-    target: { value: "__create__" },
-  });
+  pickType("＋ 新增类型…");
   view.rerender(<TypeSelector {...props} disabled />);
   expect(screen.getByLabelText("文章类型")).toHaveProperty("disabled", true);
   expect(screen.queryByLabelText("新类型名称")).toBeNull();
@@ -283,13 +298,14 @@ it("旧分类按历史名称显示当前类型，但不自动改写文章；未�
   const change = vi.fn();
   const props = { initialTypes: renamed, legacyName: "AI", onChange: change };
   const view = render(<TypeSelector {...props} value={null} />);
-  expect(screen.getByLabelText("文章类型")).toHaveProperty("value", "ai");
+  expect(
+    screen.getByRole("combobox", { name: "文章类型" }).textContent,
+  ).toContain("人工智能");
   expect(change).not.toHaveBeenCalled();
   view.rerender(<TypeSelector {...props} value="deleted" />);
-  expect(screen.getByLabelText("文章类型")).toHaveProperty(
-    "value",
-    "__legacy__",
-  );
+  expect(
+    screen.getByRole("combobox", { name: "文章类型" }).textContent,
+  ).toContain("AI（原分类）");
 });
 
 it("队列里一个写入失败后下一项仍会执行", async () => {

@@ -82,7 +82,3 @@
   width: 100%;
   max-width: 24rem;
 }
-.category-filter.article-type-filter select {
-  width: min(10rem, 100%);
-  min-width: 0;
-}

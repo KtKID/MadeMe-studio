@@ -65,9 +65,8 @@ describe("公开列表真实 DOM 交互（不调用生产 API）", () => {
     expect(
       screen.getAllByRole("heading", { level: 2 }).map((n) => n.textContent),
     ).toEqual(["two", "one"]);
-    fireEvent.change(screen.getByRole("combobox", { name: "文章类型" }), {
-      target: { value: "tech" },
-    });
+    fireEvent.click(screen.getByRole("combobox", { name: "文章类型" }));
+    fireEvent.click(screen.getByRole("option", { name: "技术" }));
     expect(screen.queryByRole("heading", { name: "two" })).toBeNull();
     fireEvent.change(screen.getByRole("searchbox"), {
       target: { value: "tagneedle" },
@@ -84,9 +83,10 @@ describe("公开列表真实 DOM 交互（不调用生产 API）", () => {
     expect(screen.getByText("没有找到相关文字")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "写下第一篇文章" })).toBeNull();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "文章类型" }), {
-      target: { value: "" },
-    });
+    fireEvent.click(screen.getByRole("combobox", { name: "文章类型" }));
+    fireEvent.click(
+      screen.getByRole("option", { name: "全部文章" }),
+    );
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(2);
   });
   it("空列表只给作者显示写作入口", () => {
