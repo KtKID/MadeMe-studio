@@ -38,6 +38,8 @@ npm run test:integrations
 
 ## 文档与模块索引
 
+- [Obsidian 本地保存规则与重复保存判断](docs/OBSIDIAN-LOCAL-SAVE.md)
+
 ### 工程与验收
 
 - [开发清单与执行约定](docs/DEVELOPMENT.md)

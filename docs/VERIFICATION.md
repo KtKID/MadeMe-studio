@@ -186,3 +186,15 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 
 ## 2026-10-29：缺目录与保存完成状态
 红测 2 failed / 2 passed / 71 skipped；区分文章/媒体缺目录、创建取消/失败重试、成功关闭、重复保存与迟到探测回归。日志 /tmp/obsidian-save-flow-{red,tests,check,build,smoke}.log。
+
+## 2026-10-29：新增目录未选择状态
+红测 1 failed / 69 skipped；回归新增/重置/未选禁用/选择实际路径/旧正常与空根路径。日志 /tmp/obsidian-unselected-directory-{red,tests,check,build,smoke}.log。
+
+## 2026-10-29：主动路径/媒体审计
+真实文件系统、Markdown实际解析和独立复核先红后修；逐项日志、官方Obsidian1.14.5分段通过与FSA授权受限见[审计报告](../reports/2026-10-29-obsidian-path-audit.md)。完整日志 /tmp/obsidian-path-audit-{tests,check,build,smoke}.log。不把Mock/测试数等同用户设备端到端通过。
+最终业务全测84文件/749用例通过；check242文件0 errors/0 warnings/5既有hints；build与HTTP smoke通过。最后一例额外实盘红测确认下载期间文章目录被删除时旧write会隐式重建，修复后不再重建。
+
+## 找回源码后的业务工作树复验（2026-10-29 08:56 UTC）
+- 从 Sites 源码 `c95c60f1b0112bdf890800199354bd881240f0ed` 相对 `21dfd230` 的 18 个业务文件差异恢复到业务 `fd1c5e6` 基线；逐文件核对旧基线一致，未复制 Sites hosting、认证配置、预览数据或密钥。
+- 本轮重新执行：Vitest **84 文件 / 749 用例通过**；check **242 文件，0 errors / 0 warnings / 5 既有 hints**；build 与隔离 HTTP smoke 均退出 0。日志 `/tmp/obsidian-recovered-{tests,check,build,smoke}.log`。
+- 本轮没有重新运行官方 Obsidian GUI 或浏览器原生目录授权；先前报告中的实机结果与红测日志属于历史验收，当前环境不能据此宣称重新实测。找回源码未实施 C# 特例或新的编码算法。
