@@ -135,3 +135,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## 删除本地导出文件后重新保存（2026-10-28）
 
 先红后绿：文章 NotFound 不再与历史清单指纹误判为改稿；缺失图片实际补写。新增 7 项回归，包括权限/IO失败、陌生文件竞争和真实临时目录删除后恢复。82 文件 / 650 项通过；check 240 文件、无 errors/warnings、5 既有 hints；build 与 HTTP smoke 通过。不是用户设备/原生授权验收，未推送部署。详见 [删除后重存报告](../reports/2026-10-28-obsidian-deleted-file-save.md)。
+
+## Obsidian 打开完整链路调查（2026-10-28）
+
+新增 2 项真实 SaveButton DOM/click 诊断，覆盖历史预设字段不影响目标、中文特殊字符编码、编辑器及配置全局 click 保护放行。原实现直接通过，无可证明的红测，因此不修改实现，不冒称修复原生 Vault not found。专项 3 文件 / 40 项；全仓 82 文件 / 652 项通过，check 240 文件 0 errors/0 warnings/5 既有 hints，build 与 HTTP smoke 通过。jsdom 不实现原生协议导航；仍需应用复制的实际 URI 对比。见 [完整链路调查](../reports/2026-10-28-obsidian-open-chain-investigation.md)。

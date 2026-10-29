@@ -29,3 +29,5 @@
 - [2026-10-28：Obsidian 弹窗样式边界](2026-10-28-obsidian-modal-style-boundary.md)：直属工具栏选择器与本弹窗portal隔离，实际CSS cascade复现padding归零/hover同色；保留共享Modal行为，视觉验收单列。
 
 - [2026-10-28：删除本地导出文件后重新保存](2026-10-28-obsidian-deleted-file-save.md)：区分磁盘缺失与本地修改，补回已删除附件，保留权限错误与竞争保护。
+
+- [2026-10-28：Obsidian 打开链路排查](2026-10-28-obsidian-open-chain-investigation.md)：补 DOM/click/旧预设诊断，排除链接改写及站内拦截；未定位原生 Vault not found 根因，不冒称修复。

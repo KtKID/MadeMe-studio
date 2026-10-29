@@ -482,3 +482,72 @@ it("保存Modal脱离快捷栏DOM，保留焦点陷阱、遮罩/Escape关闭和�
   expect(document.querySelector(".modal-backdrop")).toBeNull();
   fireEvent.keyDown(document, { key: "Escape" });
 });
+
+it.each([
+  ["TechNote", "brain/01_笔记/MadeMe.md"],
+  ["中文 & + % 仓库", "brain/01_笔记/问 & + %.md"],
+])(
+  "打开链路诊断：真实DOM与点击保留 %s 的URI，不使用历史预设名",
+  async (rootName, notePath) => {
+    const { editorLinkDestination } =
+      await import("../../src/components/editor/editor-navigation");
+    const { installUnsavedGuard } =
+      await import("../../src/components/shared/unsaved-guard");
+    h.list.mockResolvedValue([
+      {
+        preset: {
+          id: "legacy",
+          name: "显示预设不是仓库",
+          vaultName: "过期目录名",
+          obsidianVault: "已撤销的历史身份",
+          vaultRootConfirmed: false,
+          noteDirectory: "brain/01_笔记",
+          imageRule: "../asset",
+          isVault: true,
+        },
+        handle: { name: rootName, requestPermission: h.permission },
+      },
+    ]);
+    h.save.mockResolvedValue({ notePath });
+    render(<SaveButton getSnapshot={snapshot} />);
+    fireEvent.click(screen.getByText("保存到 Obsidian"));
+    await screen.findByText("显示预设不是仓库");
+    fireEvent.click(screen.getByText("保存本次快照"));
+    const link = (await screen.findByText(
+      "在 Obsidian 中打开",
+    )) as HTMLAnchorElement;
+    const expected = `obsidian://open?vault=${encodeURIComponent(rootName)}&file=${encodeURIComponent(notePath)}`;
+    expect(link.getAttribute("href")).toBe(expected);
+    expect(link.href).toBe(expected);
+    const confirm = vi.fn(() => false);
+    const stopGuard = installUnsavedGuard(window, {
+      documentTarget: document,
+      confirmLeave: confirm,
+      currentUrl: () => window.location.href,
+    });
+    const destinations: (string | undefined)[] = [];
+    const editorCapture = (event: MouseEvent) => {
+      destinations.push(editorLinkDestination(event, window.location.href));
+    };
+    document.addEventListener("click", editorCapture, true);
+    // 只派发DOM事件，不调用浏览器/操作系统协议处理器；jsdom不能验收原生Obsidian。
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    try {
+      fireEvent(link, event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(destinations).toEqual([undefined]);
+      expect(confirm).not.toHaveBeenCalled();
+      expect(link.href).toBe(expected);
+      expect(
+        screen.getByRole("dialog", { name: "保存到 Obsidian" }),
+      ).toBeTruthy();
+    } finally {
+      document.removeEventListener("click", editorCapture, true);
+      stopGuard();
+    }
+  },
+);
