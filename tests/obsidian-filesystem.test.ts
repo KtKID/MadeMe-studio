@@ -291,3 +291,355 @@ it.each([false, true])(
     });
   },
 );
+
+it.each(["图).png", "图(.png", "中文 空格#%.png", "a[1].png", "a'b!.png"])(
+  "审计：真实媒体文件 %s 经Markdown解析后仍指向存在文件",
+  async (name) => {
+    const { markdownToMdast } = await import("satteri");
+    const { fileURLToPath, pathToFileURL } = await import("node:url");
+    await isolated(async (root, path) => {
+      const prepared = {
+        ...snapshot(),
+        media: [{ id: "media-one", name, url: "/api/files/media-one" }],
+      };
+      const saved = await saveToDirectory(root, prepared, {
+        ...options,
+        noteDirectory: "中文 空格%/笔记",
+        imageRule: "../../asset",
+        createDirectories: true,
+      });
+      const markdown = await readFile(join(path, saved.notePath), "utf8");
+      const tree = markdownToMdast(markdown);
+      const urls: string[] = [];
+      const visit = (node: any) => {
+        if (node.type === "image") urls.push(node.url);
+        for (const child of node.children ?? []) visit(child);
+      };
+      visit(tree);
+      expect(urls).toHaveLength(1);
+      const actualFile = fileURLToPath(
+        new URL(urls[0], pathToFileURL(join(path, saved.notePath))),
+      );
+      expect(await readFile(actualFile)).toEqual(Buffer.from(imageBytes));
+    });
+  },
+);
+
+it("审计：陌生同名目录不能阻断文章安全另名保存或改动其内容", async () => {
+  await isolated(async (root, path) => {
+    await mkdir(join(path, "笔记", "临时目录验收.md"), { recursive: true });
+    await writeFile(
+      join(path, "笔记", "临时目录验收.md", "保留.txt"),
+      "用户数据",
+    );
+    const saved = await saveToDirectory(root, snapshot(), {
+      ...options,
+      createDirectories: true,
+    });
+    expect(saved.notePath).not.toBe("笔记/临时目录验收.md");
+    expect(
+      await readFile(join(path, "笔记", "临时目录验收.md", "保留.txt"), "utf8"),
+    ).toBe("用户数据");
+    expect(await readFile(join(path, saved.notePath), "utf8")).toContain(
+      "当前稿正文",
+    );
+  });
+});
+
+it("审计：真实嵌套仓库中文特殊字符URI正确且不改变保存位置", async () => {
+  const { resolveObsidianUri } =
+    await import("../src/modules/obsidian-local/open");
+  await isolated(async (root, path) => {
+    const vault = "内层 仓库%";
+    await mkdir(join(path, vault, ".obsidian"), { recursive: true });
+    const saved = await saveToDirectory(
+      root,
+      { ...snapshot(), title: "标题 空格#%" },
+      {
+        ...options,
+        noteDirectory: vault + "/01_笔记",
+        createDirectories: true,
+      },
+    );
+    const uri = new URL((await resolveObsidianUri(root, saved.notePath))!);
+    expect(uri.searchParams.get("vault")).toBe(vault);
+    expect(uri.searchParams.get("file")).toBe("01_笔记/标题 空格_%.md");
+    expect(
+      await readFile(join(path, vault, uri.searchParams.get("file")!), "utf8"),
+    ).toContain("当前稿正文");
+  });
+});
+
+it("审计：编辑器figure图片完整本地化并保留caption，不追加重复图", async () => {
+  const { markdownToHtml } = await import("satteri");
+  const { fileURLToPath, pathToFileURL } = await import("node:url");
+  await isolated(async (root, path) => {
+    const prepared = prepareExport(
+      {
+        articleId: "figure",
+        title: "带说明图片",
+        markdown:
+          '<figure><img src="/api/files/a"><figcaption>保留说明</figcaption></figure>',
+        blocks: [
+          { type: "image", props: { url: "/api/files/a", name: "图).png" } },
+        ],
+      },
+      "https://example.test",
+    );
+    const saved = await saveToDirectory(root, prepared, {
+      ...options,
+      createDirectories: true,
+    });
+    const html = markdownToHtml(
+      await readFile(join(path, saved.notePath), "utf8"),
+    ).html;
+    const images = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]*)"/g)];
+    expect(images).toHaveLength(1);
+    expect(html).toContain("<figcaption>保留说明</figcaption>");
+    expect(
+      await readFile(
+        fileURLToPath(
+          new URL(images[0][1], pathToFileURL(join(path, saved.notePath))),
+        ),
+      ),
+    ).toEqual(Buffer.from(imageBytes));
+  });
+});
+it("审计：真实磁盘并发同标题不同文章不覆盖，遍历规则拒绝且不创建文件", async () => {
+  await isolated(async (root, path) => {
+    await mkdir(join(path, "笔记"));
+    await mkdir(join(path, "asset"));
+    const [a, b] = await Promise.all([
+      saveToDirectory(
+        root,
+        { ...snapshot(), articleId: "one", markdown: "ONE" },
+        options,
+      ),
+      saveToDirectory(
+        root,
+        { ...snapshot(), articleId: "two", markdown: "TWO" },
+        options,
+      ),
+    ]);
+    expect(a.notePath).not.toBe(b.notePath);
+    expect(await readFile(join(path, a.notePath), "utf8")).toBe("ONE");
+    expect(await readFile(join(path, b.notePath), "utf8")).toBe("TWO");
+    const before = await readdir(path, { recursive: true });
+    await expect(
+      saveToDirectory(root, snapshot(), {
+        ...options,
+        noteDirectory: "../../escape",
+        createDirectories: true,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      saveToDirectory(root, snapshot(), {
+        ...options,
+        imageRule: "../../escape",
+        createDirectories: true,
+      }),
+    ).rejects.toThrow();
+    expect(await readdir(path, { recursive: true })).toEqual(before);
+  });
+});
+
+it("审计：新导出媒体名兼容井号，旧井号媒体保留但不继续复用断链路径", async () => {
+  const { createHash } = await import("node:crypto");
+  await isolated(async (root, path) => {
+    await mkdir(join(path, "asset"));
+    await mkdir(join(path, "笔记"));
+    await writeFile(join(path, "asset", "图#.png"), imageBytes);
+    await writeFile(
+      join(path, ".mademe-export.json"),
+      JSON.stringify({
+        version: 1,
+        articles: {},
+        media: {
+          "media-one": {
+            path: "asset/图#.png",
+            digest: createHash("sha256").update(imageBytes).digest("hex"),
+          },
+        },
+      }),
+    );
+    const prepared = {
+      ...snapshot(),
+      media: [
+        { id: "media-one", name: "图#.png", url: "/api/files/media-one" },
+      ],
+    };
+    const saved = await saveToDirectory(root, prepared, options);
+    const manifest = JSON.parse(
+      await readFile(join(path, ".mademe-export.json"), "utf8"),
+    );
+    expect(manifest.media["media-one"].path).toBe("asset/图_.png");
+    expect(await readFile(join(path, "asset", "图#.png"))).toEqual(
+      Buffer.from(imageBytes),
+    );
+    expect(await readFile(join(path, "asset", "图_.png"))).toEqual(
+      Buffer.from(imageBytes),
+    );
+    expect(await readFile(join(path, saved.notePath), "utf8")).not.toContain(
+      "%23",
+    );
+    expect(prepared.media[0].name).toBe("图#.png");
+  });
+});
+
+it("审计：新文章文件名兼容井号但正文标题不变，旧井号稿不改不删", async () => {
+  const { createHash } = await import("node:crypto");
+  await isolated(async (root, path) => {
+    await mkdir(join(path, "笔记"));
+    const old = "# 旧稿#\n保留";
+    await writeFile(join(path, "笔记", "标题#.md"), old);
+    await writeFile(
+      join(path, ".mademe-export.json"),
+      JSON.stringify({
+        version: 1,
+        media: {},
+        articles: {
+          hashnote: {
+            path: "笔记/标题#.md",
+            digest: createHash("sha256").update(old).digest("hex"),
+          },
+        },
+      }),
+    );
+    const prepared = prepareExport(
+      { articleId: "hashnote", title: "标题#", markdown: "新稿", blocks: [] },
+      "https://example.test",
+    );
+    const saved = await saveToDirectory(root, prepared, options);
+    expect(saved.notePath).toBe("笔记/标题_.md");
+    expect(await readFile(join(path, saved.notePath), "utf8")).toContain(
+      "# 标题#",
+    );
+    expect(await readFile(join(path, "笔记", "标题#.md"), "utf8")).toBe(old);
+  });
+});
+it.each([false, true])(
+  "审计：含井号目录拒绝且无写入，markdownOnly=%s",
+  async (markdownOnly) => {
+    await isolated(async (root, path) => {
+      await expect(
+        saveToDirectory(root, snapshot(), {
+          ...options,
+          noteDirectory: "目录#/笔记",
+          createDirectories: true,
+          markdownOnly,
+        }),
+      ).rejects.toThrow("目录名含 #，Obsidian 无法正确打开，请选择其他目录。");
+      expect(await readdir(path)).toEqual([".obsidian"]);
+    });
+  },
+);
+
+it("审计：真实根名或图片目录含井号均拒绝，不尝试改目录名", async () => {
+  await isolated(async (root, path) => {
+    await mkdir(join(path, "坏#库", ".obsidian"), { recursive: true });
+    const child = await root.getDirectoryHandle("坏#库");
+    await expect(
+      saveToDirectory(child, snapshot(), {
+        ...options,
+        createDirectories: true,
+      }),
+    ).rejects.toThrow("目录名含 #");
+    expect(await readdir(join(path, "坏#库"))).toEqual([".obsidian"]);
+    await expect(
+      saveToDirectory(root, snapshot(), {
+        ...options,
+        imageRule: "../图#库",
+        createDirectories: true,
+      }),
+    ).rejects.toThrow("目录名含 #");
+    expect(await readdir(path)).toEqual([".obsidian", "坏#库"]);
+  });
+});
+
+it.each(["delete", "modify"])(
+  "审计：后续图片下载期间复用图被%s，正文不得提交到已变化附件",
+  async (mode) => {
+    await isolated(async (root, path) => {
+      const prepared = prepareExport(
+        {
+          articleId: "reuse-race",
+          title: "复用竞态",
+          markdown: "![A](/api/files/a)\n![B](/api/files/b)",
+          blocks: [
+            { type: "image", props: { url: "/api/files/a", name: "a.png" } },
+            { type: "image", props: { url: "/api/files/b", name: "b.png" } },
+          ],
+        },
+        "https://example.test",
+      );
+      const first = await saveToDirectory(root, prepared, {
+        ...options,
+        createDirectories: true,
+      });
+      const original = await readFile(join(path, first.notePath), "utf8");
+      await expect(
+        saveToDirectory(
+          root,
+          { ...prepared, markdown: "新正文\n" + prepared.markdown },
+          {
+            ...options,
+            fetchMedia: async (url) => {
+              if (url.endsWith("/b")) {
+                if (mode === "delete") await rm(join(path, "asset", "a.png"));
+                else await writeFile(join(path, "asset", "a.png"), "本地修改");
+              }
+              return options.fetchMedia();
+            },
+          },
+        ),
+      ).rejects.toThrow("本地附件已变化或被删除，未保存正文，请重试。");
+      expect(await readFile(join(path, first.notePath), "utf8")).toBe(original);
+      if (mode === "modify")
+        expect(await readFile(join(path, "asset", "a.png"), "utf8")).toBe(
+          "本地修改",
+        );
+    });
+  },
+);
+
+it("审计：候选父目录变成文件时及时失败，不把父路径错误当同名占用无限重试", async () => {
+  await isolated(async (root, path) => {
+    await mkdir(join(path, "笔记"));
+    await mkdir(join(path, "asset"));
+    let reads = 0;
+    const wrapped = {
+      ...root,
+      getDirectoryHandle: async (name: string, opts?: { create?: boolean }) => {
+        if (name === "笔记" && ++reads === 2) {
+          await rm(join(path, "笔记"), { recursive: true });
+          await writeFile(join(path, "笔记"), "外部新文件");
+        }
+        // 限定错误复现次数，避免旧实现无限Promise循环阻塞测试进程。
+        if (name === "笔记" && reads > 3) throw new Error("错误的无限候选重试");
+        return root.getDirectoryHandle(name, opts);
+      },
+    };
+    await expect(
+      saveToDirectory(wrapped, snapshot(), options),
+    ).rejects.toMatchObject({ name: "TypeMismatchError" });
+    expect(await readFile(join(path, "笔记"), "utf8")).toBe("外部新文件");
+    expect(reads).toBe(2);
+  });
+});
+
+it("审计：未授权创建时下载期间文章目录被删除，不得在write阶段静默重建", async () => {
+  await isolated(async (root, path) => {
+    await mkdir(join(path, "笔记"));
+    await mkdir(join(path, "asset"));
+    await expect(
+      saveToDirectory(root, snapshot(), {
+        ...options,
+        fetchMedia: async () => {
+          await rm(join(path, "笔记"), { recursive: true });
+          return options.fetchMedia();
+        },
+      }),
+    ).rejects.toThrow();
+    expect(await readdir(path)).not.toContain("笔记");
+  });
+});

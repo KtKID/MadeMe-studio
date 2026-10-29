@@ -5,6 +5,7 @@ import { clientLog } from "../log/client";
 import { OBSIDIAN_LOCAL_DEFAULTS } from "../config/limits";
 import {
   presetSchema,
+  obsidianDirectoryPathSchema,
   type DirectoryHandle,
   type PresetRecord,
 } from "./contracts";
@@ -25,9 +26,9 @@ export default function ObsidianSettings() {
   const [name, setName] = useState("");
   const [handle, setHandle] = useState<DirectoryHandle>();
   const [isVault, setIsVault] = useState(false);
-  const [noteDirectory, setNoteDirectory] = useState<string>(
-    OBSIDIAN_LOCAL_DEFAULTS.noteDirectory,
-  );
+  // undefined 表示尚未选择；旧预设的空串仍表示明确的仓库根路径，不能混为一谈。
+  const [noteDirectory, setNoteDirectory] =
+    useState<PresetRecord["preset"]["noteDirectory"]>();
   const [imageRule, setImageRule] = useState<string>(
     OBSIDIAN_LOCAL_DEFAULTS.imageRule,
   );
@@ -76,7 +77,7 @@ export default function ObsidianSettings() {
     setName("");
     setHandle(undefined);
     setIsVault(false);
-    setNoteDirectory(OBSIDIAN_LOCAL_DEFAULTS.noteDirectory);
+    setNoteDirectory(undefined);
     setImageRule(OBSIDIAN_LOCAL_DEFAULTS.imageRule);
     setError("");
     setMessage("");
@@ -135,6 +136,8 @@ export default function ObsidianSettings() {
         throw new Error("当前路径没有检测到 Obsidian 仓库，请重新选择");
       setRootStatus("valid");
       setHandle(chosen);
+      // 子目录授权选择绑定于原根；采用新的根选择后必须重新定位文章目录。
+      setNoteDirectory(undefined);
       setIsVault(vault);
       if (!name) setName(chosen.name);
     } catch (error) {
@@ -170,6 +173,8 @@ export default function ObsidianSettings() {
       const relative = normalizePath(...path);
       // 子目录无需仓库标记；仍检查图片规则不会越过授权根。
       normalizePath(relative, imageRule);
+      const checked = obsidianDirectoryPathSchema.safeParse(relative);
+      if (!checked.success) throw new Error(checked.error.issues[0].message);
       setNoteDirectory(relative);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError")
@@ -181,7 +186,13 @@ export default function ObsidianSettings() {
     }
   }
   function prepareSave() {
-    if (!handle || lock.current || rootStatus !== "valid") return;
+    if (
+      !handle ||
+      lock.current ||
+      rootStatus !== "valid" ||
+      noteDirectory === undefined
+    )
+      return;
     setError("");
     setMessage("");
     const parsed = presetSchema.safeParse({
@@ -198,6 +209,18 @@ export default function ObsidianSettings() {
       fail(
         new Error(parsed.error.issues.map((issue) => issue.message).join("；")),
       );
+      return;
+    }
+    try {
+      for (const path of [
+        parsed.data.noteDirectory,
+        normalizePath(parsed.data.noteDirectory, parsed.data.imageRule),
+      ]) {
+        const checked = obsidianDirectoryPathSchema.safeParse(path);
+        if (!checked.success) throw new Error(checked.error.issues[0].message);
+      }
+    } catch (error) {
+      fail(error);
       return;
     }
     // 站内确认固定这份配置快照；不是文件系统授权，不接触 vault 文件。
@@ -372,7 +395,12 @@ export default function ObsidianSettings() {
                     id={noteDirectoryId}
                     disabled={busy}
                     readOnly
-                    value={noteDirectory}
+                    value={
+                      noteDirectory === ""
+                        ? "（仓库根目录）"
+                        : (noteDirectory ?? "")
+                    }
+                    placeholder="请选择目录"
                   />
                   <button
                     className="button small"
@@ -401,7 +429,12 @@ export default function ObsidianSettings() {
               <button
                 className="button primary"
                 type="button"
-                disabled={busy || !handle || rootStatus !== "valid"}
+                disabled={
+                  busy ||
+                  !handle ||
+                  rootStatus !== "valid" ||
+                  noteDirectory === undefined
+                }
                 onClick={prepareSave}
               >
                 保存本地预设

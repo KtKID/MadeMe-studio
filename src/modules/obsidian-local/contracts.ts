@@ -25,6 +25,14 @@ export interface LocalFileHandle {
   }>;
 }
 
+/** Obsidian 内部链接把 # 当片段分隔符；不改用户目录，明确拒绝不可打开的目录。 */
+export const obsidianDirectoryPathSchema = z
+  .string()
+  .refine(
+    (value) => !value.includes("#"),
+    "目录名含 #，Obsidian 无法正确打开，请选择其他目录。",
+  );
+
 const relativePath = z
   .string()
   .max(TEXT_LIMITS.url)

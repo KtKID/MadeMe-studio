@@ -9,7 +9,7 @@ import {
   preparedExportSchema,
   type PreparedExport,
 } from "../local-export/contracts";
-import type { DirectoryHandle } from "./contracts";
+import { obsidianDirectoryPathSchema, type DirectoryHandle } from "./contracts";
 import { verifyVault } from "./presets";
 
 /** 任何规则都在授权根内解析；不接受绝对路径、Windows 路径或隐形控制字符。 */
@@ -43,7 +43,7 @@ export function safeName(name: string): string {
   const cleaned =
     name
       .normalize("NFC")
-      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+      .replace(/[<>:"#/\\|?*\u0000-\u001f]/g, "_")
       .replace(/^\.+|[. ]+$/g, "") || "未命名";
   const dot = cleaned.lastIndexOf(".");
   const extension =
@@ -129,7 +129,7 @@ async function write(root: DirectoryHandle, path: string, data: Blob | string) {
   const parts = normalizePath(path).split("/");
   const name = parts.pop()!;
   const handle = await (
-    await directory(root, parts.join("/"), true)
+    await directory(root, parts.join("/"), false)
   ).getFileHandle(name, { create: true });
   const stream = await handle.createWritable();
   try {
@@ -169,9 +169,26 @@ async function freePath(
 ) {
   let candidate = [folder, name].filter(Boolean).join("/");
   let i = 0;
+  // 先定位父目录，让父路径故障直接失败；只有候选basename的类型冲突才是名称被占用。
+  const parent = await directory(root, folder);
+  const occupied = async (path: string) => {
+    try {
+      await (
+        await parent.getFileHandle(path.split("/").at(-1)!, { create: false })
+      ).getFile();
+      return true;
+    } catch (error) {
+      if (error instanceof Error && error.name === "NotFoundError")
+        return false;
+      // 同名目录同样占用名称，另名保存；权限/IO不能当作可用位置。
+      if (error instanceof Error && error.name === "TypeMismatchError")
+        return true;
+      throw error;
+    }
+  };
   while (
     reserved.has(candidate.normalize("NFC").toLowerCase()) ||
-    (await read(root, candidate))
+    (await occupied(candidate))
   ) {
     candidate = [folder, suffix(name, id, i++)].filter(Boolean).join("/");
   }
@@ -242,6 +259,10 @@ async function saveTransaction(
     const mediaToSave = options.markdownOnly ? [] : prepared.media;
     const noteDirectory = normalizePath(options.noteDirectory),
       imageDirectory = normalizePath(noteDirectory, options.imageRule);
+    for (const path of [noteDirectory, imageDirectory]) {
+      const checked = obsidianDirectoryPathSchema.safeParse(path);
+      if (!checked.success) throw new Error(checked.error.issues[0].message);
+    }
     // 文章与附件目标分别检查；错误携带实际规则解析后的目录，不把缺图目录误报成文章路径。
     const targets: Array<z.infer<typeof missingDirectorySchema>> = [
       { kind: "article", path: noteDirectory },
@@ -270,7 +291,8 @@ async function saveTransaction(
       normalizePath(entry.path);
     const tracked = manifest.articles[prepared.articleId];
     const previous =
-      tracked?.path.split("/").slice(0, -1).join("/") === noteDirectory
+      tracked?.path.split("/").slice(0, -1).join("/") === noteDirectory &&
+      !tracked.path.split("/").at(-1)?.includes("#")
         ? tracked
         : undefined;
     let notePath = previous?.path;
@@ -347,6 +369,8 @@ async function saveTransaction(
       let reuseExisting = false;
       if (
         known &&
+        // Obsidian 内部媒体链接不支持 #；旧文件保留，但本次生成兼容名称的新副本。
+        !known.path.split("/").at(-1)?.includes("#") &&
         known.path.split("/").slice(0, -1).join("/") === imageDirectory &&
         known.digest === value
       ) {
@@ -370,7 +394,7 @@ async function saveTransaction(
         path = await freePath(
           root,
           imageDirectory,
-          safeName(originalName),
+          safeName(originalName.replace(/#/g, "_")),
           media.id,
           reserved,
         );
@@ -391,7 +415,11 @@ async function saveTransaction(
         item.path,
       )
         .split("/")
-        .map((part) => encodeURIComponent(part))
+        .map((part) =>
+          encodeURIComponent(part).replace(/[()]/g, (char) =>
+            char === "(" ? "%28" : "%29",
+          ),
+        )
         .join("/");
       markdown = replaceMarkdownMediaUrl(markdown, item.media.url, target);
       if (item.write) {
@@ -400,6 +428,13 @@ async function saveTransaction(
         await write(root, item.path, item.blob);
       }
       manifest.media[item.media.id] = { path: item.path, digest: item.digest };
+    }
+    // 后续下载/写入可能耗时很久；提交正文前复核全部本次引用，尤其是先前决定复用的附件。
+    // 外部删除或修改时停止，不用已下载 blob 静默覆盖用户刚改动的图片。
+    for (const item of downloads) {
+      const local = await read(root, item.path);
+      if (!local || (await digest(local)) !== item.digest)
+        throw new Error("本地附件已变化或被删除，未保存正文，请重试。");
     }
     // 下载期间本地可能又编辑：在正文提交前复核，不依赖最初的确认永久授权覆盖。
     const current = await read(root, notePath);

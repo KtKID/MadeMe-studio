@@ -7,9 +7,10 @@ import { OBSIDIAN_LOCAL_DEFAULTS } from "../config/limits";
 import type { ExportSnapshot, PreparedExport } from "../local-export/contracts";
 import {
   prepareExport,
+  encodeMarkdownMediaUrl,
   replaceMarkdownMediaUrl,
 } from "../local-export/prepare";
-import type { PresetRecord } from "./contracts";
+import { obsidianDirectoryPathSchema, type PresetRecord } from "./contracts";
 import {
   isDirectoryPickerSupported,
   listPresets,
@@ -133,6 +134,8 @@ export default function SaveButton({
       if (!path) throw new Error("文章目录必须位于已授权根目录内。");
       const relative = normalizePath(...path);
       normalizePath(relative, selected.preset.imageRule);
+      const checked = obsidianDirectoryPathSchema.safeParse(relative);
+      if (!checked.success) throw new Error(checked.error.issues[0].message);
       setDirectory(relative);
       setResult(undefined);
       setConflict(false);
@@ -231,7 +234,9 @@ export default function SaveButton({
         replaceMarkdownMediaUrl(
           text,
           media.url,
-          new URL(media.url, window.location.origin).href,
+          encodeMarkdownMediaUrl(
+            new URL(media.url, window.location.origin).href,
+          ),
         ),
       current.markdown,
     );

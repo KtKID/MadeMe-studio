@@ -46,6 +46,7 @@ function directoryTree(name: string, vault = true): any {
   return {
     name,
     requestPermission: h.permission,
+    resolve: async () => ["笔记"],
     getDirectoryHandle: async (child: string) => {
       if (child === ".obsidian") {
         if (!vault) throw new DOMException("missing", "NotFoundError");
@@ -54,6 +55,14 @@ function directoryTree(name: string, vault = true): any {
       return directoryTree(child, false);
     },
   };
+}
+async function selectPresetNoteDirectory() {
+  fireEvent.click(screen.getByRole("button", { name: "选择目录" }));
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText("默认文章子目录") as HTMLInputElement).value,
+    ).toBe("笔记"),
+  );
 }
 const snapshot = () => ({
   articleId: "a",
@@ -698,6 +707,7 @@ it("修改预设拒绝无仓库路径，保留原有效句柄和编辑输入", a
   h.pick.mockResolvedValue(directoryTree("vault"));
   fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
   await screen.findByText("根目录存在 .obsidian 目录，校验通过。");
+  await selectPresetNoteDirectory();
   fireEvent.click(screen.getByText("保存本地预设"));
   fireEvent.click(await screen.findByText("确认保存预设"));
   await waitFor(() => expect(h.put).toHaveBeenCalled());
@@ -768,6 +778,7 @@ it.each(["NotAllowedError", "NotReadableError"])(
     h.pick.mockResolvedValue(directoryTree("vault"));
     fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
     await screen.findByText("根目录存在 .obsidian 目录，校验通过。");
+    await selectPresetNoteDirectory();
     fireEvent.click(screen.getByText("保存本地预设"));
     fireEvent.click(await screen.findByText("确认保存预设"));
     await waitFor(() => expect(h.put).toHaveBeenCalled());
@@ -827,6 +838,7 @@ it("Browse通过后标记被移除，确认时重新校验且不保存本次路�
   });
   fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
   await screen.findByText("根目录：新仓库");
+  await selectPresetNoteDirectory();
   fireEvent.click(screen.getByText("保存本地预设"));
   fireEvent.click(await screen.findByText("确认保存预设"));
   await screen.findAllByText("当前路径没有检测到 Obsidian 仓库，请重新选择");
@@ -858,6 +870,7 @@ it.each(["NotAllowedError", "NotReadableError"])(
     h.pick.mockResolvedValue(directoryTree("有效仓库"));
     fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
     await screen.findByText("根目录：有效仓库");
+    await selectPresetNoteDirectory();
     fireEvent.click(screen.getByText("保存本地预设"));
     fireEvent.click(await screen.findByText("确认保存预设"));
     await waitFor(() => expect(h.put).toHaveBeenCalledTimes(1));
@@ -1278,7 +1291,7 @@ it("新建根选择强制可见校验中到成功，完成前不能保存", asyn
   await act(async () => finish({ name: ".obsidian" }));
   await screen.findByText("根目录存在 .obsidian 目录，校验通过。");
   expect((screen.getByText("保存本地预设") as HTMLButtonElement).disabled).toBe(
-    false,
+    true,
   );
 });
 
@@ -1347,6 +1360,7 @@ it("真实新根 Browse 通过后标记消失，确认再次校验拒绝且撤�
   let exists = true;
   h.pick.mockResolvedValue({
     ...directoryTree("新库"),
+    resolve: async () => ["01_笔记"],
     getDirectoryHandle: async () => {
       if (!exists)
         throw Object.assign(new Error("missing"), { name: "NotFoundError" });
@@ -1356,6 +1370,12 @@ it("真实新根 Browse 通过后标记消失，确认再次校验拒绝且撤�
   render(<ObsidianSettings />);
   fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
   await screen.findByText("根目录存在 .obsidian 目录，校验通过。");
+  fireEvent.click(screen.getByRole("button", { name: "选择目录" }));
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText("默认文章子目录") as HTMLInputElement).value,
+    ).toBe("01_笔记"),
+  );
   fireEvent.click(screen.getByText("保存本地预设"));
   exists = false;
   fireEvent.click(await screen.findByText("确认保存预设"));
@@ -1463,4 +1483,143 @@ it("打开目标探测延迟不阻塞关闭与再次保存，迟到结果不污�
   expect(screen.queryByText("在 Obsidian 中打开")).toBeNull();
   expect(screen.queryByRole("status")).toBeNull();
   expect((screen.getByText("保存") as HTMLButtonElement).disabled).toBe(false);
+});
+
+it("新增预设子目录真正未选，根通过后仍禁用保存，选择子目录后才可确认", async () => {
+  h.list.mockResolvedValue([]);
+  const root = { ...directoryTree("新库"), resolve: async () => ["01_笔记"] };
+  h.pick
+    .mockResolvedValueOnce(root)
+    .mockResolvedValueOnce(directoryTree("01_笔记", false));
+  render(<ObsidianSettings />);
+  const input = screen.getByLabelText("默认文章子目录") as HTMLInputElement;
+  expect(input.value).toBe("");
+  expect(input.placeholder).toBe("请选择目录");
+  fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+  await screen.findByText("根目录存在 .obsidian 目录，校验通过。");
+  expect((screen.getByText("保存本地预设") as HTMLButtonElement).disabled).toBe(
+    true,
+  );
+  expect(h.put).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "选择目录" }));
+  await waitFor(() => expect(input.value).toBe("01_笔记"));
+  fireEvent.click(screen.getByText("保存本地预设"));
+  fireEvent.click(await screen.findByText("确认保存预设"));
+  await waitFor(() => expect(h.put).toHaveBeenCalledTimes(1));
+  expect(h.put.mock.lastCall?.[0]).toMatchObject({
+    noteDirectory: "01_笔记",
+    imageRule: "../asset",
+  });
+  fireEvent.click(screen.getByText("新增预设"));
+  expect(input.value).toBe("");
+  expect(input.placeholder).toBe("请选择目录");
+  expect((screen.getByText("保存本地预设") as HTMLButtonElement).disabled).toBe(
+    true,
+  );
+});
+
+it.each(["已有目录", ""])(
+  "编辑旧预设保留明确路径 %s，不迁移为未选择",
+  async (noteDirectory) => {
+    h.list.mockResolvedValue([
+      {
+        preset: {
+          id: "old",
+          name: "旧库",
+          vaultName: "vault",
+          noteDirectory,
+          imageRule: ".",
+          isVault: true,
+        },
+        handle: directoryTree("vault"),
+      },
+    ]);
+    render(<ObsidianSettings />);
+    const edit = await screen.findByText("编辑 旧库");
+    await act(async () => fireEvent.click(edit));
+    const input = screen.getByLabelText("默认文章子目录") as HTMLInputElement;
+    expect(input.value).toBe(noteDirectory || "（仓库根目录）");
+    expect(
+      (screen.getByText("保存本地预设") as HTMLButtonElement).disabled,
+    ).toBe(false);
+    fireEvent.click(screen.getByText("保存本地预设"));
+    fireEvent.click(await screen.findByText("确认保存预设"));
+    await waitFor(() => expect(h.put).toHaveBeenCalledTimes(1));
+    expect(h.put.mock.lastCall?.[0].noteDirectory).toBe(noteDirectory);
+    expect(h.pick).not.toHaveBeenCalled();
+  },
+);
+
+it("更换有效仓库根后不能沿用旧根的子目录选择，取消或校验失败不丢原选择", async () => {
+  render(<ObsidianSettings />);
+  const edit = await screen.findByText("编辑 本地库");
+  await act(async () => fireEvent.click(edit));
+  const input = screen.getByLabelText("默认文章子目录") as HTMLInputElement;
+  expect(input.value).toBe("笔记");
+  h.pick.mockRejectedValueOnce(new DOMException("cancel", "AbortError"));
+  fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+  await screen.findByText("已取消目录选择，原预设未改变。");
+  expect(input.value).toBe("笔记");
+  h.pick.mockResolvedValueOnce(directoryTree("无效"));
+  h.verify.mockResolvedValueOnce(false);
+  fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+  await screen.findByText("当前路径没有检测到 Obsidian 仓库，请重新选择");
+  expect(input.value).toBe("笔记");
+  h.pick.mockResolvedValueOnce(directoryTree("新库"));
+  fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+  await screen.findByText("根目录：新库");
+  expect(input.value).toBe("");
+  expect(input.placeholder).toBe("请选择目录");
+  expect((screen.getByText("保存本地预设") as HTMLButtonElement).disabled).toBe(
+    true,
+  );
+  expect(h.put).not.toHaveBeenCalled();
+});
+
+it("仅Markdown保留HTML图片caption且转成完整远程URL，不追加重复图", async () => {
+  render(
+    <SaveButton
+      getSnapshot={() => ({
+        ...snapshot(),
+        markdown:
+          '<figure><img src="/api/files/a"><figcaption>保留说明</figcaption></figure>',
+        blocks: [
+          { type: "image", props: { url: "/api/files/a", name: "图).png" } },
+        ],
+      })}
+    />,
+  );
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("本地库");
+  fireEvent.click(screen.getByRole("checkbox", { name: "仅下载 Markdown" }));
+  fireEvent.click(screen.getByText("保存"));
+  await screen.findByRole("status");
+  const markdown = h.save.mock.lastCall?.[1].markdown as string;
+  expect(markdown).toContain(
+    'src="' + new URL("/api/files/a", window.location.origin).href + '"',
+  );
+  expect(markdown).toContain("<figcaption>保留说明</figcaption>");
+  expect(markdown.match(/<img/g)).toHaveLength(1);
+  expect(markdown).not.toContain("![");
+  expect(h.save.mock.lastCall?.[2].markdownOnly).toBe(true);
+});
+
+it("真实根和子目录井号拒绝就近反馈，不保存或改动旧子目录", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../src/modules/obsidian-local/presets")
+  >("../../src/modules/obsidian-local/presets");
+  h.verify.mockImplementation(actual.verifyVault);
+  render(<ObsidianSettings />);
+  const edit = await screen.findByText("编辑 本地库");
+  await act(async () => fireEvent.click(edit));
+  h.pick.mockResolvedValueOnce(directoryTree("坏#库"));
+  fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+  await screen.findByText(
+    "目录名含 #，Obsidian 无法正确打开，请选择其他目录。",
+  );
+  expect(screen.getByText("根目录：vault")).toBeTruthy();
+  expect(
+    (screen.getByLabelText("默认文章子目录") as HTMLInputElement).value,
+  ).toBe("笔记");
+  expect(h.put).not.toHaveBeenCalled();
 });

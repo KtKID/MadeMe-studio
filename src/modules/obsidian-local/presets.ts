@@ -1,6 +1,7 @@
 import { OBSIDIAN_LOCAL_DEFAULTS } from "../config/limits";
 import {
   presetRecordSchema,
+  obsidianDirectoryPathSchema,
   presetSchema,
   type DirectoryHandle,
   type Preset,
@@ -39,6 +40,8 @@ export async function pickDirectory(
   return picker.call(window, { mode: "read", startIn });
 }
 export async function verifyVault(handle: DirectoryHandle): Promise<boolean> {
+  const checked = obsidianDirectoryPathSchema.safeParse(handle.name);
+  if (!checked.success) throw new Error(checked.error.issues[0].message);
   try {
     await handle.getDirectoryHandle(".obsidian", { create: false });
     return true;
