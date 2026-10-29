@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { markdownToHtml } from "satteri";
 import {
   prepareExport,
   replaceMarkdownMediaUrl,
@@ -195,4 +196,77 @@ it("多反引号代码跨度及未闭合围栏不被重写", () => {
       "asset/x.png",
     ),
   ).toBe("`` ` ![x](/api/files/one) ``\n~~~\n![x](/api/files/one)");
+});
+
+// 使用项目已安装的 Markdown 解析器检查真实输出目标，不只比较生成字符串。
+describe("主动审计：图片引用与代码保真", () => {
+  it("HTML figure 图片与说明保持单份，目录重写更新原 img src", () => {
+    const raw = "/api/files/caption-image";
+    const result = prepareExport(
+      {
+        ...snapshot,
+        markdown: `<figure><img src="${raw}" alt="原图"><figcaption>保留这段图片说明</figcaption></figure>`,
+        blocks: [
+          {
+            type: "image",
+            props: { url: raw, name: "原图.png", caption: "保留这段图片说明" },
+          },
+        ],
+      },
+      origin,
+    );
+    const preparedHtml = markdownToHtml(result.markdown).html;
+    expect(preparedHtml.match(/<img\b/g)).toHaveLength(1);
+    const rewritten = replaceMarkdownMediaUrl(
+      result.markdown,
+      raw,
+      "../asset/image.png",
+    );
+    const html = markdownToHtml(rewritten).html;
+    expect(html.match(/<img\b/g)).toHaveLength(1);
+    expect(html).toContain('src="../asset/image.png"');
+    expect(html).not.toContain('src="/api/files/caption-image"');
+    expect(html).toContain("<figcaption>保留这段图片说明</figcaption>");
+  });
+
+  it("遗漏图片补链含空格和右括号时，解析后仍是完整远程图片URL", () => {
+    const raw = "https://image.example/a b).png";
+    const result = prepareExport(
+      {
+        ...snapshot,
+        markdown: "",
+        blocks: [{ type: "image", props: { url: raw, name: "图片" } }],
+      },
+      origin,
+    );
+    const html = markdownToHtml(result.markdown).html;
+    const images = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]*)"/g)];
+    expect(images).toHaveLength(1);
+    expect(decodeURIComponent(images[0][1])).toBe(raw);
+  });
+
+  it("缩进代码里的图片示例保持原文，只改真正渲染的图片", () => {
+    const raw = "/api/files/one";
+    const code = "![代码示例](/api/files/one)";
+    const markdown = `    ${code}\n\n![真实图片](${raw})`;
+    const rewritten = replaceMarkdownMediaUrl(
+      markdown,
+      raw,
+      "../asset/image.png",
+    );
+    const html = markdownToHtml(rewritten).html;
+    expect(html).toContain(`<pre><code>${code}\n</code></pre>`);
+    expect(html).toContain('src="../asset/image.png"');
+    expect(html.match(/<img\b/g)).toHaveLength(1);
+  });
+});
+
+it("HTML图片仅改真实src，不改data-src或注释里的示例", () => {
+  const raw = "/api/files/a";
+  const markdown =
+    '<!-- <img src="/api/files/a"> -->\n<img data-src="/api/files/a" src="/api/files/a" alt="说明">';
+  const result = replaceMarkdownMediaUrl(markdown, raw, "../asset/a.png");
+  expect(result).toBe(
+    '<!-- <img src="/api/files/a"> -->\n<img data-src="/api/files/a" src="../asset/a.png" alt="说明">',
+  );
 });

@@ -69,22 +69,86 @@ function mapMarkdownOutsideCode(
       result += rewriteInline(plain) + line;
       plain = "";
       fence = { marker: marker[1][0], length: marker[1].length };
+    } else if (/^(?: {4}|\t)/.test(line)) {
+      // 缩进代码不是实际媒体引用，原文保留。
+      result += rewriteInline(plain) + line;
+      plain = "";
     } else plain += line;
   }
   return result + rewriteInline(plain);
 }
 
-/** 只替换完整 Markdown 链接目标，避免误改代码示例、普通正文、绝对 URL 子串或相似 ID。 */
+/** URL 中空白和括号须编码；encodeURIComponent 本身保留括号。 */
+export function encodeMarkdownMediaUrl(url: string): string {
+  return url.replace(/[\s()<>"]/g, (char) =>
+    char === "(" ? "%28" : char === ")" ? "%29" : encodeURIComponent(char),
+  );
+}
+function htmlAttributeValue(value: string): string {
+  return value.replace(
+    /&(?:amp|quot|apos|lt|gt|#\d+|#x[\da-f]+);/gi,
+    (entity) => {
+      const named: Record<string, string> = {
+        "&amp;": "&",
+        "&quot;": '"',
+        "&apos;": "'",
+        "&lt;": "<",
+        "&gt;": ">",
+      };
+      const lower = entity.toLowerCase();
+      if (named[lower]) return named[lower];
+      const point = lower.startsWith("&#x")
+        ? parseInt(lower.slice(3, -1), 16)
+        : parseInt(lower.slice(2, -1), 10);
+      return point <= 0x10ffff ? String.fromCodePoint(point) : entity;
+    },
+  );
+}
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+/** 只改 Markdown 目标和已知编辑器 HTML img 带引号 src，不重构任意 HTML。 */
 export function replaceMarkdownMediaUrl(
   markdown: string,
   from: string,
   to: string,
 ): string {
-  const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(`(\\]\\(\\s*<?)${escaped}(?=[\\s)>])`, "g");
-  return mapMarkdownOutsideCode(markdown, (text) =>
-    text.replace(pattern, (_match, prefix: string) => `${prefix}${to}`),
-  );
+  const variants = [...new Set([from, from.replace(/[()[\]]/g, "\\$&")])];
+  const patterns = variants.map((value) => {
+    const escaped = value.replace(/[.*+?^{}$()|[\]\\]/g, "\\$&");
+    return new RegExp("(\\]\\(\\s*<?)" + escaped + "(?=[\\s)>])", "g");
+  });
+  return mapMarkdownOutsideCode(markdown, (text) => {
+    // 注释保持原样；img 仅改匹配的 src，caption 与其它属性不变。
+    const tokens = /<!--[\s\S]*?-->|<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi;
+    let offset = 0,
+      output = "";
+    const rewriteLinks = (part: string) =>
+      patterns.reduce(
+        (value, pattern) =>
+          value.replace(pattern, (_match, prefix: string) => prefix + to),
+        part,
+      );
+    for (const match of text.matchAll(tokens)) {
+      output += rewriteLinks(text.slice(offset, match.index));
+      output += match[0].startsWith("<!--")
+        ? match[0]
+        : match[0].replace(
+            /(\ssrc\s*=\s*)(["'])(.*?)\2/gi,
+            (whole, prefix: string, quote: string, value: string) =>
+              htmlAttributeValue(value) === from
+                ? prefix + quote + escapeHtmlAttribute(to) + quote
+                : whole,
+          );
+      offset = match.index! + match[0].length;
+    }
+    return output + rewriteLinks(text.slice(offset));
+  });
 }
 
 export function prepareExport(
@@ -115,6 +179,10 @@ export function prepareExport(
     if (!raw.trim())
       throw new Error("存在未填写链接的图片或媒体，请补全后再导出。");
     const url = safeUrl(raw, base);
+    const markdownUrl = encodeMarkdownMediaUrl(raw);
+    if (markdownUrl !== raw)
+      markdown = replaceMarkdownMediaUrl(markdown, raw, markdownUrl);
+    raw = markdownUrl;
     const local =
       url.origin === base && /^\/api\/files\/[^/]+$/.test(url.pathname);
     const id = local

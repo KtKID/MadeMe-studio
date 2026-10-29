@@ -23,6 +23,9 @@
 
 ### Markdown 链接重写边界
 
-`replaceMarkdownMediaUrl(markdown, from, to)` 仅重写内联形式的实际链接目标（`[文字](URL)` / `![图片](<URL>)`），不修改正文 URL、相似 ID、绝对 URL 的局部子串，也不修改反引号行内代码及反引号/波浪号 fenced code（含未闭合围栏）的示例。
+`replaceMarkdownMediaUrl(markdown, from, to)` 重写内联形式的实际链接目标（`[文字](URL)` / `![图片](<URL>)`），不修改正文 URL、相似 ID、绝对 URL 的局部子串，也不修改反引号行内代码、顶层反引号/波浪号 fenced code（含未闭合围栏）及缩进代码示例。编辑器 HTML figure/img 的带引号 src 可就地改写，caption/其它属性保留，避免追加重复图；注释/data-src不改。
 
 本模块面向当前 BlockNote 编辑器生成的 Markdown 和同一快照的结构化媒体块，不是任意原始 Markdown 的通用重写器。引用式图片 `![说明][编号]` / `[编号]: URL` 不由此函数重写；从 Markdown 导入后的内容须先经 BlockNote 的块转换及重新导出，媒体块漏出的内联引用会由准备阶段补全。外部调用者若直接传入未规范化的 reference-style Markdown，不能宣称所有原始引用已经本地化。
+
+
+目标URL中的空白/括号由 encodeMarkdownMediaUrl 编码，Markdown转义目标可匹配。此模块不是通用AST重写器：复杂嵌套blockquote/list代码、reference-style、srcset/picture/source与任意HTML仍不声明完整支持。主动审计、红测与原生caption验收见[媒体引用审计](../../../reports/2026-10-29-local-export-media-audit.md)。
