@@ -45,6 +45,63 @@ const fetchMedia = async () =>
   new Response(new Blob(["picture"], { type: "image/png" }));
 const options = { noteDirectory: "笔记", imageRule: "../asset", fetchMedia };
 describe("本地导出边界与事务", () => {
+  it.each([false, true])(
+    "实际保存必须重验根标记，markdownOnly=%s",
+    async (markdownOnly) => {
+      const { root, files } = rootFS();
+      await saveToDirectory(root, prepared, options);
+      const before = [...files.entries()];
+      const original = root.getDirectoryHandle;
+      let fetches = 0;
+      root.getDirectoryHandle = async (name: string) => {
+        if (name === ".obsidian")
+          throw new DOMException("missing", "NotFoundError");
+        return original(name);
+      };
+      await expect(
+        saveToDirectory(root, prepared, {
+          ...options,
+          markdownOnly,
+          fetchMedia: async () => {
+            fetches++;
+            return fetchMedia();
+          },
+        }),
+      ).rejects.toThrow("这个路径没有检测到 Obsidian 仓库，请重新选择");
+      expect(fetches).toBe(0);
+      expect([...files.entries()]).toEqual(before);
+    },
+  );
+  it.each(["NotAllowedError", "UnknownError"])(
+    "根标记读取错误 %s 原样传播且无写入",
+    async (name) => {
+      const { root, files } = rootFS();
+      const error = new DOMException("root unavailable", name);
+      root.getDirectoryHandle = async () => {
+        throw error;
+      };
+      await expect(saveToDirectory(root, prepared, options)).rejects.toBe(
+        error,
+      );
+      expect(files.size).toBe(0);
+    },
+  );
+  it("合法根中的文章子目录不要求自身标记", async () => {
+    const { root, files } = rootFS();
+    const original = root.getDirectoryHandle;
+    root.getDirectoryHandle = async (name: string) => {
+      const child = await original(name);
+      if (name !== ".obsidian")
+        child.getDirectoryHandle = async (part: string) => {
+          if (part === ".obsidian")
+            throw new DOMException("missing", "NotFoundError");
+          return original(part);
+        };
+      return child;
+    };
+    await saveToDirectory(root, prepared, options);
+    expect(files.has("笔记/测试.md")).toBe(true);
+  });
   it("规范化父路径但不越授权根", () => {
     expect(normalizePath("笔记", "../asset")).toBe("asset");
     expect(() => normalizePath("", "../asset")).toThrow();

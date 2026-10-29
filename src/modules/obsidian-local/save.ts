@@ -10,6 +10,7 @@ import {
   type PreparedExport,
 } from "../local-export/contracts";
 import type { DirectoryHandle } from "./contracts";
+import { verifyVault } from "./presets";
 
 /** 任何规则都在授权根内解析；不接受绝对路径、Windows 路径或隐形控制字符。 */
 export function normalizePath(...paths: string[]): string {
@@ -218,6 +219,9 @@ async function saveTransaction(
     preparedExportSchema.parse(prepared);
     const { fetchMedia: _fetch, ...serializableOptions } = options;
     saveOptionsSchema.parse(serializableOptions);
+    // 旧预设和已授权句柄不是仓库存在的证明；所有保存模式在任何写入前检查实际根。
+    if (!(await verifyVault(root)))
+      throw new Error("这个路径没有检测到 Obsidian 仓库，请重新选择");
     // 仅正文模式不触碰附件目录；既有媒体清单和文件原样保留。
     const mediaToSave = options.markdownOnly ? [] : prepared.media;
     const noteDirectory = normalizePath(options.noteDirectory),

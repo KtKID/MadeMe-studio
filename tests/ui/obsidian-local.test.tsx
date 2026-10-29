@@ -1049,3 +1049,40 @@ it("Markdown选项切换预设保留，busy禁止切换和重复保存，关闭�
   expect(h.save.mock.lastCall?.[2].markdownOnly).toBe(false);
   expect(h.download).not.toHaveBeenCalled();
 });
+
+it.each([false, true])(
+  "确认旧预设以真实根检查拒绝无标记目录，缓存 isVault=%s",
+  async (isVault) => {
+    const actual = await vi.importActual<
+      typeof import("../../src/modules/obsidian-local/presets")
+    >("../../src/modules/obsidian-local/presets");
+    h.verify.mockImplementation(actual.verifyVault);
+    h.list.mockResolvedValue([
+      {
+        preset: {
+          id: "old",
+          name: "旧库",
+          vaultName: "TechNote",
+          noteDirectory: "brain/01_笔记",
+          imageRule: "../asset",
+          isVault,
+        },
+        handle: {
+          ...directoryTree("TechNote", false),
+          getDirectoryHandle: async () => {
+            throw Object.assign(new Error("missing"), {
+              name: "NotFoundError",
+            });
+          },
+        },
+      },
+    ]);
+    render(<ObsidianSettings />);
+    fireEvent.click(await screen.findByText("编辑 旧库"));
+    fireEvent.click(screen.getByText("保存本地预设"));
+    fireEvent.click(await screen.findByText("确认保存预设"));
+    await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+    expect(h.put).not.toHaveBeenCalled();
+    expect(h.remove).not.toHaveBeenCalled();
+  },
+);

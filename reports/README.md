@@ -47,3 +47,5 @@
 - [2026-10-29：Obsidian 子目录选择与保存弹窗整理](2026-10-29-obsidian-directory-picker-ui.md)：预设子目录用只读路径与 picker，保存弹窗单一“其他位置”入口，保留授权校验和主操作。
 
 - [2026-10-29：同目录仅 Markdown 保存选项](2026-10-29-obsidian-markdown-only-option.md)：checkbox默认未选，底部统一右对齐；选中不取图不写asset，保留媒体与安全清单，保存按钮同流程。
+
+- [2026-10-29：文章保存边界重验仓库根](2026-10-29-obsidian-article-root-validation.md)：实际 adapter 写入前检查根标记，覆盖旧预设、标记消失及仅 Markdown，不误拒合法文章子目录。

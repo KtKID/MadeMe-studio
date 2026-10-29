@@ -171,3 +171,8 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## 同目录仅 Markdown 保存（2026-10-29）
 
 存储/UI先红2项、布局先红1项，再实现checkbox和Zod本次选项。新增5项覆盖不取图、同篇幂等/媒体保留/切回完整保存、底部同侧换行、取消重置/切预设/忙碌。84文件692项、check242文件0errors/0warnings/5既有hints、build/HTTP smoke通过。真实原生目录授权/应用打开未验收；见[选项报告](../reports/2026-10-29-obsidian-markdown-only-option.md)。
+
+## 2026-10-29：文章写入前仓库根检查
+- adapter 红测：2 failed / 23 passed，日志 /tmp/obsidian-root-save-red.log。
+- 新增真实临时目录标记删除、两种保存模式无写入、权限/IO传播、合法子目录及 Settings 真实 verifyVault 回归。
+- 完整日志：/tmp/obsidian-root-save-{tests,check,build,smoke}.log；原生授权与 Obsidian 应用打开不在本轮通过声明中。

@@ -93,6 +93,7 @@ async function isolated(
 ) {
   const path = await mkdtemp(join(tmpdir(), "mademe-obsidian-filesystem-"));
   try {
+    await mkdir(join(path, ".obsidian"));
     await run(temporaryDirectoryHandle(path), path);
   } finally {
     await rm(path, { recursive: true, force: true });
@@ -130,7 +131,7 @@ describe("本地导出真实临时文件系统端到端", () => {
       await expect(
         saveToDirectory(root, snapshot(), options),
       ).rejects.toBeInstanceOf(MissingDirectoryError);
-      expect(await readdir(path)).toEqual([]);
+      expect(await readdir(path)).toEqual([".obsidian"]);
       const first = await saveToDirectory(root, snapshot(), {
         ...options,
         createDirectories: true,
@@ -242,3 +243,20 @@ it("真实临时目录删除文章和图片后，原路径恢复正文与完整�
     expect(await readdir(join(path, "asset"))).toEqual(["图片.png"]);
   });
 });
+
+it.each([false, true])(
+  "真实临时仓库根标记删除后拒绝保存且目录不变，markdownOnly=%s",
+  async (markdownOnly) => {
+    await isolated(async (root, path) => {
+      await rm(join(path, ".obsidian"), { recursive: true });
+      await expect(
+        saveToDirectory(root, snapshot(), {
+          ...options,
+          createDirectories: true,
+          markdownOnly,
+        }),
+      ).rejects.toThrow("这个路径没有检测到 Obsidian 仓库，请重新选择");
+      expect(await readdir(path)).toEqual([]);
+    });
+  },
+);
