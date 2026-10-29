@@ -24,16 +24,16 @@ const context = () => ({
   request: new Request("http://localhost/studio"),
   locals: { env },
 });
-it("作者摘要 SQL 只返回 12 个展示字段，不读取正文、发布快照或密码", async () => {
+it("作者摘要在服务器比较快照，仅返回展示字段和只读状态，不传正文或密码", async () => {
   const repo = new D1PostRepository(env.DB);
   const post = await new PostService(repo).create({ title: "草稿", blocks });
   const spy = vi.spyOn(env.DB, "prepare");
   const result = await repo.listSummaries();
   expect(result).toEqual([postSummarySchema.parse(post)]);
-  expect(Object.keys(result[0])).toHaveLength(12);
-  expect(spy.mock.calls[0][0]).not.toMatch(
-    /published_json|password_hash|\$\.blocks/,
-  );
+  expect(Object.keys(result[0])).toHaveLength(14);
+  expect(spy.mock.calls[0][0]).toContain("published_json");
+  expect(spy.mock.calls[0][0]).not.toContain("password_hash");
+  expect(JSON.stringify(result)).not.toContain("passwordHash");
   expect(JSON.stringify(result)).not.toContain('"blocks"');
 });
 it("作者工作台走摘要；访客只拿发布快照而非未发布改动", async () => {

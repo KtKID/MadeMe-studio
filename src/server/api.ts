@@ -1,3 +1,4 @@
+import { draftWithPublicationStatus } from "../modules/publication-status/server";
 import { articleTypeMutationSchema } from "../modules/article-types/contracts";
 import {
   mutateArticleTypes,
@@ -135,14 +136,20 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
         "D1 storage is not configured.",
       );
     const repo = new D1PostRepository(env.DB);
-    const posts = new PostService(repo);
+    const articleTypes =
+      path[0] === "posts" ? (await readSettings(env)).articleTypes : undefined;
+    const posts = new PostService(repo, articleTypes);
     if (path[0] === "posts") {
       if (path.length === 1) {
         if (method === "GET") {
           const rows = await repo.list();
           if (identity.owner || identity.tokenId) {
             requireScope(identity, env, "posts:read");
-            response = json({ posts: rows.map((r) => r.draft) });
+            response = json({
+              posts: rows.map((r) =>
+                draftWithPublicationStatus(r, articleTypes),
+              ),
+            });
           } else response = json({ posts: publicPosts(rows) });
           return cors(response, request, identity);
         }
@@ -168,7 +175,11 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
           const row = await posts.mustGet(id);
           if (identity.owner || identity.tokenId) {
             requireScope(identity, env, "posts:read");
-            return cors(json({ post: row.draft }), request, identity);
+            return cors(
+              json({ post: draftWithPublicationStatus(row, articleTypes) }),
+              request,
+              identity,
+            );
           }
           if (!(await canReadPost(request, env, identity, row)))
             throw notFound();

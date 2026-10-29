@@ -1,3 +1,4 @@
+import "../../modules/publication-status/styles.css";
 import TypeDropdown from "../../modules/article-types/TypeDropdown";
 import { useArticleTypes } from "../../modules/article-types/client";
 import { DEFAULT_ARTICLE_TYPES } from "../../modules/article-types/contracts";
@@ -291,11 +292,22 @@ export default function Dashboard({
                       </p>
                     </div>
                   </a>
-                  <span
-                    className={`status-pill ${p.publishedAt ? "published" : ""}`}
-                  >
-                    {p.deletedAt ? "回收站" : visibilityLabels[p.visibility]}
-                  </span>
+                  <div className="publication-state">
+                    <span
+                      className={`status-pill ${p.publishedAt ? "published" : ""}`}
+                    >
+                      {p.deletedAt
+                        ? "回收站"
+                        : visibilityLabels[
+                            p.publishedVisibility ?? p.visibility
+                          ]}
+                    </span>
+                    {!p.deletedAt && p.hasUnpublishedChanges && (
+                      <span className="status-pill publication-pending">
+                        有新修改
+                      </span>
+                    )}
+                  </div>
                   <time>{date(p.updatedAt)}</time>
                   <div className="row-actions">
                     {busy.has(p.id) ? (

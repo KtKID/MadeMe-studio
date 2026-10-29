@@ -44,7 +44,7 @@
 
 ## 工作台首屏数据
 
-文章列表使用 owner-only `loadDashboardPageData` + `listSummaries`，SQL 仅提取共享 `postSummarySchema` 的 12 个字段；正文、发布快照及密码摘要不进入列表传输。访客仍先经过原公开发布快照筛选，不使用草稿摘要替代。媒体与连接页面鉴权之后 SSR 读取安全初始列表，避免 hydration 后额外 GET；查询失败以明确错误传给界面，不把失败当空列表已就绪。私有 HTML/图片继续 `private, no-store`。
+文章列表使用 owner-only `loadDashboardPageData` + `listSummaries`，服务器读取草稿与发布快照以集中派生“有新修改”，再由共享 `postSummarySchema` 投影为轻量摘要；正文、发布快照及密码摘要不进入列表传输，列表查询不读取密码摘要。访客仍先经过原公开发布快照筛选，不使用草稿摘要替代。媒体与连接页面鉴权之后 SSR 读取安全初始列表，避免 hydration 后额外 GET；查询失败以明确错误传给界面，不把失败当空列表已就绪。私有 HTML/图片继续 `private, no-store`。
 
 ## 嵌入与 CSP
 

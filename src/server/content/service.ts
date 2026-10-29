@@ -1,3 +1,8 @@
+import { draftWithPublicationStatus } from "../../modules/publication-status/server";
+import {
+  DEFAULT_ARTICLE_TYPES,
+  type ArticleType,
+} from "../../modules/article-types/contracts";
 import type {
   CreatePostInput,
   PatchPostInput,
@@ -11,7 +16,10 @@ import { hashPassword } from "../auth/crypto";
 import { slugify, validateContent } from "./validation";
 import { markdownToBlocks } from "./markdown";
 export class PostService {
-  constructor(readonly repository: PostRepository) {}
+  constructor(
+    readonly repository: PostRepository,
+    readonly articleTypes: ArticleType[] = DEFAULT_ARTICLE_TYPES,
+  ) {}
   async create(input: CreatePostInput) {
     if (input.markdown !== undefined) {
       if (input.blocks.length)
@@ -48,7 +56,7 @@ export class PostService {
       publishedPasswordHash: null,
     };
     await this.repository.create(row);
-    return draft;
+    return draftWithPublicationStatus(row, this.articleTypes);
   }
   async update(id: string, input: PatchPostInput) {
     const row = await this.mustGet(id);
@@ -69,7 +77,7 @@ export class PostService {
       updatedAt: new Date().toISOString(),
     };
     await this.commit(row, version, "save");
-    return row.draft;
+    return draftWithPublicationStatus(row, this.articleTypes);
   }
   async publish(
     id: string,
@@ -110,7 +118,7 @@ export class PostService {
     row.publishedPasswordHash =
       visibility === "password" ? row.passwordHash : null;
     await this.commit(row, input.version, "publish");
-    return row.draft;
+    return draftWithPublicationStatus(row, this.articleTypes);
   }
   async unpublish(id: string, version: number) {
     const row = await this.mustGet(id);
@@ -125,7 +133,7 @@ export class PostService {
     row.published = null;
     row.publishedPasswordHash = null;
     await this.commit(row, version, "save");
-    return row.draft;
+    return draftWithPublicationStatus(row, this.articleTypes);
   }
   async remove(id: string, version: number) {
     const row = await this.mustGet(id);
@@ -138,7 +146,7 @@ export class PostService {
       version: version + 1,
     };
     await this.commit(row, version, "delete");
-    return row.draft;
+    return draftWithPublicationStatus(row, this.articleTypes);
   }
   async restore(id: string, version: number) {
     const row = await this.mustGet(id);
@@ -150,7 +158,7 @@ export class PostService {
       version: version + 1,
     };
     await this.commit(row, version, "undelete");
-    return row.draft;
+    return draftWithPublicationStatus(row, this.articleTypes);
   }
   async restoreRevision(
     id: string,
@@ -170,7 +178,7 @@ export class PostService {
       updatedAt: new Date().toISOString(),
     };
     await this.commit(row, currentVersion, "restore");
-    return row.draft;
+    return draftWithPublicationStatus(row, this.articleTypes);
   }
   async mustGet(id: string) {
     const row = await this.repository.get(id);
