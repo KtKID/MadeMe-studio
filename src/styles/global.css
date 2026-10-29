@@ -3248,3 +3248,47 @@ kbd {
 .obsidian-save-option > input[type="checkbox"] {
   flex: 0 0 auto;
 }
+
+/* Obsidian 设置局部排版：列表操作同侧，路径与校验归组，不影响其它设置表单。 */
+.obsidian-settings > .form-hint {
+  margin-bottom: 20px;
+}
+.obsidian-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.obsidian-preset-summary {
+  min-width: 0;
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}
+.obsidian-preset-summary > .form-hint {
+  margin: 6px 0 0;
+}
+.obsidian-preset-row > .button-group {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+.obsidian-preset-editor {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.obsidian-root-group {
+  margin: 20px 0;
+}
+.obsidian-root-group > .field-heading {
+  margin: 0 0 8px;
+}
+.obsidian-root-group > .form-hint {
+  margin: 8px 0 0;
+}
+.obsidian-root-group .notice p {
+  margin: 4px 0;
+}
+.obsidian-preset-actions {
+  justify-content: flex-end;
+  margin-top: 20px;
+}

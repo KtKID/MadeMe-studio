@@ -34,6 +34,13 @@ export default function ObsidianSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [rootStatus, setRootStatus] = useState<
+    "unchecked" | "checking" | "valid" | "invalid"
+  >("unchecked");
+  const [rootError, setRootError] = useState<{
+    message: string;
+    retained: boolean;
+  }>();
   const [pending, setPending] = useState<PresetRecord>();
   const lock = useRef(false);
   const mounted = useRef(true);
@@ -62,6 +69,9 @@ export default function ObsidianSettings() {
     };
   }, []);
   function reset() {
+    revision.current++;
+    setRootStatus("unchecked");
+    setRootError(undefined);
     setId("");
     setName("");
     setHandle(undefined);
@@ -71,7 +81,13 @@ export default function ObsidianSettings() {
     setError("");
     setMessage("");
   }
-  function edit(record: PresetRecord) {
+  async function edit(record: PresetRecord) {
+    if (lock.current) return;
+    const sequence = ++revision.current;
+    lock.current = true;
+    setBusy(true);
+    setRootStatus("checking");
+    setRootError(undefined);
     setId(record.preset.id);
     setName(record.preset.name);
     setHandle(record.handle);
@@ -80,26 +96,59 @@ export default function ObsidianSettings() {
     setImageRule(record.preset.imageRule);
     setError("");
     setMessage("");
+    try {
+      const valid = await verifyVault(record.handle);
+      if (!mounted.current || revision.current !== sequence) return;
+      setRootStatus(valid ? "valid" : "invalid");
+      setIsVault(valid);
+      if (!valid)
+        setRootError({
+          message: "这个路径没有检测到 Obsidian 仓库，请重新选择",
+          retained: true,
+        });
+    } catch (error) {
+      if (!mounted.current || revision.current !== sequence) return;
+      setRootStatus("invalid");
+      setRootError({
+        message: error instanceof Error ? error.message : "本地预设操作失败。",
+        retained: true,
+      });
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
   }
   async function browse() {
     if (lock.current) return;
+    setRootError(undefined);
+    setMessage("");
     revision.current++;
     lock.current = true;
     setBusy(true);
     setError("");
     try {
       const chosen = await pickDirectory("documents");
+      setRootStatus("checking");
       const vault = await verifyVault(chosen);
       // 根目录选择先校验再提交本地状态，拒绝时保留原有效选择。
       if (!vault)
         throw new Error("这个路径没有检测到 Obsidian 仓库，请重新选择");
+      setRootStatus("valid");
       setHandle(chosen);
       setIsVault(vault);
       if (!name) setName(chosen.name);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError")
         setMessage("已取消目录选择，原预设未改变。");
-      else fail(error);
+      else {
+        setRootStatus("invalid");
+        // 根选择错误紧贴路径反馈，避免保留旧路径被误解为接受了本次选择。
+        setRootError({
+          message:
+            error instanceof Error ? error.message : "本地预设操作失败。",
+          retained: Boolean(handle),
+        });
+      }
     } finally {
       lock.current = false;
       setBusy(false);
@@ -132,7 +181,7 @@ export default function ObsidianSettings() {
     }
   }
   function prepareSave() {
-    if (!handle || lock.current) return;
+    if (!handle || lock.current || rootStatus !== "valid") return;
     setError("");
     setMessage("");
     const parsed = presetSchema.safeParse({
@@ -164,8 +213,21 @@ export default function ObsidianSettings() {
     try {
       // Browse 的旧结果不能授权这次保存：历史预设或目录标记可能已经变化。
       // 只读取直属配置目录，不请求文件写权限，验证失败不触碰 IndexedDB。
-      if (!(await verifyVault(pending.handle)))
-        throw new Error("这个路径没有检测到 Obsidian 仓库，请重新选择");
+      setRootStatus("checking");
+      try {
+        if (!(await verifyVault(pending.handle)))
+          throw new Error("这个路径没有检测到 Obsidian 仓库，请重新选择");
+        setRootStatus("valid");
+        setRootError(undefined);
+      } catch (error) {
+        setRootStatus("invalid");
+        setRootError({
+          message:
+            error instanceof Error ? error.message : "本地预设操作失败。",
+          retained: true,
+        });
+        throw error;
+      }
       await putPreset({ ...pending.preset, isVault: true }, pending.handle);
       setRecords(await listPresets());
       setId(pending.preset.id);
@@ -197,16 +259,13 @@ export default function ObsidianSettings() {
     }
   }
   return (
-    <div>
+    <div className="obsidian-settings">
       <div className="section-heading">
         <h2>同步 Obsidian</h2>
-        <p>
-          网站当前稿 → 本机 Markdown 与图片，需每次主动保存；不是后台双向同步。
-        </p>
+        <p>手动保存当前文章与图片到本机，不自动同步。</p>
       </div>
       <p className="form-hint">
-        目录授权与预设仅存此浏览器的
-        IndexedDB，换设备或清除浏览器数据后需重新选择。不会上传目录句柄，也不能用手填绝对路径代替授权。
+        目录授权与预设仅保存在此浏览器，不会上传；换设备后需重新选择。
       </p>
       {error && <Notice kind="error">{error}</Notice>}
       {message && <Notice kind="success">{message}</Notice>}
@@ -229,11 +288,16 @@ export default function ObsidianSettings() {
             </button>
           </div>
           {records.map((record) => (
-            <div className="config-card" key={record.preset.id}>
-              <strong>{record.preset.name}</strong>
-              <p className="form-hint">
-                {record.preset.vaultName}/{record.preset.noteDirectory}
-              </p>
+            <div
+              className="config-card obsidian-preset-row"
+              key={record.preset.id}
+            >
+              <div className="obsidian-preset-summary">
+                <strong>{record.preset.name}</strong>
+                <p className="form-hint">
+                  {record.preset.vaultName}/{record.preset.noteDirectory}
+                </p>
+              </div>
               <div className="button-group">
                 <button
                   className="button small"
@@ -256,6 +320,7 @@ export default function ObsidianSettings() {
           ))}
           {/* 沿用设置表单布局，不使用会带浏览器默认边框的 fieldset/legend。 */}
           <div
+            className="obsidian-preset-editor"
             role="group"
             aria-label={id ? "编辑预设" : "新增本地预设"}
             aria-busy={busy}
@@ -271,25 +336,42 @@ export default function ObsidianSettings() {
                 onChange={(event) => setName(event.target.value)}
               />
             </label>
-            <div className="field-heading button-group">
-              <span className="form-hint">
-                根目录：{handle?.name ?? "尚未授权"}
-              </span>
-              <button
-                className="button small"
-                type="button"
-                disabled={busy}
-                onClick={() => void browse()}
-              >
-                浏览选择 vault 根目录
-              </button>
+            <div className="obsidian-root-group">
+              <div className="field-heading button-group">
+                <span className="form-hint">
+                  根目录：{handle?.name ?? "尚未授权"}
+                </span>
+                <button
+                  className="button small"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void browse()}
+                >
+                  浏览选择 vault 根目录
+                </button>
+              </div>
+              {rootStatus === "checking" && (
+                <p className="form-hint" role="status">
+                  校验中…
+                </p>
+              )}
+              {rootStatus === "valid" && (
+                <p className="form-hint" role="status">
+                  根目录存在 .obsidian 目录，校验通过。
+                </p>
+              )}
+              {rootError && (
+                <Notice kind="error">
+                  <p>校验失败，请重新选择。</p>
+                  <p>{rootError.message}</p>
+                  <p>
+                    {rootError.retained
+                      ? "未采用本次选择，仍保留原路径。"
+                      : "未采用本次选择，请重新选择仓库根目录。"}
+                  </p>
+                </Notice>
+              )}
             </div>
-            {handle && !isVault && (
-              <Notice>
-                未找到 .obsidian：这是普通文件夹，保存时不会显示为已同步
-                Obsidian。请确认选择的是仓库根目录。
-              </Notice>
-            )}
             <div className="form-grid">
               <div>
                 <label htmlFor={noteDirectoryId}>默认文章子目录</label>
@@ -320,14 +402,14 @@ export default function ObsidianSettings() {
               </label>
             </div>
             <p className="form-hint">
-              默认“笔记”与“../asset”会把图片放到根目录的
-              asset；不得越过已授权根目录。不自动创建缺失目录，保存时会再次确认。
+              默认图片放在根目录
+              asset；路径不得越出仓库。缺失目录会在保存文章时确认创建。
             </p>
-            <div className="button-group">
+            <div className="button-group obsidian-preset-actions">
               <button
                 className="button primary"
                 type="button"
-                disabled={busy || !handle}
+                disabled={busy || !handle || rootStatus !== "valid"}
                 onClick={prepareSave}
               >
                 保存本地预设

@@ -49,3 +49,5 @@
 - [2026-10-29：同目录仅 Markdown 保存选项](2026-10-29-obsidian-markdown-only-option.md)：checkbox默认未选，底部统一右对齐；选中不取图不写asset，保留媒体与安全清单，保存按钮同流程。
 
 - [2026-10-29：文章保存边界重验仓库根](2026-10-29-obsidian-article-root-validation.md)：实际 adapter 写入前检查根标记，覆盖旧预设、标记消失及仅 Markdown，不误拒合法文章子目录。
+
+- [2026-10-29：根 Browse 专项复核与就近反馈](2026-10-29-obsidian-root-browse-feedback.md)：真实判定入口测试原实现通过，不冒称复现现场；失败说明紧贴根路径，明确拒绝本次选择并保留旧路径。

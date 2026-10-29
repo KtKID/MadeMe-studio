@@ -125,3 +125,30 @@ it("Obsidian保存选项与操作统一靠右且换行，复选框不占满输�
   fireEvent.click(screen.getByText("仅下载 Markdown"));
   expect((checkbox as HTMLInputElement).checked).toBe(true);
 });
+
+it("Obsidian设置卡片操作可换行且靠右，底部保存不散落左侧", () => {
+  render(
+    <div className="obsidian-settings">
+      <div className="config-card obsidian-preset-row">
+        <div className="obsidian-preset-summary">库/长路径</div>
+        <div className="button-group">
+          <button>编辑预设</button>
+        </div>
+      </div>
+      <div className="button-group obsidian-preset-actions">
+        <button>保存预设</button>
+      </div>
+    </div>,
+  );
+  const row = screen.getByText("编辑预设").closest(".obsidian-preset-row")!;
+  expect(getComputedStyle(row).display).toBe("flex");
+  expect(getComputedStyle(row).flexWrap).toBe("wrap");
+  expect(
+    getComputedStyle(screen.getByText("编辑预设").parentElement!)
+      .justifyContent,
+  ).toBe("flex-end");
+  expect(
+    getComputedStyle(screen.getByText("保存预设").parentElement!)
+      .justifyContent,
+  ).toBe("flex-end");
+});
