@@ -63,7 +63,7 @@ describe("侧边栏作者账号展示", () => {
     expect(html).toContain('class="author-account-name">owner@gmail.com<');
     expect(html).toContain("账号与退出");
     expect(html).toContain('aria-hidden="true">O<');
-    expect(html).not.toContain("作者登录 / 账号与退出");
+    expect(html).not.toContain("管理员账号登录");
     expect(html).toContain('href="/login?returnTo=%2Fstudio"');
   });
   it("有 Google 昵称时优先显示昵称，悬停提示包含邮箱", () => {
@@ -82,7 +82,8 @@ describe("侧边栏作者账号展示", () => {
       initial(true, null),
     ]) {
       const html = shell(data);
-      expect(html).toContain("作者登录 / 账号与退出");
+      expect(html).toContain("管理员账号登录");
+      expect(html).toContain("lucide-user-round");
       expect(html).not.toContain("owner@gmail.com");
       expect(html).not.toContain("author-account-name");
     }
@@ -112,6 +113,8 @@ describe("侧边栏作者账号展示", () => {
     for (const text of ["我的站点", "看看发布后的样子", "写作，让想法有迹可循", "sidebar-note"])
       expect(astro).not.toContain(text);
     expect(astro).toContain('class="topbar-site" href="/"');
+    expect(astro).toContain("管理员账号登录");
+    expect(astro).toContain("<UserRound size={18}");
     expect(css).toMatch(/--studio-footer-height:\s*56px/);
     expect(css).toMatch(/\.sidebar-bottom \{[^}]*min-height: var\(--studio-footer-height\)/);
     expect(css).toMatch(/\.studio-footer \{[^}]*min-height: var\(--studio-footer-height\)/);

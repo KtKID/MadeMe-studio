@@ -15,6 +15,7 @@ import {
   Cable,
   ArrowUpRight,
   Plus,
+  UserRound,
 } from "lucide-react";
 import type { StudioPageData } from "../../server/page-data";
 import type { Settings } from "../../shared/contracts";
@@ -361,7 +362,10 @@ export default function StudioShell({
                   </span>
                 </>
               ) : (
-                "作者登录 / 账号与退出"
+                <>
+                  <UserRound size={18} aria-hidden="true" />
+                  <span>管理员账号登录</span>
+                </>
               )}
             </a>
           </div>

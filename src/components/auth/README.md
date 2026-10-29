@@ -18,7 +18,7 @@
 - 页面只下发允许的 `google_denied/google_failed` 错误码，分别显示固定授权拒绝/未完成提示；非作者、取消授权不暴露白名单身份。不提供注册。
 - 首次提交交给浏览器原生导航，同帧重复提交阻止；浏览器返回触发 `pageshow` 时恢复按钮。实际 Google 授权与服务端令牌校验不由组件完成。
 - 已认证后复用显式确认退出 `POST /api/auth/logout`；无脚本时退出按钮保持禁用并提示启用 JavaScript。
-- Studio 账号入口对 password/google 显示；默认 Sites 预览不因此变更模式。未登录显示“作者登录 / 账号与退出”；已登录显示首字母头像、账号名（Google 昵称优先，回退邮箱；过长省略，悬停 title 显示“昵称（邮箱）”）与“账号与退出”小字。`StudioShell` 在身份失效后立即隐藏账号名。
+- Studio 账号入口对 password/google 显示；默认 Sites 预览不因此变更模式。未登录显示用户线条图标与“管理员账号登录”；已登录显示首字母头像、账号名（Google 昵称优先，回退邮箱；过长省略，悬停 title 显示“昵称（邮箱）”）与“账号与退出”小字。`StudioShell` 在身份失效后立即隐藏账号名。
 
 ## 可访问性与状态
 
@@ -31,3 +31,5 @@
 - `tests/unit/author-login-ui.test.ts`：协议、同源请求、跳转清洗、错误脱敏、模式渲染、显式退出回执。
 - `tests/e2e/author-login.spec.ts`：部署模式、延迟失败/清空/重试状态及真实独立认证登录退出。
 - E2E 源码不等于已通过浏览器验收。独立模式测试需要隔离部署，真实凭据由验收者经环境变量 `E2E_AUTHOR_EMAIL/E2E_AUTHOR_PASSWORD` 提供，不能提交仓库或开启凭据追踪录像；条件不足明确跳过。
+
+账号入口保持现有主题 hover 与键盘 focus 反馈；内部横向 13px 与导航入口一致，纵向 11px 留白，并与导航共用 12px 图文间距与字号，避免未登录文字或已登录头像贴着背景边缘。对应完整 CSS 级联回归见 `tests/ui/author-account-spacing.test.ts`；该测试不替代真实浏览器几何验收。
