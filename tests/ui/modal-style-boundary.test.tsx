@@ -85,3 +85,21 @@ it("桌面与移动工具栏规则不能再使用广泛button后代选择器", (
   expect(stylesheet).toMatch(/\.writing-shortcuts\s*>\s*button\s*\{/);
   expect(stylesheet).toMatch(/\.writing-shortcuts\s*>\s*button:hover/);
 });
+
+it("预设目录输入组明确留间距且可换行，按钮不收缩", () => {
+  render(
+    <div className="button-group obsidian-directory-control">
+      <input aria-label="路径" />
+      <button className="button small">选择目录</button>
+    </div>,
+  );
+  const input = screen.getByLabelText("路径");
+  const button = screen.getByText("选择目录");
+  const row = getComputedStyle(input.parentElement!);
+  expect(row.display).toBe("flex");
+  expect(row.flexWrap).toBe("wrap");
+  expect(row.gap).toBe("8px");
+  expect(getComputedStyle(button).flexShrink).toBe("0");
+  expect(getComputedStyle(input).flexGrow).toBe("1");
+  expect(getComputedStyle(input).minWidth).toBe("0px");
+});

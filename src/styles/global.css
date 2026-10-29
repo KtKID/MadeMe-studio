@@ -3223,3 +3223,16 @@ kbd {
   color: var(--muted);
   font-weight: 400;
 }
+
+/* 预设路径与选择按钮同行；窄列按现有 button-group 间距自然换行。 */
+.obsidian-directory-control {
+  margin-top: 8px;
+}
+.obsidian-directory-control > input {
+  flex: 1 1 10rem;
+  min-width: 0;
+  width: auto;
+}
+.obsidian-directory-control > button {
+  flex: 0 0 auto;
+}

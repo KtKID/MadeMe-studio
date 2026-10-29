@@ -1,5 +1,5 @@
 import { normalizePath } from "./save";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Modal, Notice } from "../../components/shared/ui";
 import { clientLog } from "../log/client";
 import { OBSIDIAN_LOCAL_DEFAULTS } from "../config/limits";
@@ -19,6 +19,7 @@ import {
 
 /** 预设及目录授权只存当前浏览器，不参与站点设置 PATCH。 */
 export default function ObsidianSettings() {
+  const noteDirectoryId = useId();
   const [records, setRecords] = useState<PresetRecord[]>([]);
   const [id, setId] = useState("");
   const [name, setName] = useState("");
@@ -290,12 +291,15 @@ export default function ObsidianSettings() {
               </Notice>
             )}
             <div className="form-grid">
-              <div className="form-stack">
-                <label>
-                  默认文章子目录
-                  <input disabled={busy} readOnly value={noteDirectory} />
-                </label>
-                <div className="button-group">
+              <div>
+                <label htmlFor={noteDirectoryId}>默认文章子目录</label>
+                <div className="button-group obsidian-directory-control">
+                  <input
+                    id={noteDirectoryId}
+                    disabled={busy}
+                    readOnly
+                    value={noteDirectory}
+                  />
                   <button
                     className="button small"
                     type="button"

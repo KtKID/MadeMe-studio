@@ -163,3 +163,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## Obsidian 子目录选择与弹窗层级（2026-10-29）
 
 用户两张截图已实际查看。先红2项再实现，新增7项覆盖子目录picker/取消/拒绝/越界/忙碌与单入口布局；全仓84文件685项、check242文件0errors/0warnings/5既有hints、build和HTTP smoke通过。E2E入口名称已更新，真实目录授权与截图验收交独立预览；未把受限本地浏览器称为通过。详见[修复报告](../reports/2026-10-29-obsidian-directory-picker-ui.md)。
+
+### 子目录按钮同行视觉反馈修正
+
+独立预览发现设置按钮在输入下方贴边，先红结构用例再改为同一可换行控制组、8px gap、按钮不收缩，图片规则保持另一列。84文件687项、check242文件0errors/0warnings/5既有hints、build/HTTP smoke通过。父实测保存弹窗入口和取消焦点正常；云浏览器picker被平台拒绝且UI反馈正常，真实目录选择仍未验收。详见同日目录选择报告。

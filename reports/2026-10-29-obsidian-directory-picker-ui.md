@@ -19,3 +19,11 @@
 全仓 84 文件 / 685 项通过；check 242 文件，0 errors / 0 warnings / 5 既有 hints；build / HTTP smoke 通过。原生浏览器目录授权和真实视觉验收交独立预览，不把 DOM 测试当作已完成原生验收。未重试此前受限本地 Chromium，不声称浏览器 E2E 已运行通过。
 
 仅本地提交并同步独立预览源码；不推业务 GitHub，不操作正式站，不访问用户 Mac 或实际 vault。Sites 发布由父任务负责。
+
+## 独立预览反馈与同行小修
+
+父任务在 `ba4bf3f` 预览实际观察：保存弹窗单一“其他位置”、主次按钮和留白正常，取消恢复入口焦点。点击其他位置时云浏览器返回 `showDirectoryPicker not allowed by user agent/platform`，界面明确显示错误且可取消；未绕过此限制，真实目录选择未实测。
+
+设置页子目录选择按钮在输入框下方显得贴边。依该实际反馈，先加同行结构失败用例（1 failed / 48 skipped，`/tmp/obsidian-picker-row-red.log`），再仅将该路径与按钮放入同一 `button-group` 控制组。复用 8px gap 和 flex-wrap，输入可伸展，按钮不收缩，窄列自然换行；图片规则仍为另一列。用 useId 关联独立 label 与只读 input，不改任何选择/校验行为。
+
+新增结构与真实 CSS cascade 两项，最终全仓 84 文件 / 687 项通过；check 242 文件，0 errors / 0 warnings / 5 既有 hints；build 和 HTTP smoke 通过。该小修后的实际浏览器同行布局仍交父任务复验，不把 CSS 测试当截图验收。

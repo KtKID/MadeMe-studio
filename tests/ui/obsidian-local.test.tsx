@@ -951,3 +951,18 @@ it("未选择根时子目录选择不可用；选择中锁定按钮，重复点�
     (screen.getByLabelText("默认文章子目录") as HTMLInputElement).value,
   ).toBe("归档");
 });
+
+it("预设路径和选择目录在同一可换行控制组，图片规则仍为另一列", async () => {
+  render(<ObsidianSettings />);
+  fireEvent.click(await screen.findByText("编辑 本地库"));
+  const input = screen.getByLabelText("默认文章子目录");
+  const button = screen.getByRole("button", { name: "选择目录" });
+  expect(input.parentElement).toBe(button.parentElement);
+  expect(
+    input.parentElement?.classList.contains("obsidian-directory-control"),
+  ).toBe(true);
+  expect(input.closest(".form-grid")?.children).toHaveLength(2);
+  expect(
+    screen.getByLabelText("图片规则（相对文章目录）").closest("label"),
+  ).not.toBe(input.closest("label"));
+});
