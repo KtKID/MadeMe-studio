@@ -1,3 +1,4 @@
+import { normalizePath } from "./save";
 import { useEffect, useRef, useState } from "react";
 import { Modal, Notice } from "../../components/shared/ui";
 import { clientLog } from "../log/client";
@@ -97,6 +98,32 @@ export default function ObsidianSettings() {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError")
         setMessage("已取消目录选择，原预设未改变。");
+      else fail(error);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+  async function browseNoteDirectory() {
+    if (!handle || lock.current) return;
+    revision.current++;
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const chosen = await pickDirectory(handle);
+      if (!handle.resolve)
+        throw new Error("浏览器不能验证子目录，请重新选择根目录。");
+      const path = await handle.resolve(chosen);
+      if (!path) throw new Error("文章目录必须位于已授权根目录内。");
+      const relative = normalizePath(...path);
+      // 子目录无需仓库标记；仍检查图片规则不会越过授权根。
+      normalizePath(relative, imageRule);
+      setNoteDirectory(relative);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError")
+        setMessage("已取消目录选择，原文章子目录未改变。");
       else fail(error);
     } finally {
       lock.current = false;
@@ -263,14 +290,22 @@ export default function ObsidianSettings() {
               </Notice>
             )}
             <div className="form-grid">
-              <label>
-                默认文章子目录
-                <input
-                  disabled={busy}
-                  value={noteDirectory}
-                  onChange={(event) => setNoteDirectory(event.target.value)}
-                />
-              </label>
+              <div className="form-stack">
+                <label>
+                  默认文章子目录
+                  <input disabled={busy} readOnly value={noteDirectory} />
+                </label>
+                <div className="button-group">
+                  <button
+                    className="button small"
+                    type="button"
+                    disabled={busy || !handle}
+                    onClick={() => void browseNoteDirectory()}
+                  >
+                    选择目录
+                  </button>
+                </div>
+              </div>
               <label>
                 图片规则（相对文章目录）
                 <input

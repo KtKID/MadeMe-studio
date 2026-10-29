@@ -288,39 +288,37 @@ export default function SaveButton({
                     ))}
                   </select>
                 </label>
+                <div className="field-heading button-group">
+                  <p className="form-hint">
+                    {selected
+                      ? `目标：${selected.handle.name}/${directory || "（根目录）"}`
+                      : "尚未选择预设，请先选择仓库根目录。"}
+                  </p>
+                  <button
+                    className="button small"
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void (selected ? chooseChild() : chooseOther())
+                    }
+                  >
+                    其他位置
+                  </button>
+                </div>
                 {selected && (
-                  <>
-                    <p className="form-hint">
-                      目标：{selected.handle.name}/{directory || "（根目录）"}
-                      ；图片规则：{selected.preset.imageRule}
-                    </p>
-                    {!selected.preset.isVault && (
-                      <p className="form-hint">
-                        这是普通文件夹，不能报告为已同步 Obsidian。请选择包含
-                        .obsidian 的仓库根目录。
-                      </p>
-                    )}
-                    <button
-                      className="button"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void chooseChild()}
-                    >
-                      浏览文章子目录
-                    </button>
-                  </>
+                  <p className="form-hint">
+                    图片规则：{selected.preset.imageRule}
+                  </p>
+                )}
+                {selected && !selected.preset.isVault && (
+                  <p className="form-hint">
+                    这是普通文件夹，不能报告为已同步 Obsidian。请选择包含
+                    .obsidian 的仓库根目录。
+                  </p>
                 )}
                 <div className="button-group">
                   <button
-                    className="button"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void chooseOther()}
-                  >
-                    选择其他位置
-                  </button>
-                  <button
-                    className="button"
+                    className="button small"
                     type="button"
                     disabled={busy}
                     onClick={fallback}

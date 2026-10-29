@@ -159,3 +159,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## 设置允许列表文案（2026-10-28）
 
 浏览器观察到标签/说明与“勾选=允许”矛盾；代码绑定正确，仅修改meta文案。2项先红后绿，84文件678项通过，check242文件无errors/warnings、5既有hints，build/HTTP smoke通过；未自动同步预览或部署。见 [文案报告](../reports/2026-10-28-settings-allowlist-copy.md)。
+
+## Obsidian 子目录选择与弹窗层级（2026-10-29）
+
+用户两张截图已实际查看。先红2项再实现，新增7项覆盖子目录picker/取消/拒绝/越界/忙碌与单入口布局；全仓84文件685项、check242文件0errors/0warnings/5既有hints、build和HTTP smoke通过。E2E入口名称已更新，真实目录授权与截图验收交独立预览；未把受限本地浏览器称为通过。详见[修复报告](../reports/2026-10-29-obsidian-directory-picker-ui.md)。

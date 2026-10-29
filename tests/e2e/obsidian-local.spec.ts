@@ -143,9 +143,7 @@ test("@author 本地导出：选择其他位置取消后停止并保留当前稿
     .getByRole("button", { name: "保存到 Obsidian", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "保存到 Obsidian" });
-  await dialog
-    .getByRole("button", { name: "选择其他位置", exact: true })
-    .click();
+  await dialog.getByRole("button", { name: "其他位置", exact: true }).click();
   await expect(dialog).toContainText("已取消选择，未保存文件。");
   await expect(
     dialog.getByRole("button", { name: "保存本次快照", exact: true }),
