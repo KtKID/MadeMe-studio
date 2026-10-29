@@ -183,3 +183,6 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 
 ## 2026-10-29：根提示精简
 精确单句与单 Notice 红测 1 failed / 64 skipped；确认弹窗不重复底层错误，权限/IO原因保留。日志 /tmp/obsidian-root-copy-{red,tests,check,build,smoke}.log。
+
+## 2026-10-29：缺目录与保存完成状态
+红测 2 failed / 2 passed / 71 skipped；区分文章/媒体缺目录、创建取消/失败重试、成功关闭、重复保存与迟到探测回归。日志 /tmp/obsidian-save-flow-{red,tests,check,build,smoke}.log。

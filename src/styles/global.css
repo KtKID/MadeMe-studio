@@ -3292,3 +3292,10 @@ kbd {
   justify-content: flex-end;
   margin-top: 20px;
 }
+
+.obsidian-save-feedback {
+  align-self: center;
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

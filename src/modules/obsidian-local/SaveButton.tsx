@@ -149,11 +149,12 @@ export default function SaveButton({
   }
   async function save(mode?: "copy" | "overwrite", createDirectories = false) {
     if (!selected || lock.current) return;
-    request.current++;
+    const generation = ++request.current;
     lock.current = true;
     setBusy(true);
     setError("");
     setResult(undefined);
+    setMissing(false);
     try {
       // 快照转换是同步操作；先固定它，避免转换失败时留下未处理的权限 Promise。
       if ((!mode && !createDirectories) || !snapshot.current)
@@ -189,18 +190,24 @@ export default function SaveButton({
       setMissing(false);
       // 文件已成功提交，打开目标探测失败不能被描述成保存失败或普通目录。
       setResult({ path: saved.notePath, openUri: null });
-      try {
-        const openUri = await resolveObsidianUri(
-          selected.handle,
-          saved.notePath,
-        );
-        setResult({ path: saved.notePath, openUri, isVault: openUri !== null });
-      } catch (error) {
-        fail(error);
-        setError(
-          `文件已保存，但无法确认 Obsidian 打开目标：${error instanceof Error ? error.message : "目录读取失败"}`,
-        );
-      }
+      // 正文提交成功立即退出主弹窗；打开应用是附属动作，不能阻塞保存完成。
+      setOpen(false);
+      snapshot.current = null;
+      // 打开目标探测不占用保存锁；重开面板后迟到结果不得污染新一轮。
+      void resolveObsidianUri(selected.handle, saved.notePath).then(
+        (openUri) => {
+          if (request.current === generation)
+            setResult({
+              path: saved.notePath,
+              openUri,
+              isVault: openUri !== null,
+            });
+        },
+        () => {
+          if (request.current === generation)
+            setError("文件已保存，但暂无法确认 Obsidian 打开目标。");
+        },
+      );
     } catch (error) {
       if (error instanceof LocalConflictError) {
         setConflict(true);
@@ -210,7 +217,7 @@ export default function SaveButton({
       } else if (error instanceof MissingDirectoryError) {
         setMissing(true);
         setError(
-          "目标目录不存在。请明确创建目录后保存，或选择其他位置；尚未保存文章。",
+          `${error.kind === "images" ? "图片" : "文章"}目录 ${selected.handle.name}/${error.path || directory} 不存在。`,
         );
       } else fail(error);
     } finally {
@@ -248,6 +255,22 @@ export default function SaveButton({
       >
         保存到 Obsidian
       </button>
+      {result && !open && (
+        <span
+          className="form-hint obsidian-save-feedback"
+          role="status"
+          title={result.path}
+        >
+          已保存到本地目录
+          {result.openUri && (
+            <>
+              {" "}
+              · <a href={result.openUri}>在 Obsidian 中打开</a>
+            </>
+          )}
+          {error && <span title={error}> · 暂无法确认打开目标</span>}
+        </span>
+      )}
       {open &&
         createPortal(
           <Modal title="保存到 Obsidian" onClose={close}>
@@ -337,20 +360,6 @@ export default function SaveButton({
                     中添加预设；此处临时选择不会改动预设。
                   </p>
                 )}
-                {result && (
-                  <Notice kind="success">
-                    {result.isVault === false
-                      ? "已保存到普通文件夹（未同步 Obsidian）"
-                      : "已保存到本地目录"}
-                    ：{result.path}
-                    {result.openUri && (
-                      <p className="form-hint">
-                        <a href={result.openUri}>在 Obsidian 中打开</a>
-                        （需要本机已安装，点击后请自行确认打开结果）
-                      </p>
-                    )}
-                  </Notice>
-                )}
               </>
             )}
             <div className="modal-actions button-group obsidian-save-actions">
@@ -382,15 +391,6 @@ export default function SaveButton({
               </button>
               {supported && (
                 <>
-                  {missing && (
-                    <button
-                      className="button"
-                      disabled={busy}
-                      onClick={() => void save(undefined, true)}
-                    >
-                      创建目录并保存
-                    </button>
-                  )}
                   {conflict ? (
                     <div className="button-group">
                       <button
@@ -413,9 +413,9 @@ export default function SaveButton({
                       className="button primary"
                       type="button"
                       disabled={busy || !selected}
-                      onClick={() => void save()}
+                      onClick={() => void save(undefined, missing)}
                     >
-                      {busy ? "正在保存…" : "保存"}
+                      {busy ? "正在保存…" : missing ? "创建目录并保存" : "保存"}
                     </button>
                   )}
                 </>

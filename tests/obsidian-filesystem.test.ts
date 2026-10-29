@@ -260,3 +260,34 @@ it.each([false, true])(
     });
   },
 );
+
+it("文章目录已存在时明确报告缺少图片目录，不误报文章路径", async () => {
+  await isolated(async (root, path) => {
+    await mkdir(join(path, "01_笔记"));
+    await expect(
+      saveToDirectory(root, snapshot(), {
+        ...options,
+        noteDirectory: "01_笔记",
+      }),
+    ).rejects.toMatchObject({ kind: "images", path: "asset" });
+    expect(await readdir(path)).toEqual([".obsidian", "01_笔记"]);
+  });
+});
+it.each([false, true])(
+  "无媒体或仅Markdown不要求asset目录，markdownOnly=%s",
+  async (markdownOnly) => {
+    await isolated(async (root, path) => {
+      await mkdir(join(path, "01_笔记"));
+      await saveToDirectory(
+        root,
+        markdownOnly ? snapshot() : { ...snapshot(), media: [] },
+        {
+          ...options,
+          noteDirectory: "01_笔记",
+          markdownOnly,
+        },
+      );
+      expect(await readdir(path)).not.toContain("asset");
+    });
+  },
+);

@@ -31,7 +31,6 @@ vi.mock("../../src/modules/obsidian-local/save", async (original) => ({
   ...(await original<object>()),
   saveToDirectory: h.save,
   LocalConflictError: class extends Error {},
-  MissingDirectoryError: class extends Error {},
 }));
 vi.mock("../../src/components/shared/ui", async (original) => ({
   ...(await original<object>()),
@@ -572,8 +571,8 @@ it.each([
       expect(confirm).not.toHaveBeenCalled();
       expect(link.href).toBe(expected);
       expect(
-        screen.getByRole("dialog", { name: "保存到 Obsidian" }),
-      ).toBeTruthy();
+        screen.queryByRole("dialog", { name: "保存到 Obsidian" }),
+      ).toBeNull();
     } finally {
       document.removeEventListener("click", editorCapture, true);
       stopGuard();
@@ -653,7 +652,7 @@ it("保存后打开目标探测权限失败不谎称保存失败，也不回退�
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("笔记");
   fireEvent.click(screen.getByText("保存"));
-  await screen.findByText(/文件已保存，但无法确认 Obsidian 打开目标/);
+  await screen.findByText(/暂无法确认打开目标/);
   expect(h.save).toHaveBeenCalledTimes(1);
   expect(screen.getByText(/已保存到本地目录/)).toBeTruthy();
   expect(screen.queryByText("在 Obsidian 中打开")).toBeNull();
@@ -1094,7 +1093,7 @@ it("Markdown选项切换预设保留，busy禁止切换和重复保存，关闭�
   expect(h.save.mock.lastCall?.[0].name).toBe("库B");
   expect(h.save.mock.lastCall?.[2].markdownOnly).toBe(true);
   await act(async () => finish({ notePath: "笔记/a.md" }));
-  fireEvent.click(screen.getByText("取消"));
+  expect(screen.queryByRole("dialog")).toBeNull();
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("库A");
   expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(
@@ -1380,4 +1379,88 @@ it("根缺标记只显示用户指定一句提示，不附加重复解释", asyn
     "当前路径没有检测到 Obsidian 仓库，请重新选择",
   );
   expect(screen.getAllByRole("alert")).toHaveLength(1);
+});
+
+it("缺目录后仅保留创建并保存主操作，完成关闭并保留编辑器打开入口", async () => {
+  h.save.mockRejectedValueOnce(new MissingDirectoryError());
+  render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("本地库");
+  fireEvent.click(screen.getByText("保存"));
+  await screen.findByText("创建目录并保存");
+  expect(screen.queryByRole("button", { name: /^保存$/ })).toBeNull();
+  fireEvent.click(screen.getByText("创建目录并保存"));
+  const link = await screen.findByText("在 Obsidian 中打开");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(link.closest('[role="dialog"]')).toBeNull();
+  expect(screen.getByRole("status").textContent).toContain("已保存到本地");
+});
+
+it("图片缺失显示具体解析目标，取消不授权创建", async () => {
+  h.save.mockRejectedValueOnce(new MissingDirectoryError("images", "asset"));
+  render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("本地库");
+  fireEvent.click(screen.getByText("保存"));
+  await screen.findByText("图片目录 vault/asset 不存在。");
+  fireEvent.click(screen.getByText("取消"));
+  expect(h.save).toHaveBeenCalledTimes(1);
+  expect(h.save.mock.lastCall?.[2].createDirectories).toBe(false);
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+it("创建并保存中媒体失败留在面板可重试，不错误报告成功或残留创建按钮", async () => {
+  h.save
+    .mockRejectedValueOnce(new MissingDirectoryError("images", "asset"))
+    .mockRejectedValueOnce(new Error("图片下载失败"));
+  render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("本地库");
+  fireEvent.click(screen.getByText("保存"));
+  fireEvent.click(await screen.findByText("创建目录并保存"));
+  await screen.findByText("图片下载失败");
+  expect(screen.getByRole("dialog")).toBeTruthy();
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(screen.queryByText("创建目录并保存")).toBeNull();
+  fireEvent.click(screen.getByText("保存"));
+  await screen.findByRole("status");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(h.save).toHaveBeenCalledTimes(3);
+});
+
+it("打开目标探测延迟不阻塞关闭与再次保存，迟到结果不污染新面板", async () => {
+  let finish!: (value: unknown) => void;
+  const handle = {
+    ...directoryTree("vault"),
+    getDirectoryHandle: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  };
+  h.list.mockResolvedValue([
+    {
+      preset: {
+        id: "p",
+        name: "本地库",
+        vaultName: "vault",
+        noteDirectory: "笔记",
+        imageRule: "../asset",
+        isVault: true,
+      },
+      handle,
+    },
+  ]);
+  render(<SaveButton getSnapshot={snapshot} />);
+  const trigger = screen.getByText("保存到 Obsidian");
+  fireEvent.click(trigger);
+  await screen.findByText("本地库");
+  fireEvent.click(screen.getByText("保存"));
+  await screen.findByRole("status");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect((trigger as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(trigger);
+  await screen.findByRole("dialog");
+  await act(async () => finish(directoryTree("笔记")));
+  expect(screen.queryByText("在 Obsidian 中打开")).toBeNull();
+  expect(screen.queryByRole("status")).toBeNull();
+  expect((screen.getByText("保存") as HTMLButtonElement).disabled).toBe(false);
 });

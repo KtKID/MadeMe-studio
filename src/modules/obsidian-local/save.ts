@@ -72,10 +72,26 @@ export class LocalConflictError extends Error {
     this.name = "LocalConflictError";
   }
 }
+export const missingDirectorySchema = z
+  .object({
+    kind: z.enum(["article", "images"]),
+    path: z.string(),
+  })
+  .strict();
 export class MissingDirectoryError extends Error {
-  constructor() {
-    super("目标目录不存在，请明确创建目录或从文稿选择其他位置。");
+  readonly kind: z.infer<typeof missingDirectorySchema>["kind"];
+  readonly path: string;
+  constructor(
+    kind: z.infer<typeof missingDirectorySchema>["kind"] = "article",
+    path = "",
+  ) {
+    const detail = missingDirectorySchema.parse({ kind, path });
+    super(
+      `${kind === "images" ? "图片" : "文章"}目录 ${path || "（根目录）"} 不存在。`,
+    );
     this.name = "MissingDirectoryError";
+    this.kind = detail.kind;
+    this.path = detail.path;
   }
 }
 export const saveOptionsSchema = z
@@ -226,14 +242,21 @@ async function saveTransaction(
     const mediaToSave = options.markdownOnly ? [] : prepared.media;
     const noteDirectory = normalizePath(options.noteDirectory),
       imageDirectory = normalizePath(noteDirectory, options.imageRule);
-    try {
-      await directory(root, noteDirectory, options.createDirectories);
-      if (mediaToSave.length)
-        await directory(root, imageDirectory, options.createDirectories);
-    } catch (error) {
-      if (error instanceof Error && error.name === "NotFoundError")
-        throw new MissingDirectoryError();
-      throw error;
+    // 文章与附件目标分别检查；错误携带实际规则解析后的目录，不把缺图目录误报成文章路径。
+    const targets: Array<z.infer<typeof missingDirectorySchema>> = [
+      { kind: "article", path: noteDirectory },
+      ...(mediaToSave.length
+        ? [{ kind: "images" as const, path: imageDirectory }]
+        : []),
+    ];
+    for (const target of targets) {
+      try {
+        await directory(root, target.path, options.createDirectories);
+      } catch (error) {
+        if (error instanceof Error && error.name === "NotFoundError")
+          throw new MissingDirectoryError(target.kind, target.path);
+        throw error;
+      }
     }
     const oldManifest = await read(root, defaults.manifestName);
     const manifest: Manifest = oldManifest
