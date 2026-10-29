@@ -37,3 +37,5 @@
 - [2026-10-28：选择仓库根目录时拒绝无标记路径](2026-10-28-obsidian-root-picker-validation.md)：先红后绿，校验直属 .obsidian，保留旧选择和编辑输入，不影响文章子目录或普通下载。
 
 - [2026-10-28：保存预设边界重新验证仓库](2026-10-28-obsidian-preset-save-validation.md)：补齐旧记录直接确认可绕过 Browse 的遗漏，验证失败不写 IndexedDB、不删除原记录。
+
+- [2026-10-28：公开短页页脚贴底](2026-10-28-public-footer-bottom.md)：先红后绿，用 min-height 和 flex 填补短页空白，长页自然流，不 fixed 遮挡正文。

@@ -151,3 +151,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## Obsidian 预设保存边界校验（2026-10-28）
 
 补齐旧记录不 Browse 即可确认保存的漏项；先红 2 项再实施，最终新增 5 项，确认前重查直属标记，不写入无效配置、不删除旧记录、不请求写权限。全仓 82 文件 / 672 项、check 无 errors/warnings 和 5 既有 hints、build/HTTP smoke 通过。详见 [保存边界报告](../reports/2026-10-28-obsidian-preset-save-validation.md)。
+
+## 公开短页页脚布局（2026-10-28）
+
+公开 shell 缺少满视口纵向布局，先以真实 CSS 测试复现 3 failed/1 passed，再增加 min-height 与正文 flex；后台框架不改。最终 83 文件 / 676 项通过，check 241 文件无 errors/warnings、5 既有 hints，build/HTTP smoke 通过。jsdom 只验 CSS 契约，真实几何交独立预览浏览器验收；未部署正式站。见 [页脚布局报告](../reports/2026-10-28-public-footer-bottom.md)。

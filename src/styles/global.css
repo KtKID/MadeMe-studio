@@ -931,9 +931,21 @@ img {
   font-size: 10px;
 }
 /* 公开站点的文章在无 JavaScript 环境仍保持可读。 */
+/* 短页用正文撑满视口，长页自然增高；页脚不固定，避免遮挡内容。 */
 .public-shell {
   width: min(1140px, calc(100% - 80px));
   margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.public-shell > main {
+  flex: 1 0 auto;
+}
+.public-shell > .public-header,
+.public-shell > .public-footer {
+  flex-shrink: 0;
 }
 .public-header {
   height: 110px;
