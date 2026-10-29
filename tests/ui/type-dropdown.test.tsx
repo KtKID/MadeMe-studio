@@ -82,3 +82,26 @@ it("鼠标展开不叠加金色外圈，键盘焦点只保留单一内描边", a
  expect(expanded).not.toContain("border-color: var(--accent)");
  expect(css).toMatch(/\.article-type-dropdown-trigger\s*\{[^}]*box-shadow: none/s);
 });
+it("键盘活动项仅滚动列表自身，不调用会滚动页面的 scrollIntoView", () => {
+ const prior = Element.prototype.scrollIntoView;
+ const scroll = vi.fn(); Element.prototype.scrollIntoView = scroll;
+ const { trigger } = setup(); fireEvent.click(trigger);
+ const list = screen.getByRole("listbox");
+ Object.defineProperty(list, "clientHeight", { configurable: true, value: 40 });
+ const last = screen.getByRole("option", { name: "感悟" });
+ Object.defineProperty(last, "offsetTop", { configurable: true, value: 80 });
+ Object.defineProperty(last, "offsetHeight", { configurable: true, value: 40 });
+ fireEvent.keyDown(trigger, { key: "End" });
+ expect(scroll).not.toHaveBeenCalled(); expect(list.scrollTop).toBe(80);
+ const first = screen.getByRole("option", { name: "未分类" });
+ Object.defineProperty(first, "offsetTop", { configurable: true, value: 4 });
+ Object.defineProperty(first, "offsetHeight", { configurable: true, value: 40 });
+ fireEvent.keyDown(trigger, { key: "Home" }); expect(list.scrollTop).toBe(4);
+ Element.prototype.scrollIntoView = prior;
+});
+it("用户手动滚动菜单时不被活动项自动拉回", () => {
+ const { trigger } = setup(); fireEvent.click(trigger);
+ const list = screen.getByRole("listbox");
+ Object.defineProperty(list, "clientHeight", { configurable: true, value: 40 });
+ list.scrollTop = 80; fireEvent.scroll(list); expect(list.scrollTop).toBe(80);
+});

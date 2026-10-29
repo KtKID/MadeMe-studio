@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import "./type-dropdown.css";
@@ -57,7 +57,7 @@ export default function TypeDropdown({
     onChange(option.value);
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!expanded) return;
     function locate() {
       const anchor = trigger.current;
@@ -89,25 +89,39 @@ export default function TypeDropdown({
       const target = event.target as Node | null;
       if (target && !trigger.current?.contains(target) && !list.current?.contains(target)) close();
     }
+    function onPageScroll(event: Event) {
+      // 用户自行滚动长菜单时，不重定位/重置活动项的可见位置。
+      if (event.target instanceof Node && list.current?.contains(event.target)) return;
+      locate();
+    }
     locate();
     document.addEventListener("pointerdown", outside);
     document.addEventListener("focusin", outside);
     window.addEventListener("resize", locate);
-    window.addEventListener("scroll", locate, true);
+    window.addEventListener("scroll", onPageScroll, true);
     window.visualViewport?.addEventListener("resize", locate);
     window.visualViewport?.addEventListener("scroll", locate);
     return () => {
       document.removeEventListener("pointerdown", outside);
       document.removeEventListener("focusin", outside);
       window.removeEventListener("resize", locate);
-      window.removeEventListener("scroll", locate, true);
+      window.removeEventListener("scroll", onPageScroll, true);
       window.visualViewport?.removeEventListener("resize", locate);
       window.visualViewport?.removeEventListener("scroll", locate);
     };
   }, [expanded, options.length]);
-  useEffect(() => {
-    if (expanded) list.current?.children[active]?.scrollIntoView?.({ block: "nearest" });
-  }, [expanded, active]);
+  useLayoutEffect(() => {
+    if (!expanded) return;
+    const menu = list.current;
+    const option = menu?.children[active] as HTMLElement | undefined;
+    if (!menu || !option) return;
+    // 只调整菜单滚动位置；scrollIntoView 会连带滚动编辑器及整页。
+    const top = option.offsetTop;
+    const bottom = top + option.offsetHeight;
+    if (top < menu.scrollTop) menu.scrollTop = top;
+    else if (bottom > menu.scrollTop + menu.clientHeight)
+      menu.scrollTop = bottom - menu.clientHeight;
+  }, [expanded, active, position]);
 
   return <>
     <button
