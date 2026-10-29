@@ -35,6 +35,7 @@ export default function SaveButton({
   const [directory, setDirectory] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [markdownOnly, setMarkdownOnly] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [missing, setMissing] = useState(false);
   const [result, setResult] = useState<{
@@ -62,6 +63,7 @@ export default function SaveButton({
   async function show() {
     if (lock.current) return;
     setSelected(undefined);
+    setMarkdownOnly(false);
     const generation = ++request.current;
     setOpen(true);
     setError("");
@@ -171,9 +173,15 @@ export default function SaveButton({
           "granted"
       )
         throw new Error("目录权限已失效。请重新授权或选择其他位置；尚未保存。");
-      const saved = await saveToDirectory(selected.handle, snapshot.current, {
+      const current = snapshot.current;
+      // 只保存正文时保留网站图片地址，不能留下尚未下载的本地 asset 引用。
+      const prepared = markdownOnly
+        ? { ...current, markdown: remoteMarkdown(current) }
+        : current;
+      const saved = await saveToDirectory(selected.handle, prepared, {
         noteDirectory: directory,
         imageRule: selected.preset.imageRule,
+        markdownOnly,
         conflict: mode,
         createDirectories,
       });
@@ -210,18 +218,21 @@ export default function SaveButton({
       setBusy(false);
     }
   }
+  function remoteMarkdown(current: PreparedExport) {
+    return current.media.reduce(
+      (text, media) =>
+        replaceMarkdownMediaUrl(
+          text,
+          media.url,
+          new URL(media.url, window.location.origin).href,
+        ),
+      current.markdown,
+    );
+  }
   function fallback() {
     try {
       const current = prepareExport(getSnapshot(), window.location.origin);
-      const markdown = current.media.reduce(
-        (text, media) =>
-          replaceMarkdownMediaUrl(
-            text,
-            media.url,
-            new URL(media.url, window.location.origin).href,
-          ),
-        current.markdown,
-      );
+      const markdown = remoteMarkdown(current);
       downloadText("article.md", markdown);
     } catch (error) {
       fail(error);
@@ -252,7 +263,7 @@ export default function SaveButton({
                   和原图片链接，不代表图片已落盘或已同步 Obsidian。
                 </p>
                 <button className="button" type="button" onClick={fallback}>
-                  仅下载 Markdown
+                  下载 Markdown 文件
                 </button>
               </>
             ) : (
@@ -316,18 +327,9 @@ export default function SaveButton({
                     .obsidian 的仓库根目录。
                   </p>
                 )}
-                <div className="button-group">
-                  <button
-                    className="button small"
-                    type="button"
-                    disabled={busy}
-                    onClick={fallback}
-                  >
-                    仅下载 Markdown
-                  </button>
-                </div>
                 <p className="form-hint">
-                  普通下载仅保留网站图片链接，不代表图片已落盘。
+                  默认保存文字和图片；仅下载 Markdown
+                  时保留网站图片链接，不保存图片文件。
                 </p>
                 {!records.length && (
                   <p className="form-hint">
@@ -351,7 +353,25 @@ export default function SaveButton({
                 )}
               </>
             )}
-            <div className="modal-actions button-group">
+            <div className="modal-actions button-group obsidian-save-actions">
+              {supported && (
+                <label className="obsidian-save-option">
+                  <input
+                    type="checkbox"
+                    checked={markdownOnly}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setMarkdownOnly(event.target.checked);
+                      setResult(undefined);
+                      setError("");
+                      setConflict(false);
+                      setMissing(false);
+                      snapshot.current = null;
+                    }}
+                  />
+                  仅下载 Markdown
+                </label>
+              )}
               <button
                 className="button"
                 type="button"
@@ -395,7 +415,7 @@ export default function SaveButton({
                       disabled={busy || !selected}
                       onClick={() => void save()}
                     >
-                      {busy ? "正在保存…" : "保存本次快照"}
+                      {busy ? "正在保存…" : "保存"}
                     </button>
                   )}
                 </>

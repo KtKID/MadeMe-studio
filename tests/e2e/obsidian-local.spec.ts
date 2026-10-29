@@ -59,7 +59,7 @@ test("@author 本地导出：不支持目录授权时下载当前未保存稿，
   await expect(dialog).toContainText("不代表图片已落盘或已同步 Obsidian");
   const downloading = page.waitForEvent("download");
   await dialog
-    .getByRole("button", { name: "仅下载 Markdown", exact: true })
+    .getByRole("button", { name: "下载 Markdown 文件", exact: true })
     .click();
   const markdown = await downloadContents(await downloading);
   expect(markdown).toContain("# E2E 当前未保存本地标题");
@@ -146,7 +146,7 @@ test("@author 本地导出：选择其他位置取消后停止并保留当前稿
   await dialog.getByRole("button", { name: "其他位置", exact: true }).click();
   await expect(dialog).toContainText("已取消选择，未保存文件。");
   await expect(
-    dialog.getByRole("button", { name: "保存本次快照", exact: true }),
+    dialog.getByRole("button", { name: "保存", exact: true }),
   ).toBeDisabled();
   await expect(dialog).not.toContainText("已保存到本地 Obsidian 仓库");
   await dialog.getByRole("button", { name: "取消", exact: true }).click();

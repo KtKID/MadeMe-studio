@@ -103,3 +103,25 @@ it("预设目录输入组明确留间距且可换行，按钮不收缩", () => {
   expect(getComputedStyle(input).flexGrow).toBe("1");
   expect(getComputedStyle(input).minWidth).toBe("0px");
 });
+
+it("Obsidian保存选项与操作统一靠右且换行，复选框不占满输入宽度", () => {
+  render(
+    <div className="modal-actions button-group obsidian-save-actions">
+      <label className="obsidian-save-option">
+        <input type="checkbox" />
+        仅下载 Markdown
+      </label>
+      <button>取消</button>
+      <button>保存</button>
+    </div>,
+  );
+  const checkbox = screen.getByRole("checkbox");
+  const label = checkbox.closest("label")!;
+  const group = getComputedStyle(label.parentElement!);
+  expect(group.justifyContent).toBe("flex-end");
+  expect(group.flexWrap).toBe("wrap");
+  expect(getComputedStyle(label).flexDirection).toBe("row");
+  expect(getComputedStyle(checkbox).width).not.toBe("100%");
+  fireEvent.click(screen.getByText("仅下载 Markdown"));
+  expect((checkbox as HTMLInputElement).checked).toBe(true);
+});

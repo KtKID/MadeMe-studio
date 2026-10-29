@@ -81,6 +81,7 @@ export const saveOptionsSchema = z
   .object({
     noteDirectory: z.string(),
     imageRule: z.string(),
+    markdownOnly: z.boolean().optional(),
     createDirectories: z.boolean().optional(),
     conflict: z.enum(["copy", "overwrite"]).optional(),
   })
@@ -217,11 +218,13 @@ async function saveTransaction(
     preparedExportSchema.parse(prepared);
     const { fetchMedia: _fetch, ...serializableOptions } = options;
     saveOptionsSchema.parse(serializableOptions);
+    // 仅正文模式不触碰附件目录；既有媒体清单和文件原样保留。
+    const mediaToSave = options.markdownOnly ? [] : prepared.media;
     const noteDirectory = normalizePath(options.noteDirectory),
       imageDirectory = normalizePath(noteDirectory, options.imageRule);
     try {
       await directory(root, noteDirectory, options.createDirectories);
-      if (prepared.media.length)
+      if (mediaToSave.length)
         await directory(root, imageDirectory, options.createDirectories);
     } catch (error) {
       if (error instanceof Error && error.name === "NotFoundError")
@@ -267,7 +270,7 @@ async function saveTransaction(
     const initialDigest = notePath === previous?.path ? beforeDigest : null;
     const downloads = [];
     const reserved = new Set<string>([notePath.normalize("NFC").toLowerCase()]);
-    for (const media of prepared.media) {
+    for (const media of mediaToSave) {
       const response = await (
         options.fetchMedia ??
         ((url) =>

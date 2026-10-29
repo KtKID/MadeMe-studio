@@ -338,3 +338,69 @@ describe("删除导出文件后重新保存", () => {
     },
   );
 });
+
+it("仅Markdown在同一目录保存原始外链，不fetch或写asset，保留旧图片及manifest媒体记录", async () => {
+  const { root, files } = rootFS();
+  await saveToDirectory(root, prepared, options);
+  const asset = files.get("asset/图.png");
+  const beforeManifest = JSON.parse(String(files.get(".mademe-export.json")));
+  let fetched = 0;
+  const remote = {
+    ...prepared,
+    markdown: "![图](https://example.test/api/files/media-a)",
+    media: [
+      { ...prepared.media[0], url: "https://example.test/api/files/media-a" },
+    ],
+  };
+  const saved = await saveToDirectory(root, remote, {
+    ...options,
+    markdownOnly: true,
+    fetchMedia: async () => {
+      fetched++;
+      throw new Error("不能下载");
+    },
+  });
+  expect(saved.notePath).toBe("笔记/测试.md");
+  expect(fetched).toBe(0);
+  expect(files.get(saved.notePath)).toBe(remote.markdown);
+  expect(files.get("asset/图.png")).toBe(asset);
+  expect(JSON.parse(String(files.get(".mademe-export.json"))).media).toEqual(
+    beforeManifest.media,
+  );
+  await saveToDirectory(root, remote, { ...options, markdownOnly: true });
+  expect([...files.keys()].filter((p) => p.startsWith("笔记/"))).toEqual([
+    saved.notePath,
+  ]);
+});
+
+it("仅Markdown首次保存不访问缺失asset目录，切回默认保存可补齐图片", async () => {
+  const { root, files } = rootFS();
+  const getDirectory = root.getDirectoryHandle;
+  root.getDirectoryHandle = async (name: string) => {
+    if (name === "asset") throw new Error("纯正文不得访问图片目录");
+    return getDirectory(name);
+  };
+  let downloads = 0;
+  const opts = {
+    ...options,
+    fetchMedia: async () => {
+      downloads++;
+      return fetchMedia();
+    },
+  };
+  const first = await saveToDirectory(root, prepared, {
+    ...opts,
+    markdownOnly: true,
+  });
+  expect(downloads).toBe(0);
+  expect([...files.keys()].some((name) => name.startsWith("asset/"))).toBe(
+    false,
+  );
+  expect(files.get(first.notePath)).toBe(prepared.markdown);
+  root.getDirectoryHandle = getDirectory;
+  const full = await saveToDirectory(root, prepared, opts);
+  expect(full.notePath).toBe(first.notePath);
+  expect(downloads).toBe(1);
+  expect(files.has("asset/图.png")).toBe(true);
+  expect(String(files.get(full.notePath))).toContain("../asset/");
+});

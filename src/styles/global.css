@@ -3236,3 +3236,15 @@ kbd {
 .obsidian-directory-control > button {
   flex: 0 0 auto;
 }
+
+/* 保存选项与主操作共享右对齐换行组，不继承普通label的纵向排版。 */
+.obsidian-save-actions > .obsidian-save-option {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  margin: 0;
+}
+.obsidian-save-option > input[type="checkbox"] {
+  flex: 0 0 auto;
+}

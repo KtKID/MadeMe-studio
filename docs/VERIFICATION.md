@@ -167,3 +167,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ### 子目录按钮同行视觉反馈修正
 
 独立预览发现设置按钮在输入下方贴边，先红结构用例再改为同一可换行控制组、8px gap、按钮不收缩，图片规则保持另一列。84文件687项、check242文件0errors/0warnings/5既有hints、build/HTTP smoke通过。父实测保存弹窗入口和取消焦点正常；云浏览器picker被平台拒绝且UI反馈正常，真实目录选择仍未验收。详见同日目录选择报告。
+
+## 同目录仅 Markdown 保存（2026-10-29）
+
+存储/UI先红2项、布局先红1项，再实现checkbox和Zod本次选项。新增5项覆盖不取图、同篇幂等/媒体保留/切回完整保存、底部同侧换行、取消重置/切预设/忙碌。84文件692项、check242文件0errors/0warnings/5既有hints、build/HTTP smoke通过。真实原生目录授权/应用打开未验收；见[选项报告](../reports/2026-10-29-obsidian-markdown-only-option.md)。

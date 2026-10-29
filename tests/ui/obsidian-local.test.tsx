@@ -88,7 +88,7 @@ it("不支持浏览器明确只提供普通下载", async () => {
   render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   expect(await screen.findByText(/当前浏览器不支持/)).toBeTruthy();
-  fireEvent.click(screen.getByText("仅下载 Markdown"));
+  fireEvent.click(screen.getByText("下载 Markdown 文件"));
   expect(h.download).toHaveBeenCalled();
   expect(h.save).not.toHaveBeenCalled();
 });
@@ -106,7 +106,7 @@ it("保存当前快照并阻止连续重复写入", async () => {
   render(<SaveButton getSnapshot={getSnapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
-  const button = screen.getByText("保存本次快照");
+  const button = screen.getByText("保存");
   fireEvent.click(button);
   fireEvent.click(button);
   await waitFor(() => expect(h.save).toHaveBeenCalledTimes(1));
@@ -119,7 +119,7 @@ it("权限失效保持错误并提供重新选目录", async () => {
   render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
-  fireEvent.click(screen.getByText("保存本次快照"));
+  fireEvent.click(screen.getByText("保存"));
   expect(await screen.findByRole("alert")).toBeTruthy();
   expect(screen.getByText("其他位置")).toBeTruthy();
   expect(h.save).not.toHaveBeenCalled();
@@ -138,10 +138,10 @@ it("图片失败可见，未误报保存成功", async () => {
   render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
-  fireEvent.click(screen.getByText("保存本次快照"));
+  fireEvent.click(screen.getByText("保存"));
   expect(await screen.findByText("图片下载失败，请重试")).toBeTruthy();
   expect(screen.queryByText(/已保存到本地/)).toBeNull();
-  expect(screen.getByText("保存本次快照")).toBeTruthy();
+  expect(screen.getByText("保存")).toBeTruthy();
 });
 
 it("本地修改先提示，另存使用同一快照", async () => {
@@ -150,7 +150,7 @@ it("本地修改先提示，另存使用同一快照", async () => {
   render(<SaveButton getSnapshot={getSnapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
-  fireEvent.click(screen.getByText("保存本次快照"));
+  fireEvent.click(screen.getByText("保存"));
   await screen.findByText("另存副本");
   expect(h.save).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByText("另存副本"));
@@ -163,7 +163,7 @@ it("缺目录先等待明确创建授权", async () => {
   render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
-  fireEvent.click(screen.getByText("保存本次快照"));
+  fireEvent.click(screen.getByText("保存"));
   await screen.findByText("创建目录并保存");
   expect(h.save.mock.calls[0][2].createDirectories).toBe(false);
   fireEvent.click(screen.getByText("创建目录并保存"));
@@ -220,7 +220,7 @@ it("普通下载保留标题并将图片转换为同站绝对链接，而不写�
     />,
   );
   fireEvent.click(screen.getByText("保存到 Obsidian"));
-  fireEvent.click(await screen.findByText("仅下载 Markdown"));
+  fireEvent.click(await screen.findByText("下载 Markdown 文件"));
   expect(h.download.mock.lastCall?.[1]).toContain("# 当前稿");
   expect(h.download.mock.lastCall?.[1]).toContain(
     new URL("/api/files/image-a", window.location.origin).href,
@@ -257,7 +257,7 @@ it("迟到的预设列表不能覆盖用户刚选择的临时目录", async () =
       },
     ]),
   );
-  fireEvent.click(screen.getByText("保存本次快照"));
+  fireEvent.click(screen.getByText("保存"));
   await waitFor(() => expect(h.save).toHaveBeenCalled());
   expect(h.save.mock.calls[0][0]).toBe(chosen);
 });
@@ -289,17 +289,15 @@ it("本地保存弹窗与fallback使用共享Modal及按钮样式", async () => 
     expect(button.matches(".button,.icon-button")).toBe(true);
   expect(baseElement.querySelector("dialog")).toBeNull();
   expect(baseElement.querySelector(".modal .modal-actions")).not.toBeNull();
-  expect(screen.getByText("保存本次快照").classList.contains("primary")).toBe(
-    true,
-  );
+  expect(screen.getByText("保存").classList.contains("primary")).toBe(true);
 });
 it("不支持目录授权的普通下载按钮也沿用设计系统", async () => {
   h.supported.mockReturnValue(false);
   const { container } = render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
-  expect(screen.getByText("仅下载 Markdown").classList.contains("button")).toBe(
-    true,
-  );
+  expect(
+    screen.getByText("下载 Markdown 文件").classList.contains("button"),
+  ).toBe(true);
   for (const button of container.querySelectorAll("button"))
     expect(button.matches(".button,.icon-button")).toBe(true);
 });
@@ -330,11 +328,11 @@ it.each(["granted", "denied", "prompt"])(
     await screen.findByText("本地库");
     expect(query).not.toHaveBeenCalled();
     expect(h.permission).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText("保存本次快照"));
+    fireEvent.click(screen.getByText("保存"));
     if (state === "denied") {
       await screen.findByText(/写入权限已被拒绝/);
       expect(h.save).not.toHaveBeenCalled();
-      fireEvent.click(screen.getByText("保存本次快照"));
+      fireEvent.click(screen.getByText("保存"));
       await waitFor(() => expect(query).toHaveBeenCalledTimes(2));
       expect(h.permission).not.toHaveBeenCalled();
     } else {
@@ -393,7 +391,7 @@ it("恢复原打开入口，不要求填写额外字段或显示前置提示", a
   render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
-  fireEvent.click(screen.getByText("保存本次快照"));
+  fireEvent.click(screen.getByText("保存"));
   const link = await screen.findByText("在 Obsidian 中打开");
   const url = new URL(link.getAttribute("href")!);
   expect(url.searchParams.get("vault")).toBe("vault");
@@ -457,9 +455,7 @@ it("只有打开保存面板的文字入口带无底色悬停标记", async () =
   await screen.findByText("本地库");
   expect(container.querySelectorAll(".obsidian-save-trigger")).toHaveLength(1);
   expect(
-    screen
-      .getByText("保存本次快照")
-      .classList.contains("obsidian-save-trigger"),
+    screen.getByText("保存").classList.contains("obsidian-save-trigger"),
   ).toBe(false);
 });
 
@@ -527,7 +523,7 @@ it.each([
     render(<SaveButton getSnapshot={snapshot} />);
     fireEvent.click(screen.getByText("保存到 Obsidian"));
     await screen.findByText("显示预设不是仓库");
-    fireEvent.click(screen.getByText("保存本次快照"));
+    fireEvent.click(screen.getByText("保存"));
     const link = (await screen.findByText(
       "在 Obsidian 中打开",
     )) as HTMLAnchorElement;
@@ -602,7 +598,7 @@ it("真实URI回归：授权TechNote容器内的brain仓库使用仓库相对路
   render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("笔记");
-  fireEvent.click(screen.getByText("保存本次快照"));
+  fireEvent.click(screen.getByText("保存"));
   const link = await screen.findByText("在 Obsidian 中打开");
   const url = new URL(link.getAttribute("href")!);
   expect(url.searchParams.get("vault")).toBe("brain");
@@ -638,7 +634,7 @@ it("保存后打开目标探测权限失败不谎称保存失败，也不回退�
   render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("笔记");
-  fireEvent.click(screen.getByText("保存本次快照"));
+  fireEvent.click(screen.getByText("保存"));
   await screen.findByText(/文件已保存，但无法确认 Obsidian 打开目标/);
   expect(h.save).toHaveBeenCalledTimes(1);
   expect(screen.getByText(/已保存到本地目录/)).toBeTruthy();
@@ -693,9 +689,7 @@ it("无预设时其他位置仍拒绝无仓库根，不启用保存", async () =
   await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
   expect(h.save).not.toHaveBeenCalled();
   expect(h.put).not.toHaveBeenCalled();
-  expect((screen.getByText("保存本次快照") as HTMLButtonElement).disabled).toBe(
-    true,
-  );
+  expect((screen.getByText("保存") as HTMLButtonElement).disabled).toBe(true);
 });
 
 it("文章子目录无需仓库标记，仍可在已授权根内选择", async () => {
@@ -870,9 +864,7 @@ it("保存弹窗仅保留一个其他位置入口，与目标同行并保留主�
   expect(screen.queryByText("浏览文章子目录")).toBeNull();
   expect(screen.queryByText("选择其他位置")).toBeNull();
   expect(screen.getByText("取消").closest(".modal-actions")).toBeTruthy();
-  expect(
-    screen.getByText("保存本次快照").closest(".modal-actions"),
-  ).toBeTruthy();
+  expect(screen.getByText("保存").closest(".modal-actions")).toBeTruthy();
 });
 
 it.each(["cancel", "outside", "permission", "image-rule"])(
@@ -965,4 +957,95 @@ it("预设路径和选择目录在同一可换行控制组，图片规则仍为�
   expect(
     screen.getByLabelText("图片规则（相对文章目录）").closest("label"),
   ).not.toBe(input.closest("label"));
+});
+
+it("仅下载Markdown是默认未选checkbox，勾选后同目录保存且不触发普通下载", async () => {
+  render(
+    <SaveButton
+      getSnapshot={() => ({
+        ...snapshot(),
+        markdown: "![图](/api/files/a)",
+        blocks: [
+          { type: "image", props: { url: "/api/files/a", name: "图.png" } },
+        ],
+      })}
+    />,
+  );
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("本地库");
+  const checkbox = screen.getByRole("checkbox", {
+    name: "仅下载 Markdown",
+  }) as HTMLInputElement;
+  expect(checkbox.checked).toBe(false);
+  expect(screen.queryByRole("button", { name: "仅下载 Markdown" })).toBeNull();
+  fireEvent.click(checkbox);
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  await waitFor(() => expect(h.save).toHaveBeenCalled());
+  expect(h.save.mock.lastCall?.[0].name).toBe("vault");
+  expect(h.save.mock.lastCall?.[2]).toMatchObject({
+    markdownOnly: true,
+    noteDirectory: "笔记",
+  });
+  expect(h.save.mock.lastCall?.[1].markdown).toContain(
+    new URL("/api/files/a", window.location.origin).href,
+  );
+  expect(h.download).not.toHaveBeenCalled();
+  expect(h.pick).not.toHaveBeenCalled();
+});
+
+it("Markdown选项切换预设保留，busy禁止切换和重复保存，关闭重开恢复默认", async () => {
+  const record = (id: string) => ({
+    preset: {
+      id,
+      name: id,
+      vaultName: id,
+      noteDirectory: "笔记",
+      imageRule: "../asset",
+      isVault: true,
+    },
+    handle: directoryTree(id),
+  });
+  h.list.mockResolvedValue([record("库A"), record("库B")]);
+  render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("库A");
+  const checkbox = screen.getByRole("checkbox", {
+    name: "仅下载 Markdown",
+  }) as HTMLInputElement;
+  fireEvent.click(checkbox);
+  fireEvent.change(screen.getByLabelText("保存预设"), {
+    target: { value: "库B" },
+  });
+  expect(checkbox.checked).toBe(true);
+  let finish!: (value: unknown) => void;
+  h.save.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const save = screen.getByRole("button", { name: "保存" });
+  const actions = save.closest(".modal-actions")!;
+  expect(Array.from(actions.children).map((node) => node.textContent)).toEqual([
+    "仅下载 Markdown",
+    "取消",
+    "保存",
+  ]);
+  fireEvent.click(save);
+  fireEvent.click(save);
+  await waitFor(() => expect(h.save).toHaveBeenCalledTimes(1));
+  expect(checkbox.disabled).toBe(true);
+  expect(h.save.mock.lastCall?.[0].name).toBe("库B");
+  expect(h.save.mock.lastCall?.[2].markdownOnly).toBe(true);
+  await act(async () => finish({ notePath: "笔记/a.md" }));
+  fireEvent.click(screen.getByText("取消"));
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("库A");
+  expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(
+    false,
+  );
+  fireEvent.click(screen.getByText("保存"));
+  await waitFor(() => expect(h.save).toHaveBeenCalledTimes(2));
+  expect(h.save.mock.lastCall?.[2].markdownOnly).toBe(false);
+  expect(h.download).not.toHaveBeenCalled();
 });
