@@ -88,6 +88,9 @@ export default function ObsidianSettings() {
     try {
       const chosen = await pickDirectory("documents");
       const vault = await verifyVault(chosen);
+      // 根目录选择先校验再提交本地状态，拒绝时保留原有效选择。
+      if (!vault)
+        throw new Error("这个路径没有检测到 Obsidian 仓库，请重新选择");
       setHandle(chosen);
       setIsVault(vault);
       if (!name) setName(chosen.name);

@@ -91,6 +91,9 @@ export default function SaveButton({
     try {
       const handle = await pickDirectory("documents");
       const isVault = await verifyVault(handle);
+      // 根目录选择先校验再提交本地状态，拒绝时保留原有效选择。
+      if (!isVault)
+        throw new Error("这个路径没有检测到 Obsidian 仓库，请重新选择");
       const preset = {
         id: crypto.randomUUID(),
         name: handle.name,

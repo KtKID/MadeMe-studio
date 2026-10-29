@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   supported: vi.fn(),
   list: vi.fn(),
   pick: vi.fn(),
+  verify: vi.fn(),
   save: vi.fn(),
   permission: vi.fn(),
   download: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock("../../src/modules/obsidian-local/presets", () => ({
   isDirectoryPickerSupported: h.supported,
   listPresets: h.list,
   pickDirectory: h.pick,
-  verifyVault: async () => true,
+  verifyVault: h.verify,
   putPreset: h.put,
   deletePreset: h.remove,
 }));
@@ -64,6 +65,7 @@ const snapshot = () => ({
 beforeEach(() => {
   vi.resetAllMocks();
   h.supported.mockReturnValue(true);
+  h.verify.mockResolvedValue(true);
   h.permission.mockResolvedValue("granted");
   h.list.mockResolvedValue([
     {
@@ -643,3 +645,102 @@ it("保存后打开目标探测权限失败不谎称保存失败，也不回退�
   expect(screen.queryByText("在 Obsidian 中打开")).toBeNull();
   expect(screen.queryByText(/未同步 Obsidian/)).toBeNull();
 });
+
+it("新建预设拒绝无仓库路径，不写入配置或填入无效目录", async () => {
+  h.list.mockResolvedValue([]);
+  h.pick.mockResolvedValue(directoryTree("无效目录", false));
+  h.verify.mockResolvedValue(false);
+  render(<ObsidianSettings />);
+  fireEvent.click(await screen.findByText("浏览选择 vault 根目录"));
+  await screen.findByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  expect((screen.getByLabelText("预设名称") as HTMLInputElement).value).toBe(
+    "",
+  );
+  expect((screen.getByText("保存本地预设") as HTMLButtonElement).disabled).toBe(
+    true,
+  );
+  expect(h.put).not.toHaveBeenCalled();
+});
+
+it("修改预设拒绝无仓库路径，保留原有效句柄和编辑输入", async () => {
+  h.pick.mockResolvedValue(directoryTree("无效目录", false));
+  h.verify.mockResolvedValue(false);
+  render(<ObsidianSettings />);
+  fireEvent.click(await screen.findByText("编辑 本地库"));
+  fireEvent.change(screen.getByLabelText("预设名称"), {
+    target: { value: "编辑中的名称" },
+  });
+  fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+  await screen.findByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  expect(h.put).not.toHaveBeenCalled();
+  expect((screen.getByLabelText("预设名称") as HTMLInputElement).value).toBe(
+    "编辑中的名称",
+  );
+  fireEvent.click(screen.getByText("保存本地预设"));
+  fireEvent.click(await screen.findByText("确认保存预设"));
+  await waitFor(() => expect(h.put).toHaveBeenCalled());
+  expect(h.put.mock.lastCall?.[1].name).toBe("vault");
+});
+
+it("保存弹窗拒绝无仓库的新位置，不替换当前有效目标", async () => {
+  h.pick.mockResolvedValue(directoryTree("无效目录", false));
+  h.verify.mockResolvedValue(false);
+  render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("本地库");
+  fireEvent.click(screen.getByText("选择其他位置"));
+  await screen.findByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  expect(h.save).not.toHaveBeenCalled();
+  expect(h.put).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText("保存本次快照"));
+  await waitFor(() => expect(h.save).toHaveBeenCalled());
+  expect(h.save.mock.lastCall?.[0].name).toBe("vault");
+});
+
+it("文章子目录无需仓库标记，仍可在已授权根内选择", async () => {
+  const handle = { ...directoryTree("vault"), resolve: async () => ["归档"] };
+  h.list.mockResolvedValue([
+    {
+      preset: {
+        id: "p",
+        name: "本地库",
+        vaultName: "vault",
+        noteDirectory: "笔记",
+        imageRule: "../asset",
+        isVault: true,
+      },
+      handle,
+    },
+  ]);
+  h.pick.mockResolvedValue(directoryTree("归档", false));
+  h.verify.mockResolvedValue(false);
+  render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("本地库");
+  fireEvent.click(screen.getByText("浏览文章子目录"));
+  await screen.findByText(/目标：vault\/归档/);
+  expect(h.verify).not.toHaveBeenCalled();
+  expect(
+    screen.queryByText("这个路径没有检测到 Obsidian 仓库，请重新选择"),
+  ).toBeNull();
+});
+
+it.each(["NotAllowedError", "NotReadableError"])(
+  "根选择 %s 不伪装为无仓库且保留旧预设",
+  async (name) => {
+    h.pick.mockResolvedValue(directoryTree("新目录"));
+    h.verify.mockRejectedValue(new DOMException("读取目录失败", name));
+    render(<ObsidianSettings />);
+    fireEvent.click(await screen.findByText("编辑 本地库"));
+    fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+    await screen.findByText(/读取目录失败|本地预设操作失败/);
+    expect(
+      screen.queryByText("这个路径没有检测到 Obsidian 仓库，请重新选择"),
+    ).toBeNull();
+    expect(h.put).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("保存本地预设"));
+    fireEvent.click(await screen.findByText("确认保存预设"));
+    await waitFor(() => expect(h.put).toHaveBeenCalled());
+    expect(h.put.mock.lastCall?.[1].name).toBe("vault");
+  },
+);

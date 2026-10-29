@@ -143,3 +143,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## Obsidian 真实 URI 仓库根定位（2026-10-28）
 
 用户实际 URI 证明授权根与仓库根不同；真实 SaveButton 回归先红（期望 brain、收到 TechNote），后实现路径祖先链定位，保持磁盘保存位置不变。82 文件 / 661 项通过，check 240 文件无 errors/warnings、5 既有 hints，build 和 HTTP smoke 通过。最近 .obsidian 只是候选，不承诺残留/自定义配置/登记识别；原生应用待现场验收。未推送部署。见 [根层级修复](../reports/2026-10-28-obsidian-open-root-resolution.md)。
+
+## Obsidian 仓库根选择校验（2026-10-28）
+
+3 项入口拒绝回归先红后绿；新增共 6 项，覆盖新建/编辑/临时根、文章子目录豁免、权限及 IO 异常。专项 46 项通过，全仓 82 文件 / 667 项通过，check 240 文件无 errors/warnings、5 既有 hints，build 与 HTTP smoke 通过。仅检查直属 .obsidian，不扫描子目录，不改写历史数据；原生目录选择待现场验收。见 [根选择校验报告](../reports/2026-10-28-obsidian-root-picker-validation.md)。
