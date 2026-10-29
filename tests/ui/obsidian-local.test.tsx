@@ -375,7 +375,7 @@ it("重复确认只保存一次，失败留在站内确认框且可重试", asyn
   fireEvent.click(screen.getByText("保存本地预设"));
   fireEvent.click(await screen.findByText("确认保存预设"));
   fireEvent.click(screen.getByText("确认保存预设"));
-  expect(h.put).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(h.put).toHaveBeenCalledTimes(1));
   expect((screen.getByText("取消") as HTMLButtonElement).disabled).toBe(true);
   await act(async () => reject(new Error("本地数据库保存失败")));
   const dialog = screen.getByRole("dialog", { name: "是否保存此预设？" });
@@ -652,7 +652,7 @@ it("新建预设拒绝无仓库路径，不写入配置或填入无效目录", a
   h.verify.mockResolvedValue(false);
   render(<ObsidianSettings />);
   fireEvent.click(await screen.findByText("浏览选择 vault 根目录"));
-  await screen.findByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
   expect((screen.getByLabelText("预设名称") as HTMLInputElement).value).toBe(
     "",
   );
@@ -664,14 +664,14 @@ it("新建预设拒绝无仓库路径，不写入配置或填入无效目录", a
 
 it("修改预设拒绝无仓库路径，保留原有效句柄和编辑输入", async () => {
   h.pick.mockResolvedValue(directoryTree("无效目录", false));
-  h.verify.mockResolvedValue(false);
+  h.verify.mockImplementation(async (handle) => handle.name === "vault");
   render(<ObsidianSettings />);
   fireEvent.click(await screen.findByText("编辑 本地库"));
   fireEvent.change(screen.getByLabelText("预设名称"), {
     target: { value: "编辑中的名称" },
   });
   fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
-  await screen.findByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
   expect(h.put).not.toHaveBeenCalled();
   expect((screen.getByLabelText("预设名称") as HTMLInputElement).value).toBe(
     "编辑中的名称",
@@ -689,7 +689,7 @@ it("保存弹窗拒绝无仓库的新位置，不替换当前有效目标", asyn
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
   fireEvent.click(screen.getByText("选择其他位置"));
-  await screen.findByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
   expect(h.save).not.toHaveBeenCalled();
   expect(h.put).not.toHaveBeenCalled();
   fireEvent.click(screen.getByText("保存本次快照"));
@@ -729,7 +729,10 @@ it.each(["NotAllowedError", "NotReadableError"])(
   "根选择 %s 不伪装为无仓库且保留旧预设",
   async (name) => {
     h.pick.mockResolvedValue(directoryTree("新目录"));
-    h.verify.mockRejectedValue(new DOMException("读取目录失败", name));
+    h.verify.mockImplementation(async (handle) => {
+      if (handle.name !== "vault") throw new DOMException("读取目录失败", name);
+      return true;
+    });
     render(<ObsidianSettings />);
     fireEvent.click(await screen.findByText("编辑 本地库"));
     fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
@@ -742,5 +745,82 @@ it.each(["NotAllowedError", "NotReadableError"])(
     fireEvent.click(await screen.findByText("确认保存预设"));
     await waitFor(() => expect(h.put).toHaveBeenCalled());
     expect(h.put.mock.lastCall?.[1].name).toBe("vault");
+  },
+);
+
+it.each([true, false])(
+  "旧预设 isVault=%s 未重新Browse也必须在确认保存前校验真实仓库",
+  async (isVault) => {
+    h.list.mockResolvedValue([
+      {
+        preset: {
+          id: "p",
+          name: "本地库",
+          vaultName: "vault",
+          noteDirectory: "笔记",
+          imageRule: "../asset",
+          isVault,
+        },
+        handle: directoryTree("vault"),
+      },
+    ]);
+    h.verify.mockResolvedValue(false);
+    render(<ObsidianSettings />);
+    fireEvent.click(await screen.findByText("编辑 本地库"));
+    fireEvent.change(screen.getByLabelText("预设名称"), {
+      target: { value: "未保存的新名称" },
+    });
+    fireEvent.click(screen.getByText("保存本地预设"));
+    fireEvent.click(await screen.findByText("确认保存预设"));
+    await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+    expect(h.verify).toHaveBeenCalledTimes(1);
+    expect(h.put).not.toHaveBeenCalled();
+    expect(h.remove).not.toHaveBeenCalled();
+    expect(h.permission).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("取消"));
+    expect((screen.getByLabelText("预设名称") as HTMLInputElement).value).toBe(
+      "未保存的新名称",
+    );
+  },
+);
+
+it("Browse通过后标记被移除，确认时重新校验且不保存本次路径", async () => {
+  h.pick.mockResolvedValue(directoryTree("新仓库"));
+  h.verify.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  render(<ObsidianSettings />);
+  fireEvent.click(await screen.findByText("编辑 本地库"));
+  fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+  await screen.findByText("根目录：新仓库");
+  fireEvent.click(screen.getByText("保存本地预设"));
+  fireEvent.click(await screen.findByText("确认保存预设"));
+  await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  expect(h.verify).toHaveBeenCalledTimes(2);
+  expect(h.put).not.toHaveBeenCalled();
+  expect(h.remove).not.toHaveBeenCalled();
+});
+
+it.each(["NotAllowedError", "NotReadableError"])(
+  "确认时 %s 不吞掉且不写配置，重选有效仓库可保存",
+  async (name) => {
+    h.verify.mockRejectedValueOnce(new DOMException("无法读取仓库", name));
+    render(<ObsidianSettings />);
+    fireEvent.click(await screen.findByText("编辑 本地库"));
+    fireEvent.click(screen.getByText("保存本地预设"));
+    fireEvent.click(await screen.findByText("确认保存预设"));
+    await screen.findAllByText(/无法读取仓库|本地预设操作失败/);
+    expect(h.put).not.toHaveBeenCalled();
+    expect(h.remove).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText("这个路径没有检测到 Obsidian 仓库，请重新选择"),
+    ).toBeNull();
+    fireEvent.click(screen.getByText("取消"));
+    h.pick.mockResolvedValue(directoryTree("有效仓库"));
+    fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+    await screen.findByText("根目录：有效仓库");
+    fireEvent.click(screen.getByText("保存本地预设"));
+    fireEvent.click(await screen.findByText("确认保存预设"));
+    await waitFor(() => expect(h.put).toHaveBeenCalledTimes(1));
+    expect(h.put.mock.lastCall?.[1].name).toBe("有效仓库");
+    expect(h.permission).not.toHaveBeenCalled();
   },
 );

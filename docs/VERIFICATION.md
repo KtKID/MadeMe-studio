@@ -147,3 +147,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## Obsidian 仓库根选择校验（2026-10-28）
 
 3 项入口拒绝回归先红后绿；新增共 6 项，覆盖新建/编辑/临时根、文章子目录豁免、权限及 IO 异常。专项 46 项通过，全仓 82 文件 / 667 项通过，check 240 文件无 errors/warnings、5 既有 hints，build 与 HTTP smoke 通过。仅检查直属 .obsidian，不扫描子目录，不改写历史数据；原生目录选择待现场验收。见 [根选择校验报告](../reports/2026-10-28-obsidian-root-picker-validation.md)。
+
+## Obsidian 预设保存边界校验（2026-10-28）
+
+补齐旧记录不 Browse 即可确认保存的漏项；先红 2 项再实施，最终新增 5 项，确认前重查直属标记，不写入无效配置、不删除旧记录、不请求写权限。全仓 82 文件 / 672 项、check 无 errors/warnings 和 5 既有 hints、build/HTTP smoke 通过。详见 [保存边界报告](../reports/2026-10-28-obsidian-preset-save-validation.md)。

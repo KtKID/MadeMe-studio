@@ -134,7 +134,11 @@ export default function ObsidianSettings() {
     setError("");
     setMessage("");
     try {
-      await putPreset(pending.preset, pending.handle);
+      // Browse 的旧结果不能授权这次保存：历史预设或目录标记可能已经变化。
+      // 只读取直属配置目录，不请求文件写权限，验证失败不触碰 IndexedDB。
+      if (!(await verifyVault(pending.handle)))
+        throw new Error("这个路径没有检测到 Obsidian 仓库，请重新选择");
+      await putPreset({ ...pending.preset, isVault: true }, pending.handle);
       setRecords(await listPresets());
       setId(pending.preset.id);
       setPending(undefined);

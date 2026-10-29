@@ -56,3 +56,5 @@ Markdown 转换本身有损；特殊块/样式需核对。平台视频和嵌入�
 打开目标定位仅检查保存路径祖先，不扫描兄弟目录、不读正文、不读取本机应用登记；读权限/IO异常不吞掉，已保存文件不回滚或搬动。见 [真实 URI 根层级修复](../../../reports/2026-10-28-obsidian-open-root-resolution.md)。
 
 根目录选择校验仅影响新选择路径，不清除历史普通目录/父目录预设，普通 Markdown 下载仍保留。详见 [入口校验报告](../../../reports/2026-10-28-obsidian-root-picker-validation.md)。
+
+确认保存预设时会重新读取当前目录的直属 `.obsidian`，不信任历史 `isVault` 或先前 Browse 结果；验证失败保留旧记录、当前输入和目录选择，不写 IndexedDB。仅检查读取，不申请文件写权限。见 [保存边界报告](../../../reports/2026-10-28-obsidian-preset-save-validation.md)。

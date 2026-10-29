@@ -35,3 +35,5 @@
 - [2026-10-28：真实 URI 定位 Obsidian 仓库根](2026-10-28-obsidian-open-root-resolution.md)：先用应用复制 URI 复现红测，再沿授权保存路径祖先定位最近配置目录，修正 vault/file，不改保存位置。
 
 - [2026-10-28：选择仓库根目录时拒绝无标记路径](2026-10-28-obsidian-root-picker-validation.md)：先红后绿，校验直属 .obsidian，保留旧选择和编辑输入，不影响文章子目录或普通下载。
+
+- [2026-10-28：保存预设边界重新验证仓库](2026-10-28-obsidian-preset-save-validation.md)：补齐旧记录直接确认可绕过 Browse 的遗漏，验证失败不写 IndexedDB、不删除原记录。
