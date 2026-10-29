@@ -666,7 +666,7 @@ it("新建预设拒绝无仓库路径，不写入配置或填入无效目录", a
   h.verify.mockResolvedValue(false);
   render(<ObsidianSettings />);
   fireEvent.click(await screen.findByText("浏览选择 vault 根目录"));
-  await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  await screen.findAllByText("当前路径没有检测到 Obsidian 仓库，请重新选择");
   expect((screen.getByLabelText("预设名称") as HTMLInputElement).value).toBe(
     "",
   );
@@ -688,7 +688,7 @@ it("修改预设拒绝无仓库路径，保留原有效句柄和编辑输入", a
     target: { value: "编辑中的名称" },
   });
   fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
-  await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  await screen.findAllByText("当前路径没有检测到 Obsidian 仓库，请重新选择");
   expect(h.put).not.toHaveBeenCalled();
   expect((screen.getByLabelText("预设名称") as HTMLInputElement).value).toBe(
     "编辑中的名称",
@@ -743,7 +743,7 @@ it("文章子目录无需仓库标记，仍可在已授权根内选择", async (
   await screen.findByText(/目标：vault\/归档/);
   expect(h.verify).not.toHaveBeenCalled();
   expect(
-    screen.queryByText("这个路径没有检测到 Obsidian 仓库，请重新选择"),
+    screen.queryByText("当前路径没有检测到 Obsidian 仓库，请重新选择"),
   ).toBeNull();
 });
 
@@ -763,7 +763,7 @@ it.each(["NotAllowedError", "NotReadableError"])(
     fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
     await screen.findByText(/读取目录失败|本地预设操作失败/);
     expect(
-      screen.queryByText("这个路径没有检测到 Obsidian 仓库，请重新选择"),
+      screen.queryByText("当前路径没有检测到 Obsidian 仓库，请重新选择"),
     ).toBeNull();
     expect(h.put).not.toHaveBeenCalled();
     h.pick.mockResolvedValue(directoryTree("vault"));
@@ -803,7 +803,7 @@ it.each([true, false])(
     });
     fireEvent.click(screen.getByText("保存本地预设"));
     fireEvent.click(await screen.findByText("确认保存预设"));
-    await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+    await screen.findAllByText("当前路径没有检测到 Obsidian 仓库，请重新选择");
     expect(h.verify).toHaveBeenCalledTimes(2);
     expect(h.put).not.toHaveBeenCalled();
     expect(h.remove).not.toHaveBeenCalled();
@@ -830,7 +830,7 @@ it("Browse通过后标记被移除，确认时重新校验且不保存本次路�
   await screen.findByText("根目录：新仓库");
   fireEvent.click(screen.getByText("保存本地预设"));
   fireEvent.click(await screen.findByText("确认保存预设"));
-  await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  await screen.findAllByText("当前路径没有检测到 Obsidian 仓库，请重新选择");
   expect(h.verify).toHaveBeenCalledTimes(3);
   expect(h.put).not.toHaveBeenCalled();
   expect(h.remove).not.toHaveBeenCalled();
@@ -853,7 +853,7 @@ it.each(["NotAllowedError", "NotReadableError"])(
     expect(h.put).not.toHaveBeenCalled();
     expect(h.remove).not.toHaveBeenCalled();
     expect(
-      screen.queryByText("这个路径没有检测到 Obsidian 仓库，请重新选择"),
+      screen.queryByText("当前路径没有检测到 Obsidian 仓库，请重新选择"),
     ).toBeNull();
     fireEvent.click(screen.getByText("取消"));
     h.pick.mockResolvedValue(directoryTree("有效仓库"));
@@ -1141,7 +1141,7 @@ it.each([false, true])(
     expect(
       (screen.getByText("保存本地预设") as HTMLButtonElement).disabled,
     ).toBe(true);
-    await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+    await screen.findAllByText("当前路径没有检测到 Obsidian 仓库，请重新选择");
     expect(h.put).not.toHaveBeenCalled();
     expect(h.remove).not.toHaveBeenCalled();
   },
@@ -1172,7 +1172,7 @@ it.each(["NotFoundError", "TypeMismatchError", "NotAllowedError"])(
     fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
     await screen.findAllByText(
       name === "NotFoundError"
-        ? "这个路径没有检测到 Obsidian 仓库，请重新选择"
+        ? "当前路径没有检测到 Obsidian 仓库，请重新选择"
         : "根检查失败",
     );
     expect(getDirectoryHandle).toHaveBeenCalledExactlyOnceWith(".obsidian", {
@@ -1199,7 +1199,7 @@ it("真实根 Browse 新建拒绝缺标记目录，不能保存无效选择", as
   });
   render(<ObsidianSettings />);
   fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
-  await screen.findAllByText("这个路径没有检测到 Obsidian 仓库，请重新选择");
+  await screen.findAllByText("当前路径没有检测到 Obsidian 仓库，请重新选择");
   expect((screen.getByText("保存本地预设") as HTMLButtonElement).disabled).toBe(
     true,
   );
@@ -1234,7 +1234,7 @@ it("真实根 Browse 等待时重复点击只选一次，取消保留原路径",
 });
 
 it.each([true, false])(
-  "根选择失败就近显示未采用反馈，旧路径=%s",
+  "根选择失败就近只显示一句反馈，旧路径=%s",
   async (hasOld) => {
     if (!hasOld) h.list.mockResolvedValue([]);
     h.pick.mockResolvedValue(directoryTree("无效"));
@@ -1248,9 +1248,7 @@ it.each([true, false])(
     }
     fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
     const notice = await screen.findByText(
-      hasOld
-        ? "未采用本次选择，仍保留原路径。"
-        : "未采用本次选择，请重新选择仓库根目录。",
+      "当前路径没有检测到 Obsidian 仓库，请重新选择",
     );
     const row = screen.getByText("浏览选择 vault 根目录").parentElement!;
     expect(row.nextElementSibling?.contains(notice)).toBe(true);
@@ -1362,10 +1360,24 @@ it("真实新根 Browse 通过后标记消失，确认再次校验拒绝且撤�
   fireEvent.click(screen.getByText("保存本地预设"));
   exists = false;
   fireEvent.click(await screen.findByText("确认保存预设"));
-  await screen.findByText("校验失败，请重新选择。");
+  await screen.findByText("当前路径没有检测到 Obsidian 仓库，请重新选择");
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
   expect(
     screen.queryByText("根目录存在 .obsidian 目录，校验通过。"),
   ).toBeNull();
   expect(h.put).not.toHaveBeenCalled();
   expect(h.remove).not.toHaveBeenCalled();
+});
+
+it("根缺标记只显示用户指定一句提示，不附加重复解释", async () => {
+  h.list.mockResolvedValue([]);
+  h.pick.mockResolvedValue(directoryTree("无效"));
+  h.verify.mockResolvedValue(false);
+  render(<ObsidianSettings />);
+  fireEvent.click(screen.getByText("浏览选择 vault 根目录"));
+  const notice = await screen.findByRole("alert");
+  expect(notice.textContent).toBe(
+    "当前路径没有检测到 Obsidian 仓库，请重新选择",
+  );
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
 });

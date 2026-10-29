@@ -180,3 +180,6 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## 2026-10-29：根 Browse 专项复核
 真实 verifyVault 的 Settings 入口新增回归，原实现 UI 58/58 通过；未在云端复现本机报告，不把文章 adapter 漏项当同一问题。就近错误反馈 TDD 红 2 failed / 58 skipped。日志 /tmp/obsidian-settings-root-real.log、/tmp/obsidian-root-feedback-{red,tests,check,build,smoke}.log。
 后续强制三态校验与本屏分组：状态红 1 failed / 60 skipped、布局红 1 failed / 61 skipped；最终 84 文件 / 713 用例通过，check 242 文件 0/0/5，build/smoke 通过。日志 /tmp/obsidian-root-status-{tests,check,build,smoke}.log。
+
+## 2026-10-29：根提示精简
+精确单句与单 Notice 红测 1 failed / 64 skipped；确认弹窗不重复底层错误，权限/IO原因保留。日志 /tmp/obsidian-root-copy-{red,tests,check,build,smoke}.log。

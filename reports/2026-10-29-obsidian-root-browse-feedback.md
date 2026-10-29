@@ -23,3 +23,8 @@
 完整日志 /tmp/obsidian-root-status-{tests,check,build,smoke}.log。
 
 最终业务验证：84 文件 / 713 用例通过；check 242 文件，0 errors / 0 warnings / 5 既有 hints；build 与 HTTP smoke 通过。CSS 约束验证换行与右对齐，移动端/原生授权不冒称已验。
+
+## 后续精简文案（以此节为准）
+用户要求取消重复解释。Settings 根缺标记只显示“当前路径没有检测到 Obsidian 仓库，请重新选择”，移除“校验失败”前缀与保留原路径说明。确认弹窗打开时错误仅在弹窗显示，不在底层表单重复；权限/IO仍显示其实际原因。校验、失败保留原路径/不写配置等逻辑均不变。
+精确单提示红测：1 failed / 64 skipped，/tmp/obsidian-root-copy-red.log。最终日志 /tmp/obsidian-root-copy-{tests,check,build,smoke}.log。截图 /workspace/scratch/4859fb17ce30/library-obsidian-root-check/image(20261029-023733).png 为用户提供证据，未上传其它位置。
+本次业务验证：84 文件 / 714 测试通过，check 242 文件 0 errors / 0 warnings / 5 既有 hints，build/HTTP smoke 通过。

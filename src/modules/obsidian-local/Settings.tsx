@@ -103,7 +103,7 @@ export default function ObsidianSettings() {
       setIsVault(valid);
       if (!valid)
         setRootError({
-          message: "这个路径没有检测到 Obsidian 仓库，请重新选择",
+          message: "当前路径没有检测到 Obsidian 仓库，请重新选择",
           retained: true,
         });
     } catch (error) {
@@ -132,7 +132,7 @@ export default function ObsidianSettings() {
       const vault = await verifyVault(chosen);
       // 根目录选择先校验再提交本地状态，拒绝时保留原有效选择。
       if (!vault)
-        throw new Error("这个路径没有检测到 Obsidian 仓库，请重新选择");
+        throw new Error("当前路径没有检测到 Obsidian 仓库，请重新选择");
       setRootStatus("valid");
       setHandle(chosen);
       setIsVault(vault);
@@ -216,7 +216,7 @@ export default function ObsidianSettings() {
       setRootStatus("checking");
       try {
         if (!(await verifyVault(pending.handle)))
-          throw new Error("这个路径没有检测到 Obsidian 仓库，请重新选择");
+          throw new Error("当前路径没有检测到 Obsidian 仓库，请重新选择");
         setRootStatus("valid");
         setRootError(undefined);
       } catch (error) {
@@ -267,7 +267,7 @@ export default function ObsidianSettings() {
       <p className="form-hint">
         目录授权与预设仅保存在此浏览器，不会上传；换设备后需重新选择。
       </p>
-      {error && <Notice kind="error">{error}</Notice>}
+      {error && !pending && !rootError && <Notice kind="error">{error}</Notice>}
       {message && <Notice kind="success">{message}</Notice>}
       {!isDirectoryPickerSupported() ? (
         <Notice>
@@ -360,16 +360,8 @@ export default function ObsidianSettings() {
                   根目录存在 .obsidian 目录，校验通过。
                 </p>
               )}
-              {rootError && (
-                <Notice kind="error">
-                  <p>校验失败，请重新选择。</p>
-                  <p>{rootError.message}</p>
-                  <p>
-                    {rootError.retained
-                      ? "未采用本次选择，仍保留原路径。"
-                      : "未采用本次选择，请重新选择仓库根目录。"}
-                  </p>
-                </Notice>
+              {rootError && !pending && (
+                <Notice kind="error">{rootError.message}</Notice>
               )}
             </div>
             <div className="form-grid">
