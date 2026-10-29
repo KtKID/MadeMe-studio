@@ -31,3 +31,5 @@
 - [2026-10-28：删除本地导出文件后重新保存](2026-10-28-obsidian-deleted-file-save.md)：区分磁盘缺失与本地修改，补回已删除附件，保留权限错误与竞争保护。
 
 - [2026-10-28：Obsidian 打开链路排查](2026-10-28-obsidian-open-chain-investigation.md)：补 DOM/click/旧预设诊断，排除链接改写及站内拦截；未定位原生 Vault not found 根因，不冒称修复。
+
+- [2026-10-28：真实 URI 定位 Obsidian 仓库根](2026-10-28-obsidian-open-root-resolution.md)：先用应用复制 URI 复现红测，再沿授权保存路径祖先定位最近配置目录，修正 vault/file，不改保存位置。

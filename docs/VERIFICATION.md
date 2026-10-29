@@ -139,3 +139,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## Obsidian 打开完整链路调查（2026-10-28）
 
 新增 2 项真实 SaveButton DOM/click 诊断，覆盖历史预设字段不影响目标、中文特殊字符编码、编辑器及配置全局 click 保护放行。原实现直接通过，无可证明的红测，因此不修改实现，不冒称修复原生 Vault not found。专项 3 文件 / 40 项；全仓 82 文件 / 652 项通过，check 240 文件 0 errors/0 warnings/5 既有 hints，build 与 HTTP smoke 通过。jsdom 不实现原生协议导航；仍需应用复制的实际 URI 对比。见 [完整链路调查](../reports/2026-10-28-obsidian-open-chain-investigation.md)。
+
+## Obsidian 真实 URI 仓库根定位（2026-10-28）
+
+用户实际 URI 证明授权根与仓库根不同；真实 SaveButton 回归先红（期望 brain、收到 TechNote），后实现路径祖先链定位，保持磁盘保存位置不变。82 文件 / 661 项通过，check 240 文件无 errors/warnings、5 既有 hints，build 和 HTTP smoke 通过。最近 .obsidian 只是候选，不承诺残留/自定义配置/登记识别；原生应用待现场验收。未推送部署。见 [根层级修复](../reports/2026-10-28-obsidian-open-root-resolution.md)。

@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { buildObsidianUri } from "./open";
+import { resolveObsidianUri } from "./open";
 import { useRef, useState } from "react";
 import { Modal, Notice, downloadText } from "../../components/shared/ui";
 import { clientLog } from "../log/client";
@@ -40,7 +40,7 @@ export default function SaveButton({
   const [result, setResult] = useState<{
     path: string;
     openUri: string | null;
-    isVault: boolean;
+    isVault?: boolean;
   }>();
   const lock = useRef(false);
   const request = useRef(0);
@@ -168,7 +168,6 @@ export default function SaveButton({
           "granted"
       )
         throw new Error("目录权限已失效。请重新授权或选择其他位置；尚未保存。");
-      const isVault = await verifyVault(selected.handle);
       const saved = await saveToDirectory(selected.handle, snapshot.current, {
         noteDirectory: directory,
         imageRule: selected.preset.imageRule,
@@ -177,15 +176,20 @@ export default function SaveButton({
       });
       setConflict(false);
       setMissing(false);
-      setResult({
-        path: saved.notePath,
-        openUri: buildObsidianUri(
-          selected.handle.name,
+      // 文件已成功提交，打开目标探测失败不能被描述成保存失败或普通目录。
+      setResult({ path: saved.notePath, openUri: null });
+      try {
+        const openUri = await resolveObsidianUri(
+          selected.handle,
           saved.notePath,
-          isVault,
-        ),
-        isVault,
-      });
+        );
+        setResult({ path: saved.notePath, openUri, isVault: openUri !== null });
+      } catch (error) {
+        fail(error);
+        setError(
+          `文件已保存，但无法确认 Obsidian 打开目标：${error instanceof Error ? error.message : "目录读取失败"}`,
+        );
+      }
     } catch (error) {
       if (error instanceof LocalConflictError) {
         setConflict(true);
@@ -332,9 +336,9 @@ export default function SaveButton({
                 )}
                 {result && (
                   <Notice kind="success">
-                    {result.isVault
-                      ? "已保存到本地目录"
-                      : "已保存到普通文件夹（未同步 Obsidian）"}
+                    {result.isVault === false
+                      ? "已保存到普通文件夹（未同步 Obsidian）"
+                      : "已保存到本地目录"}
                     ：{result.path}
                     {result.openUri && (
                       <p className="form-hint">

@@ -42,6 +42,19 @@ import {
   LocalConflictError,
   MissingDirectoryError,
 } from "../../src/modules/obsidian-local/save";
+function directoryTree(name: string, vault = true): any {
+  return {
+    name,
+    requestPermission: h.permission,
+    getDirectoryHandle: async (child: string) => {
+      if (child === ".obsidian") {
+        if (!vault) throw new DOMException("missing", "NotFoundError");
+        return { name: child };
+      }
+      return directoryTree(child, false);
+    },
+  };
+}
 const snapshot = () => ({
   articleId: "a",
   title: "当前稿",
@@ -62,7 +75,7 @@ beforeEach(() => {
         imageRule: "../asset",
         isVault: true,
       },
-      handle: { name: "vault", requestPermission: h.permission },
+      handle: directoryTree("vault"),
     },
   ]);
   h.save.mockResolvedValue({ notePath: "笔记/当前稿.md" });
@@ -221,7 +234,7 @@ it("迟到的预设列表不能覆盖用户刚选择的临时目录", async () =
         resolve = r;
       }),
   );
-  const chosen = { name: "用户刚选择的目录", requestPermission: h.permission };
+  const chosen = directoryTree("用户刚选择的目录");
   h.pick.mockResolvedValueOnce(chosen);
   render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
@@ -238,7 +251,7 @@ it("迟到的预设列表不能覆盖用户刚选择的临时目录", async () =
           imageRule: "../asset",
           isVault: true,
         },
-        handle: { name: "旧目录", requestPermission: h.permission },
+        handle: directoryTree("旧目录"),
       },
     ]),
   );
@@ -304,7 +317,7 @@ it.each(["granted", "denied", "prompt"])(
           isVault: true,
         },
         handle: {
-          name: "vault",
+          ...directoryTree("vault"),
           queryPermission: query,
           requestPermission: h.permission,
         },
@@ -399,7 +412,7 @@ it("预设流程不再显示额外登记身份输入、根确认和打开限制�
   expect(dialog.textContent).not.toMatch(/打开目标|未配置或未确认|登记仓库/);
 });
 it("编辑旧配置兼容保留已存字段，不删除目录句柄或历史参数", async () => {
-  const handle = { name: "vault", requestPermission: h.permission };
+  const handle = directoryTree("vault");
   h.list.mockResolvedValue([
     {
       preset: {
@@ -505,7 +518,7 @@ it.each([
           imageRule: "../asset",
           isVault: true,
         },
-        handle: { name: rootName, requestPermission: h.permission },
+        handle: directoryTree(rootName),
       },
     ]);
     h.save.mockResolvedValue({ notePath });
@@ -551,3 +564,82 @@ it.each([
     }
   },
 );
+
+it("真实URI回归：授权TechNote容器内的brain仓库使用仓库相对路径，不改保存位置", async () => {
+  const missing = () =>
+    Promise.reject(new DOMException("missing", "NotFoundError"));
+  const notes = { name: "01_笔记", getDirectoryHandle: missing };
+  const brain = {
+    name: "brain",
+    getDirectoryHandle: async (name: string) => {
+      if (name === ".obsidian") return { name };
+      if (name === "01_笔记") return notes;
+      return missing();
+    },
+  };
+  const handle = {
+    name: "TechNote",
+    requestPermission: h.permission,
+    getDirectoryHandle: async (name: string) =>
+      name === "brain" ? brain : missing(),
+  };
+  h.list.mockResolvedValue([
+    {
+      preset: {
+        id: "p",
+        name: "笔记",
+        vaultName: "TechNote",
+        noteDirectory: "brain/01_笔记",
+        imageRule: "../asset",
+        isVault: false,
+      },
+      handle,
+    },
+  ]);
+  h.save.mockResolvedValue({ notePath: "brain/01_笔记/MadeMe.md" });
+  render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("笔记");
+  fireEvent.click(screen.getByText("保存本次快照"));
+  const link = await screen.findByText("在 Obsidian 中打开");
+  const url = new URL(link.getAttribute("href")!);
+  expect(url.searchParams.get("vault")).toBe("brain");
+  // 官方允许有/无 .md 后缀；保留真实已保存文件名，不需改写磁盘文件。
+  expect(url.searchParams.get("file")).toBe("01_笔记/MadeMe.md");
+  expect(h.save).toHaveBeenCalledWith(
+    handle,
+    expect.anything(),
+    expect.objectContaining({ noteDirectory: "brain/01_笔记" }),
+  );
+});
+
+it("保存后打开目标探测权限失败不谎称保存失败，也不回退错误仓库", async () => {
+  const handle = {
+    ...directoryTree("TechNote"),
+    getDirectoryHandle: async () => {
+      throw new DOMException("权限失效", "NotAllowedError");
+    },
+  };
+  h.list.mockResolvedValue([
+    {
+      preset: {
+        id: "p",
+        name: "笔记",
+        vaultName: "TechNote",
+        noteDirectory: "笔记",
+        imageRule: "../asset",
+        isVault: true,
+      },
+      handle,
+    },
+  ]);
+  render(<SaveButton getSnapshot={snapshot} />);
+  fireEvent.click(screen.getByText("保存到 Obsidian"));
+  await screen.findByText("笔记");
+  fireEvent.click(screen.getByText("保存本次快照"));
+  await screen.findByText(/文件已保存，但无法确认 Obsidian 打开目标/);
+  expect(h.save).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(/已保存到本地目录/)).toBeTruthy();
+  expect(screen.queryByText("在 Obsidian 中打开")).toBeNull();
+  expect(screen.queryByText(/未同步 Obsidian/)).toBeNull();
+});
