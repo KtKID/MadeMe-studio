@@ -55,13 +55,19 @@ describe("公开列表真实 DOM 交互（不调用生产 API）", () => {
     render(
       <PublicFeed
         posts={[post("one", "技术"), post("two", "生活", true)]}
+        types={[
+          { id: "tech", name: "技术" },
+          { id: "life", name: "生活" },
+        ]}
         authenticated={false}
       />,
     );
     expect(
       screen.getAllByRole("heading", { level: 2 }).map((n) => n.textContent),
     ).toEqual(["two", "one"]);
-    fireEvent.click(screen.getByRole("button", { name: "技术" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "文章类型" }), {
+      target: { value: "tech" },
+    });
     expect(screen.queryByRole("heading", { name: "two" })).toBeNull();
     fireEvent.change(screen.getByRole("searchbox"), {
       target: { value: "tagneedle" },
@@ -78,7 +84,9 @@ describe("公开列表真实 DOM 交互（不调用生产 API）", () => {
     expect(screen.getByText("没有找到相关文字")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "写下第一篇文章" })).toBeNull();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: /全部文章/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "文章类型" }), {
+      target: { value: "" },
+    });
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(2);
   });
   it("空列表只给作者显示写作入口", () => {

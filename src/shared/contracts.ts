@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  articleTypeIdSchema,
+  articleTypeListSchema,
+  DEFAULT_ARTICLE_TYPES,
+} from "../modules/article-types/contracts.ts";
 // 显式写 .ts 文件路径：integrations/ 下的 Node 工具直接用 Node 类型剥离加载本文件，
 // 不支持目录导入或省略扩展名。
 import {
@@ -190,6 +195,7 @@ export const editablePostSchema = z.object({
   excerpt: z.string().max(TEXT_LIMITS.excerpt),
   blocks: blocksSchema,
   category: z.string().trim().max(TEXT_LIMITS.category),
+  categoryId: articleTypeIdSchema.nullable().optional(),
   tags: z
     .array(z.string().trim().min(1).max(TEXT_LIMITS.tag))
     .max(TEXT_LIMITS.tags),
@@ -212,6 +218,7 @@ export const postSummarySchema = postSchema.pick({
   title: true,
   excerpt: true,
   category: true,
+  categoryId: true,
   tags: true,
   coverImage: true,
   visibility: true,
@@ -236,14 +243,22 @@ export const createPostSchema = editablePostSchema
     title: editablePostSchema.shape.title,
     blocks: blocksSchema.default([]),
     markdown: z.string().max(MAX_DOCUMENT_CHARS).optional(),
-    password: z.string().min(TEXT_LIMITS.postPasswordMin).max(TEXT_LIMITS.postPasswordMax).optional(),
+    password: z
+      .string()
+      .min(TEXT_LIMITS.postPasswordMin)
+      .max(TEXT_LIMITS.postPasswordMax)
+      .optional(),
   })
   .strict();
 export const patchPostSchema = editablePostSchema
   .partial()
   .extend({
     version: z.number().int().positive(),
-    password: z.string().min(TEXT_LIMITS.postPasswordMin).max(TEXT_LIMITS.postPasswordMax).optional(),
+    password: z
+      .string()
+      .min(TEXT_LIMITS.postPasswordMin)
+      .max(TEXT_LIMITS.postPasswordMax)
+      .optional(),
   })
   .strict();
 export type CreatePostInput = z.infer<typeof createPostSchema>;
@@ -254,7 +269,11 @@ export const versionInputSchema = z
 export const publishInputSchema = versionInputSchema
   .extend({
     visibility: z.enum(["public", "password", "unlisted"]).optional(),
-    password: z.string().min(TEXT_LIMITS.postPasswordMin).max(TEXT_LIMITS.postPasswordMax).optional(),
+    password: z
+      .string()
+      .min(TEXT_LIMITS.postPasswordMin)
+      .max(TEXT_LIMITS.postPasswordMax)
+      .optional(),
   })
   .strict();
 export const unlockInputSchema = z
@@ -307,6 +326,9 @@ export const promptSchema = z.object({
 export const modeSchema = z.enum(["light", "dark", "system"]);
 export const skinSchema = z.enum(["amber", "sage", "rose", "ocean", "mono"]);
 export const settingsSchema = z.object({
+  articleTypes: articleTypeListSchema.default(() =>
+    structuredClone(DEFAULT_ARTICLE_TYPES),
+  ),
   siteTitle: z.string().trim().min(1).max(TEXT_LIMITS.siteTitle),
   tagline: z.string().max(TEXT_LIMITS.tagline),
   theme: z.enum(["paper", "ink", "garden", "mono"]),
@@ -346,6 +368,7 @@ export const settingsSchema = z.object({
 });
 export type Settings = z.infer<typeof settingsSchema>;
 export const patchSettingsSchema = settingsSchema
+  .omit({ articleTypes: true })
   .partial()
   .extend({
     mode: modeSchema.optional(),
@@ -360,6 +383,7 @@ export const patchSettingsSchema = settingsSchema
   })
   .strict();
 export const defaultSettings: Settings = {
+  articleTypes: structuredClone(DEFAULT_ARTICLE_TYPES),
   siteTitle: "MadeMe",
   tagline: "A quiet place for ideas that matter.",
   theme: "paper",

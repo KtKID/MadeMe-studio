@@ -112,3 +112,8 @@ it("放弃后返回面板重新输入，迟到保存响应只替换未再编辑�
   expect(next.tagline).toBe("放弃后新输入");
   expect(settingsPatch(submitted, next)).toEqual({ tagline: "放弃后新输入" });
 });
+
+it("即时维护的文章类型不会随其它设置草稿再次整表提交", () => {
+  const current = { ...defaultSettings, articleTypes: [{ id: "custom", name: "自定义" }], siteTitle: "新站点" };
+  expect(settingsPatch(defaultSettings, current)).toEqual({ siteTitle: "新站点" });
+});

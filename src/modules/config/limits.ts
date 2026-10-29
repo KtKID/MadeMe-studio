@@ -185,3 +185,7 @@ export const OBSIDIAN_LOCAL_DEFAULTS = {
   fileSuffixMax: 48,
   extensionMax: 20,
 } as const;
+
+/** 文章类型目录容量与乐观并发的有界重试。 */
+export const ARTICLE_TYPE_LIMIT = 100;
+export const ARTICLE_TYPE_CAS_ATTEMPTS = 4;

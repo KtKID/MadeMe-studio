@@ -62,6 +62,16 @@ vi.mock("../../src/components/media/MediaLibrary", () => ({
   default: () => <div>媒体边界</div>,
 }));
 import { readFileSync } from "node:fs";
+// 类型服务边界独立测试；旧编辑器保存竞态用例不消费类型 GET 请求队列。
+vi.mock("../../src/modules/article-types/client", async (original) => ({
+  ...(await original<object>()),
+  useArticleTypes: (types: unknown[]) => ({
+    types,
+    loading: false,
+    error: "",
+    refresh: vi.fn(),
+  }),
+}));
 import Editor from "../../src/components/editor/Editor";
 // 作者粘进视频块的 X 官方嵌入代码（tests/fixtures/x-embed-snippet.html）。
 const snippet = readFileSync("tests/fixtures/x-embed-snippet.html", "utf8");

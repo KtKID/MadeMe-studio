@@ -58,6 +58,7 @@ const publicPosts = data.posts.filter(
       </section>
       <PublicFeed
         posts={publicPosts}
+        types={settings.articleTypes}
         theme={settings.theme}
         cardTags={settings.limits.reading.cardTags}
         authenticated={capabilities.authenticated}

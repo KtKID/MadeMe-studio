@@ -8,7 +8,10 @@ import {
 function equal(first: unknown, second: unknown) {
   return JSON.stringify(first) === JSON.stringify(second);
 }
-export type SettingsPatch = Omit<Partial<Settings>, "limits"> & {
+export type SettingsPatch = Omit<
+  Partial<Settings>,
+  "limits" | "articleTypes"
+> & {
   limits?: RuntimeConfigPatch;
 };
 /**
@@ -30,9 +33,7 @@ export function limitsPatch(
       (patch[group] ??= {})[key] = equal(value, defaults[key]) ? null : value;
     }
   }
-  return Object.keys(patch).length
-    ? (patch as RuntimeConfigPatch)
-    : undefined;
+  return Object.keys(patch).length ? (patch as RuntimeConfigPatch) : undefined;
 }
 /** 只发送当前窗口实际改变的字段，避免旧表单覆盖其他窗口的独立设置。 */
 export function settingsPatch(
@@ -41,6 +42,8 @@ export function settingsPatch(
 ): SettingsPatch {
   const patch: Record<string, unknown> = {};
   for (const key of Object.keys(current) as (keyof Settings)[]) {
+    // 类型由独立原子接口立即保存，不能被旧设置表单覆盖。
+    if (key === "articleTypes") continue;
     if (key === "limits") {
       const limits = limitsPatch(baseline.limits, current.limits);
       if (limits) patch.limits = limits;

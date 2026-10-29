@@ -59,6 +59,16 @@ vi.mock("../../src/components/shared/ui", async (original) => ({
 vi.mock("../../src/components/media/MediaLibrary", () => ({
   default: () => <div>媒体边界</div>,
 }));
+// 类型服务边界独立测试；旧编辑器保存竞态用例不消费类型 GET 请求队列。
+vi.mock("../../src/modules/article-types/client", async (original) => ({
+  ...(await original<object>()),
+  useArticleTypes: (types: unknown[]) => ({
+    types,
+    loading: false,
+    error: "",
+    refresh: vi.fn(),
+  }),
+}));
 import Editor from "../../src/components/editor/Editor";
 import { ApiError } from "../../src/components/shared/ui";
 const post: Post = {
@@ -250,16 +260,14 @@ describe("编辑器真实按钮与状态链路", () => {
   });
   it("发布等待保存时锁定可见范围，防止界面选择与提交快照不一致", async () => {
     const pending = deferred<{ post: Post }>();
-    h.api
-      .mockReturnValueOnce(pending.promise)
-      .mockResolvedValueOnce({
-        post: {
-          ...post,
-          version: 3,
-          visibility: "unlisted",
-          publishedAt: post.updatedAt,
-        },
-      });
+    h.api.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({
+      post: {
+        ...post,
+        version: 3,
+        visibility: "unlisted",
+        publishedAt: post.updatedAt,
+      },
+    });
     setup();
     fireEvent.click(screen.getByRole("button", { name: "发布" }));
     const visibility = screen.getByLabelText("谁可以阅读");
@@ -284,3 +292,40 @@ describe("编辑器真实按钮与状态链路", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
+
+it.each([true, false])(
+  "文章 existing=%s 直接可见类型选择，选择后与标签独立保存",
+  async (existing) => {
+    h.api.mockImplementation(async (url, init) => {
+      if (url === "/api/article-types")
+        return {
+          types: [
+            { id: "ai", name: "AI" },
+            { id: "reflection", name: "感悟" },
+          ],
+        };
+      return { post: { ...post, ...JSON.parse(init.body), version: 2 } };
+    });
+    render(
+      <Editor
+        post={existing ? post : undefined}
+        settings={defaultSettings}
+        authenticated
+        aiConfigured={false}
+      />,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "文章类型" }), {
+      target: { value: "ai" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await screen.findAllByText(/草稿已保存/);
+    const write = h.api.mock.calls.find(
+      ([url]) => url === (existing ? "/api/posts/fixture" : "/api/posts"),
+    )!;
+    expect(JSON.parse(write[1].body)).toMatchObject({
+      categoryId: "ai",
+      category: "AI",
+      tags: [],
+    });
+  },
+);

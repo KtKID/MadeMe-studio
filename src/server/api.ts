@@ -1,3 +1,8 @@
+import { articleTypeMutationSchema } from "../modules/article-types/contracts";
+import {
+  mutateArticleTypes,
+  canonicalArticleType,
+} from "../modules/article-types/server";
 import { handleGoogleAuth } from "./auth/google";
 import { handleAuth } from "./auth/password";
 import {
@@ -82,6 +87,18 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
       });
     if (path[0] === "bootstrap" && method === "GET")
       return json(await loadPageData(context));
+    if (path[0] === "article-types" && path.length === 1) {
+      if (method === "GET")
+        return json({ types: (await readSettings(env)).articleTypes });
+      requireOwner(identity, env);
+      if (method === "POST")
+        return json(
+          await mutateArticleTypes(
+            env,
+            await readJSON(request, articleTypeMutationSchema),
+          ),
+        );
+    }
     if (path[0] === "settings" && path.length === 1) {
       if (method === "GET")
         return json({
@@ -132,7 +149,10 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
         if (method === "POST") {
           requireScope(identity, env, "posts:write");
           const post = await posts.create(
-            await readJSON(request, createPostSchema),
+            await canonicalArticleType(
+              env,
+              await readJSON(request, createPostSchema),
+            ),
           );
           return cors(
             json({ post: mutationPost(post, identity) }, 201),
@@ -161,7 +181,11 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
               post: mutationPost(
                 await posts.update(
                   id,
-                  await readJSON(request, patchPostSchema),
+                  await canonicalArticleType(
+                    env,
+                    await readJSON(request, patchPostSchema),
+                    (await posts.mustGet(id)).draft,
+                  ),
                 ),
                 identity,
               ),

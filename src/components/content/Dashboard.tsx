@@ -1,10 +1,16 @@
+import { useArticleTypes } from "../../modules/article-types/client";
+import { DEFAULT_ARTICLE_TYPES } from "../../modules/article-types/contracts";
+import {
+  articleTypeName,
+  matchesArticleType,
+} from "../../modules/article-types/matching";
 import {
   postSummarySchema,
   type PostSummary,
   type DashboardBootstrap,
 } from "../../shared/contracts";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   ArrowUpRight,
@@ -43,17 +49,46 @@ export default function Dashboard({
   const [busy, setBusy] = useState<Set<string>>(() => new Set());
   const pending = useRef(new Set<string>());
   const live = posts.filter((p) => !p.deletedAt);
-  const categories = useMemo(
-    () => [...new Set(live.map((p) => p.category).filter(Boolean))],
-    [posts],
+  const { types } = useArticleTypes(
+    initial.settings.articleTypes ?? DEFAULT_ARTICLE_TYPES,
+    { refreshOnMount: false },
   );
+  // 后台仍允许找到未配置/已删除的旧分类，但不混入公开配置列表。
+  const legacyCategories = useMemo(
+    () => [
+      ...new Set(
+        live
+          .filter(
+            (post) =>
+              post.category &&
+              !types.some((type) => matchesArticleType(post, type.id, types)),
+          )
+          .map((post) => articleTypeName(post, types)),
+      ),
+    ],
+    [posts, types],
+  );
+  useEffect(() => {
+    // 配置删除/重命名后，撤下已经不在下拉中的筛选值，避免隐藏条件困住列表。
+    if (
+      category &&
+      !(category.startsWith("legacy:")
+        ? legacyCategories.includes(category.slice("legacy:".length))
+        : types.some((type) => type.id === category))
+    )
+      setCategory("");
+  }, [category, types, legacyCategories]);
   const filtered = posts
     .filter(
       (p) =>
         (tab === "trash" ? !!p.deletedAt : !p.deletedAt) &&
         (tab !== "draft" || p.visibility === "draft") &&
         (tab !== "published" || !!p.publishedAt) &&
-        (!category || p.category === category) &&
+        (!category ||
+          (category.startsWith("legacy:")
+            ? articleTypeName(p, types) === category.slice("legacy:".length) &&
+              !types.some((type) => matchesArticleType(p, type.id, types))
+            : matchesArticleType(p, category, types))) &&
         `${p.title} ${p.excerpt} ${p.tags.join(" ")}`
           .toLowerCase()
           .includes(query.toLowerCase()),
@@ -204,16 +239,23 @@ export default function Dashboard({
           </div>
           <div className="list-tools">
             <SearchBox value={query} onChange={setQuery} />
-            <label className="category-filter">
+            <label className="category-filter article-type-filter">
               <SlidersHorizontal size={16} />
               <select
-                aria-label="按分类筛选"
+                aria-label="按类型筛选"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                <option value="">全部分类</option>
-                {categories.map((c) => (
-                  <option key={c}>{c}</option>
+                <option value="">全部类型</option>
+                {types.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+                {legacyCategories.map((name) => (
+                  <option key={`legacy:${name}`} value={`legacy:${name}`}>
+                    旧分类：{name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -244,7 +286,7 @@ export default function Dashboard({
                         {p.title || "未命名文章"}
                       </h3>
                       <p>
-                        {p.category || "未分类"} <span>·</span>{" "}
+                        {articleTypeName(p, types) || "未分类"} <span>·</span>{" "}
                         {p.excerpt || "还没有摘要，给这篇文章留一句引言。"}
                       </p>
                     </div>

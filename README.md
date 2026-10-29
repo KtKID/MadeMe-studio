@@ -94,3 +94,5 @@ npm run test:integrations
 
 - [工作台常驻外壳](src/components/studio/README.md)、[会话导航与身份生命周期](src/modules/studio-navigation/README.md)
 - [共享文章本地导出准备](src/modules/local-export/README.md)、[浏览器保存到 Obsidian](src/modules/obsidian-local/README.md)：当前稿、图片与本机目录授权，预设只存此浏览器，不是后台双向同步。
+
+- [文章类型模块](src/modules/article-types/README.md)：设置维护稳定 ID 类型、编辑器内新增并选中、首页动态筛选，兼容旧分类且与标签独立。

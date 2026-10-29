@@ -1,3 +1,4 @@
+import { typesResponseSchema } from "../../modules/article-types/contracts";
 import {
   apiErrorSchema,
   bootstrapResponseSchema,
@@ -24,6 +25,8 @@ export function parseApiResponse(
 ): unknown {
   const path = new URL(url, "https://local.invalid").pathname;
   const verb = method.toUpperCase();
+  if (path === "/api/article-types" && ["GET", "POST"].includes(verb))
+    return typesResponseSchema.parse(data);
   if (path === "/api/bootstrap" && verb === "GET")
     return bootstrapResponseSchema.parse(data);
   if (path === "/api/identity" && verb === "GET")

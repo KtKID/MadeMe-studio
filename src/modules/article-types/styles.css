@@ -1,0 +1,88 @@
+/* 仅文章类型模块布局；颜色、控件与焦点继承站点主题，避免影响编辑器其他按钮。 */
+.article-type-selector,
+.article-type-name-form {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.article-type-selector > label,
+.article-type-name-form > label {
+  font-size: 12px;
+  font-weight: 600;
+}
+.article-type-inline,
+.article-type-heading,
+.article-type-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.article-type-inline input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.article-type-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.article-type-actions .button {
+  flex-shrink: 0;
+}
+.article-type-hint,
+.article-type-heading p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0;
+}
+.article-type-heading h2 {
+  margin: 0 0 6px;
+}
+.article-type-settings {
+  display: grid;
+  gap: 18px;
+}
+.article-type-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.article-type-list li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.article-type-list li > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 1;
+}
+.article-type-name-form {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.article-type-dialog-actions {
+  margin-top: 20px;
+}
+.article-type-load-error {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+/* 编辑器主标题下保持紧凑，不横贯整页；窄屏自然缩到可用宽度。 */
+.article-type-selector {
+  width: 100%;
+  max-width: 24rem;
+}
+.category-filter.article-type-filter select {
+  width: min(10rem, 100%);
+  min-width: 0;
+}

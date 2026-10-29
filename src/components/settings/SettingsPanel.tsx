@@ -1,3 +1,4 @@
+import TypeSettings from "../../modules/article-types/TypeSettings";
 import ObsidianSettings from "../../modules/obsidian-local/Settings";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
@@ -160,6 +161,9 @@ export default function SettingsPanel({
   const [loadingModels, setLoadingModels] = useState<Set<string>>(
     () => new Set(),
   );
+  // 新入口在水合前保持禁用，避免首屏点击无事件反馈。
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   const pendingModels = useRef(new Set<string>());
   async function loadModels(id: string) {
     if (!authenticated || pendingModels.current.has(id)) return;
@@ -277,31 +281,36 @@ export default function SettingsPanel({
             {dirty ? "有未保存设置" : "设置已同步"}
           </p>
         </div>
-        <button
-          className="button primary"
-          disabled={busy || !authenticated}
-          onClick={save}
-        >
-          {busy ? (
-            <Busy />
-          ) : (
-            <>
-              <Save size={16} />
-              保存设置
-            </>
-          )}
-        </button>
+        {tab !== "article-types" && (
+          <button
+            className="button primary"
+            disabled={busy || !authenticated}
+            onClick={save}
+          >
+            {busy ? (
+              <Busy />
+            ) : (
+              <>
+                <Save size={16} />
+                保存设置
+              </>
+            )}
+          </button>
+        )}
       </div>
       {error && <Notice kind="error">{error}</Notice>}
       {message && <Notice kind="success">{message}</Notice>}
       {!authenticated && <Notice>设置仅限已认证作者修改。</Notice>}
-      <p className="form-hint">
-        不同字段独立保存，不覆盖其他窗口的设置；同一字段在多个窗口同时修改时，以最后一次成功保存为准。
-      </p>
+      {tab !== "article-types" && (
+        <p className="form-hint">
+          不同字段独立保存，不覆盖其他窗口的设置；同一字段在多个窗口同时修改时，以最后一次成功保存为准。
+        </p>
+      )}
       <div className="settings-layout">
         <nav className="settings-nav" aria-label="设置分类">
           {[
             { id: "general", name: "站点信息", icon: Globe2 },
+            { id: "article-types", name: "文章类型", icon: BookOpen },
             { id: "appearance", name: "主题与字体", icon: Palette },
             { id: "models", name: "AI 模型", icon: SlidersHorizontal },
             { id: "prompts", name: "提示词", icon: Sparkles },
@@ -315,6 +324,7 @@ export default function SettingsPanel({
           ].map((t) => (
             <button
               key={t.id}
+              disabled={t.id === "article-types" && !hydrated}
               className={tab === t.id ? "active" : ""}
               onClick={() => setTab(t.id)}
             >
@@ -325,6 +335,12 @@ export default function SettingsPanel({
         </nav>
         <section className="settings-content">
           {tab === "obsidian-local" && <ObsidianSettings />}
+          {tab === "article-types" && (
+            <TypeSettings
+              initialTypes={settings.articleTypes}
+              disabled={!authenticated}
+            />
+          )}
           {tab === "general" && (
             <>
               <div className="section-heading">

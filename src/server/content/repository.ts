@@ -1,3 +1,5 @@
+import { DEFAULT_ARTICLE_TYPES } from "../../modules/article-types/contracts";
+import { ARTICLE_TYPE_EXISTS_SQL } from "../../modules/article-types/sql";
 import {
   postSummarySchema,
   type PostSummary,
@@ -66,9 +68,10 @@ export class D1PostRepository implements PostRepository {
       .bind(QUERY_SAFETY_LIMIT)
       .all<Record<string, unknown>>();
     warnIfTruncated(results.length, "summaries");
-    return results.map((row) =>
+    return results.map(({ categoryId, ...row }) =>
       postSummarySchema.parse({
         ...row,
+        ...(categoryId == null ? {} : { categoryId }),
         tags: JSON.parse(row.tags as string),
         pinned: row.pinned === 1,
       }),
@@ -115,11 +118,12 @@ export class D1PostRepository implements PostRepository {
   }
   async create(post: StoredPost) {
     const p = post.draft;
+    const nonce = crypto.randomUUID();
     try {
-      await this.db.batch([
+      const result = await this.db.batch([
         this.db
           .prepare(
-            "INSERT INTO posts (id,slug,document_json,password_hash,version,created_at,updated_at,mutation_id) VALUES (?,?,?,?,?,?,?,?)",
+            `INSERT INTO posts (id,slug,document_json,password_hash,version,created_at,updated_at,mutation_id) SELECT ?,?,?,?,?,?,?,? WHERE (? IS NULL OR ${ARTICLE_TYPE_EXISTS_SQL})`,
           )
           .bind(
             p.id,
@@ -129,14 +133,23 @@ export class D1PostRepository implements PostRepository {
             p.version,
             p.updatedAt,
             p.updatedAt,
-            crypto.randomUUID(),
+            nonce,
+            p.categoryId ?? null,
+            JSON.stringify(DEFAULT_ARTICLE_TYPES),
+            p.categoryId ?? null,
           ),
         this.db
           .prepare(
-            "INSERT INTO revisions (post_id,version,document_json,created_at,reason) VALUES (?,?,?,?,?)",
+            "INSERT INTO revisions (post_id,version,document_json,created_at,reason) SELECT id,version,document_json,updated_at,'save' FROM posts WHERE id=? AND mutation_id=?",
           )
-          .bind(p.id, p.version, JSON.stringify(p), p.updatedAt, "save"),
+          .bind(p.id, nonce),
       ]);
+      if (result[0].meta.changes !== 1)
+        throw new AppError(
+          409,
+          "ARTICLE_TYPE_CHANGED",
+          "所选类型已不存在，请重新选择。",
+        );
     } catch (error) {
       this.mapError(error);
     }
@@ -152,7 +165,7 @@ export class D1PostRepository implements PostRepository {
       const result = await this.db.batch([
         this.db
           .prepare(
-            "UPDATE posts SET slug=?,published_slug=?,document_json=?,published_json=?,password_hash=?,published_password_hash=?,version=?,deleted_at=?,updated_at=?,mutation_id=? WHERE id=? AND version=?",
+            `UPDATE posts SET slug=?,published_slug=?,document_json=?,published_json=?,password_hash=?,published_password_hash=?,version=?,deleted_at=?,updated_at=?,mutation_id=? WHERE id=? AND version=? AND (? IS NULL OR json_extract(document_json,'$.categoryId')=? OR ${ARTICLE_TYPE_EXISTS_SQL})`,
           )
           .bind(
             p.slug,
@@ -167,6 +180,10 @@ export class D1PostRepository implements PostRepository {
             nonce,
             p.id,
             expectedVersion,
+            p.categoryId ?? null,
+            p.categoryId ?? null,
+            JSON.stringify(DEFAULT_ARTICLE_TYPES),
+            p.categoryId ?? null,
           ),
         this.db
           .prepare(

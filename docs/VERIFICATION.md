@@ -198,3 +198,8 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 - 从 Sites 源码 `c95c60f1b0112bdf890800199354bd881240f0ed` 相对 `21dfd230` 的 18 个业务文件差异恢复到业务 `fd1c5e6` 基线；逐文件核对旧基线一致，未复制 Sites hosting、认证配置、预览数据或密钥。
 - 本轮重新执行：Vitest **84 文件 / 749 用例通过**；check **242 文件，0 errors / 0 warnings / 5 既有 hints**；build 与隔离 HTTP smoke 均退出 0。日志 `/tmp/obsidian-recovered-{tests,check,build,smoke}.log`。
 - 本轮没有重新运行官方 Obsidian GUI 或浏览器原生目录授权；先前报告中的实机结果与红测日志属于历史验收，当前环境不能据此宣称重新实测。找回源码未实施 C# 特例或新的编码算法。
+
+## 文章类型目录（2026-10-29）
+- 新增稳定 ID 类型目录、设置即时维护、编辑器内新增并选中、首页配置下拉；旧 category/标签无损兼容。详见[模块](../src/modules/article-types/README.md)与[报告](../reports/2026-10-29-article-types.md)。
+- 本轮自动化：89 文件 / 792 用例通过；check 254 文件，0 errors / 0 warnings / 5 既有 hints；build、隔离 HTTP smoke、真实 Worker/D1/R2 端到端均通过。日志 `/tmp/article-types-{tests,check,build,smoke,worker}.log`。
+- 后端测试执行真实 SQLite 原子语句；浏览器原生视觉/点击验收及独立预览发布仍需另记，未修改正式站或自动推业务 GitHub。

@@ -1,3 +1,4 @@
+import TypeSelector from "../../modules/article-types/TypeSelector";
 import ObsidianSaveButton from "../../modules/obsidian-local/SaveButton";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -192,6 +193,9 @@ export default function Editor({
   const [title, setTitle] = useState(post?.title || "");
   const [excerpt, setExcerpt] = useState(post?.excerpt || "");
   const [category, setCategory] = useState(post?.category || "");
+  const [categoryId, setCategoryId] = useState<string | null | undefined>(
+    post?.categoryId,
+  );
   const [tags, setTags] = useState(post?.tags.join(", ") || "");
   const [slug, setSlug] = useState(post?.slug || "");
   const [cover, setCover] = useState(post?.coverImage || "");
@@ -417,6 +421,7 @@ export default function Editor({
       blocks: editor.document as unknown as EditorBlock[],
       excerpt,
       category,
+      categoryId,
       tags: tags
         .split(/[,，]/)
         .map((t) => t.trim())
@@ -573,6 +578,7 @@ export default function Editor({
           setExcerpt(p.excerpt);
           setTags(p.tags.join(", "));
           setCategory(p.category);
+          setCategoryId(p.categoryId);
           setCover(p.coverImage);
           setSlug(p.slug);
           markClean();
@@ -786,6 +792,7 @@ export default function Editor({
           setTitle(p.title);
           setExcerpt(p.excerpt);
           setCategory(p.category);
+          setCategoryId(p.categoryId);
           setTags(p.tags.join(", "));
           setCover(p.coverImage);
           setSlug(p.slug);
@@ -972,6 +979,17 @@ export default function Editor({
               value={title}
               onChange={(e) => changed(setTitle, e.target.value)}
             />
+            <TypeSelector
+              initialTypes={settings.articleTypes}
+              value={categoryId}
+              legacyName={category}
+              disabled={!authenticated || !!busy}
+              onChange={(id, name) => {
+                setCategoryId(id);
+                setCategory(name);
+                markDirty();
+              }}
+            />
             <div className="editor-byline">
               <span>{category || "未分类"}</span>
               <span>·</span>
@@ -1095,14 +1113,6 @@ export default function Editor({
               <Sparkles size={13} />
               AI 生成摘要
             </button>
-            <label>
-              分类
-              <input
-                value={category}
-                onChange={(e) => changed(setCategory, e.target.value)}
-                placeholder="例如：生活随笔"
-              />
-            </label>
             <label>
               标签
               <input

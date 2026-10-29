@@ -1,4 +1,5 @@
 ---
+import { articleTypeName } from "../../modules/article-types/matching";
 import ProductCredit from "../../components/shared/ProductCredit";
 import { canIndexPost } from "../../server/response-policy";
 import Base from "../../layouts/Base.astro";
@@ -69,7 +70,10 @@ const capabilities = authenticated
             data-embed-fallback-ms={settings.limits.reading.xFallbackSeconds * 1000}
           >
             <header class="reading-heading">
-              <div class="eyebrow">{post.category || "PERSONAL JOURNAL"}</div>
+              <div class="eyebrow">
+                {articleTypeName(post, settings.articleTypes) ||
+                  "PERSONAL JOURNAL"}
+              </div>
               <h1>{post.title}</h1>
               {post.excerpt && <p class="reading-excerpt">{post.excerpt}</p>}
               <div class="reading-meta">

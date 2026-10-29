@@ -8,6 +8,7 @@ vi.mock("../../src/components/shared/ui", async (original) => ({
 }));
 vi.mock("../../src/modules/navigation-performance/use-navigation-ready", () => ({ useNavigationReady: vi.fn() }));
 vi.mock("../../src/modules/studio-navigation/pane", () => ({ useStudioPane: () => ({ active: true, navigationKey: 0 }) }));
+import { renderToString } from "react-dom/server";
 import SettingsPanel from "../../src/components/settings/SettingsPanel";
 
 // 真实组件与 DOM 交互；仅 API 被替换，绝不写生产设置。
@@ -117,3 +118,28 @@ describe("设置真实 DOM 点击链路", () => {
     expect(h.api).not.toHaveBeenCalled();
   });
 });
+
+it("设置提供独立文章类型维护入口，不再靠文章自由输入列表", async () => {
+  h.api.mockResolvedValue({
+    types: [
+      { id: "ai", name: "AI" },
+      { id: "reflection", name: "感悟" },
+    ],
+  });
+  setup();
+  click("文章类型");
+  expect(screen.queryByRole("button", { name: "保存设置" })).toBeNull();
+  expect(await screen.findByText("AI")).toBeTruthy();
+  expect(screen.getByText("感悟")).toBeTruthy();
+});
+
+ it("文章类型入口在 SSR 水合前禁用，绑定事件后可进入", () => {
+  const html = renderToString(<SettingsPanel initial={defaultSettings} authenticated />);
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const button = [...doc.querySelectorAll("button")].find((node) => node.textContent === "文章类型");
+  expect(button?.disabled).toBe(true);
+  setup();
+  expect((screen.getByRole("button", { name: "文章类型" }) as HTMLButtonElement).disabled).toBe(false);
+  click("文章类型");
+  expect(screen.getByRole("heading", { name: "文章类型" })).toBeTruthy();
+ });

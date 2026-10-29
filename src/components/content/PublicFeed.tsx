@@ -1,26 +1,36 @@
+import "../../modules/article-types/styles.css";
 import { useState } from "react";
-import { ArrowUpRight, Pin, Feather } from "lucide-react";
+import { ArrowUpRight, Pin, Feather, SlidersHorizontal } from "lucide-react";
 import { type Post, SearchBox, date, Empty } from "../shared/ui";
+import {
+  DEFAULT_ARTICLE_TYPES,
+  type ArticleType,
+} from "../../modules/article-types/contracts";
+import {
+  articleTypeName,
+  matchesArticleType,
+} from "../../modules/article-types/matching";
 import { DEFAULT_CONFIG } from "../../modules/config/defaults";
 export default function PublicFeed({
   posts,
   authenticated,
+  types = DEFAULT_ARTICLE_TYPES,
   theme = "paper",
   cardTags = DEFAULT_CONFIG.reading.cardTags,
 }: {
   posts: Post[];
   authenticated: boolean;
+  types?: ArticleType[];
   theme?: "paper" | "ink" | "garden" | "mono";
   /** 设置页“嵌入与阅读 → 文章卡片显示标签数”。 */
   cardTags?: number;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
-  const categories = [...new Set(posts.map((p) => p.category).filter(Boolean))];
   const filtered = posts
     .filter(
       (p) =>
-        (!category || p.category === category) &&
+        matchesArticleType(p, category, types) &&
         `${p.title} ${p.excerpt} ${p.tags.join(" ")}`
           .toLowerCase()
           .includes(query.toLowerCase()),
@@ -33,23 +43,21 @@ export default function PublicFeed({
   return (
     <section className="public-feed" data-layout={theme}>
       <div className="feed-toolbar">
-        <div className="filter-chips">
-          <button
-            onClick={() => setCategory("")}
-            className={!category ? "active" : ""}
+        <label className="category-filter article-type-filter">
+          <SlidersHorizontal size={16} aria-hidden="true" />
+          <select
+            aria-label="文章类型"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
           >
-            全部文章 <span>{posts.length}</span>
-          </button>
-          {categories.map((c) => (
-            <button
-              key={c}
-              className={category === c ? "active" : ""}
-              onClick={() => setCategory(c)}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
+            <option value="">全部文章</option>
+            {types.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <SearchBox
           value={query}
           onChange={setQuery}
@@ -75,7 +83,7 @@ export default function PublicFeed({
                     <span className="cover-circle" />
                     <span className="cover-line" />
                     <span className="cover-word">
-                      {post.category || "NOTES"}
+                      {articleTypeName(post, types) || "NOTES"}
                     </span>
                   </div>
                 )}
@@ -88,7 +96,7 @@ export default function PublicFeed({
               </a>
               <div className="article-card-body">
                 <div className="article-meta">
-                  <span>{post.category || "随笔"}</span>
+                  <span>{articleTypeName(post, types) || "随笔"}</span>
                   <span>{date(post.publishedAt)}</span>
                 </div>
                 <a href={`/p/${post.slug}`}>
