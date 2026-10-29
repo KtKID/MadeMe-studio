@@ -155,3 +155,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 ## 公开短页页脚布局（2026-10-28）
 
 公开 shell 缺少满视口纵向布局，先以真实 CSS 测试复现 3 failed/1 passed，再增加 min-height 与正文 flex；后台框架不改。最终 83 文件 / 676 项通过，check 241 文件无 errors/warnings、5 既有 hints，build/HTTP smoke 通过。jsdom 只验 CSS 契约，真实几何交独立预览浏览器验收；未部署正式站。见 [页脚布局报告](../reports/2026-10-28-public-footer-bottom.md)。
+
+## 设置允许列表文案（2026-10-28）
+
+浏览器观察到标签/说明与“勾选=允许”矛盾；代码绑定正确，仅修改meta文案。2项先红后绿，84文件678项通过，check242文件无errors/warnings、5既有hints，build/HTTP smoke通过；未自动同步预览或部署。见 [文案报告](../reports/2026-10-28-settings-allowlist-copy.md)。

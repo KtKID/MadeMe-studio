@@ -47,3 +47,5 @@
 ## 与日志的关系
 
 配置读取失败、令牌有效期越界、上传被拒绝等都会经过 `src/modules/log`（如 `config.load_failed`、`media.upload_rejected`），不记录文件名、邮箱或令牌。
+
+设置列表采用“勾选 = 允许”的展示语义，持久化仍为 `disabledTypes` / `disabledEmbeds` 禁用数组：取消勾选才加入禁用项。标签与说明须同步表达允许/取消勾选，不能按字段名误写成勾选即拒绝；`tests/ui/settings-allowlist-copy.test.tsx` 固定文案与绑定方向，不更改安全默认值。

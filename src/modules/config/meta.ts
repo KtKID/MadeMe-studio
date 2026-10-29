@@ -18,7 +18,7 @@ export const GROUP_META: Record<
 > = {
   upload: {
     label: "上传",
-    description: "单个文件上限、禁用的文件类型与 Markdown 导入上限。",
+    description: "单个文件上限、允许上传的文件类型与 Markdown 导入上限。",
     tab: "media",
   },
   media: {
@@ -58,7 +58,7 @@ export const FIELD_META = {
     videoMaxMB: { label: "视频单个文件上限", unit: "MB", description: "MP4、WebM、MOV。" },
     audioMaxMB: { label: "音频单个文件上限", unit: "MB", description: "MP3、WAV、OGG、M4A。" },
     documentMaxMB: { label: "文档单个文件上限", unit: "MB", description: "PDF、EPUB、ZIP、Office、TXT、Markdown、CSV。" },
-    disabledTypes: { label: "禁用的文件类型", unit: "", description: "勾选的格式会在编辑器与服务端同时拒绝上传；已上传的文件不受影响。" },
+    disabledTypes: { label: "允许上传的文件类型", unit: "", description: "取消勾选的格式会在编辑器与服务端同时拒绝上传；已上传的文件不受影响。" },
     markdownImportMaxKB: { label: "Markdown 导入上限", unit: "KB", description: "编辑器“导入 Markdown”的文件大小上限；导入后正文仍受服务端正文长度限制。" },
   },
   media: {
@@ -79,7 +79,7 @@ export const FIELD_META = {
     tokenMaxDays: { label: "API 令牌最长有效期", unit: "天", description: "新建令牌允许填写的最大天数。" },
   },
   reading: {
-    disabledEmbeds: { label: "关闭的嵌入平台", unit: "", description: "关闭后编辑器不能再插入该平台；已有文章里的该平台嵌入会显示为跳转卡片。", reader: true },
+    disabledEmbeds: { label: "允许的嵌入平台", unit: "", description: "取消勾选后编辑器不能再插入该平台；已有文章里的该平台嵌入会显示为跳转卡片。", reader: true },
     xFallbackSeconds: { label: "X 动态加载等待", unit: "秒", description: "超过该时间仍未加载出来，就只显示跳转链接。", reader: true },
     xInitialHeight: { label: "X 动态初始高度", unit: "px", description: "加载完成前预留的高度。", reader: true },
     cardTags: { label: "文章卡片显示标签数", unit: "个", description: "首页卡片上最多显示几个标签。", reader: true },
