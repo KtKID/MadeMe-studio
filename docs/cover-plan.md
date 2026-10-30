@@ -162,6 +162,20 @@ export function normalizeCoverSettings(
 ## 10. 未做与风险
 
 - 生图比例选择：按 KID 决定本期不做。
-- 旧版集成客户端（Obsidian/Chrome/agent-publisher 旧构建，如 `/tmp/pk/mademe-publisher`）对完整 Post 用 `.strict()` 解析；token 带 `posts:read` 时会因新字段 `coverSettings` 解析失败。**需要随本版本重新打包所有集成**；只写 token 不受影响。
+- 旧版集成客户端兼容：已修复，见 §11。旧包不升级也能用；新包已在本地重建，尚未发布。
 - 旧文章外观会变化：首页卡片按原图比例显示，高度可能各不相同；如需保持旧观感，只改 `DEFAULT_COVER_SETTINGS` 即可。
 - 窄屏编辑器标题输入在超长无空格标题时会横向截断，为既有行为，与本功能无关。
+
+## 11. 集成客户端兼容修复
+
+根因（已用真实旧包验证）：集成客户端用 `postMutationResponseSchema = {post: union([postSchema.strict(), receipt.strict()])}.strict()` 解析写接口响应。Token 带 `posts:read` 时服务端返回完整 Post，任何新增字段都会触发 `unrecognized_keys`，两个联合分支都失败，于是报 "Unexpected API response"。此时请求在服务端已成功，用户重试会产生重复草稿或重复操作。
+
+- 用 origin/main 的 `integrations/shared/client.ts` 对含 `coverSettings` 的载荷调用 `publishPost`：报错 "Unexpected API response…"，不含 `coverSettings` 时正常。
+- `/tmp/pk/mademe-publisher/main.js`（0.1.0 旧包，内含 `union([Gt.strict(),Wb])`）**在 main 上已经失败**：还不认识 `hasUnpublishedChanges`、`publishedVisibility`（cf1887f 新增）和 `categoryId`。`coverSettings` 只是又多了一个触发字段。
+
+修复：
+
+1. 读取协议容忍新增字段：`postReadSchema`（未知字段剥离；`blocks` 按 unknown 读取；`coverSettingsReadSchema` 剥离多余键），`postMutationResponseSchema` 外层也不再 strict。回执分支仍然 strict，畸形或混入正文的回执照样拒绝。服务端输入（create/patch/publish）保持 strict。
+2. 服务端向后兼容：Token 请求如果没有在 `Accept` 里声明 `mademe-post-schema=2`，完整 Post 只返回 `LEGACY_POST_KEYS`（0.1.0 字段）。覆盖写接口响应、GET 单篇和 GET 列表。站内作者会话不变；只裁剪响应，不改存储。
+   - 选 Accept 媒体类型参数而不是自定义头：Accept 是 CORS 安全头，新客户端连旧服务端不会被预检拦截，也不用改 `Access-Control-Allow-Headers`。
+3. 新客户端发送 `POST_SCHEMA_ACCEPT`。集成只建草稿和发布，不会读后回写，所以不存在丢失 `coverSettings` 的路径。
