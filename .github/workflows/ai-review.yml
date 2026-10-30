@@ -28,7 +28,7 @@ jobs:
        github.event.pull_request.user.type != 'Bot' &&
        !contains(github.event.pull_request.labels.*.name, 'skip-ai-review'))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       # 只取脚本本身，不安装依赖、不构建、不执行 PR 里的任何代码
       - uses: actions/checkout@v5
@@ -44,6 +44,8 @@ jobs:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_BASE_URL: ${{ vars.MINIMAX_BASE_URL || 'https://api.minimax.cn/v1' }}
           MINIMAX_MODEL: ${{ vars.MINIMAX_MODEL || 'MiniMax-M3' }}
+          MINIMAX_MAX_TOKENS: ${{ vars.MINIMAX_MAX_TOKENS || '262144' }}
+          MINIMAX_REASONING_EFFORT: ${{ vars.MINIMAX_REASONING_EFFORT || 'high' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
