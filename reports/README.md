@@ -65,4 +65,4 @@
 - [文章类型同主题下拉修正](2026-10-29-article-type-dropdown.md)
 
 - [已发布文章的有新修改状态](2026-10-29-publication-status.md)
-- [2026-10-30：AI PR 审核被思考过程截断](2026-10-30-ai-review-truncated.md)：MiniMax-M3 思考用完 8000 token 上限；改为 256K、思考 high、可用仓库变量覆盖，截断时在 PR 留言并让工作流失败；另说明冲突 PR 不触发工作流。
+- [2026-10-30：AI PR 审核被思考过程截断](2026-10-30-ai-review-truncated.md)：MiniMax-M3 思考用完 8000 token 上限；改为 256K、思考 high、可用仓库变量覆盖，截断时在 PR 留言并让工作流失败；改为流式请求避开 Node fetch 5 分钟响应头超时；另说明冲突 PR 不触发工作流。
