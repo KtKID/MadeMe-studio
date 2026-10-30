@@ -89,10 +89,13 @@ describe("设置真实 DOM 点击链路", () => {
   });
   it("提示词新增、编辑、切换回来保留，删除不误写服务器", () => {
     const { guard } = setup();
-    click("提示词"); click("添加提示词"); input("名称", "专属提示词"); input("动作", "expand"); input("提示词模板", "扩写 {{selection}}");
+    click("提示词"); click("添加提示词"); input("名称", "专属提示词");
+    fireEvent.click(screen.getByRole("combobox", { name: "动作" }));
+    fireEvent.click(screen.getByRole("option", { name: "expand" })); input("提示词模板", "扩写 {{selection}}");
     click("站点信息"); click("提示词");
     expect(screen.getByDisplayValue("专属提示词")).toBeTruthy();
     expect(screen.getByDisplayValue("扩写 {{selection}}")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "动作" }).textContent).toBe("expand");
     click("删除提示词");
     expect(screen.queryByLabelText("提示词模板")).toBeNull();
     expect(guard.mock.lastCall?.[0].dirty).toBe(false);
@@ -103,7 +106,9 @@ describe("设置真实 DOM 点击链路", () => {
     click("主题与字体");
     fireEvent.click(screen.getByRole("button", { name: /画廊/ }));
     fireEvent.click(screen.getByRole("button", { name: /苔绿/ }));
-    click("深色"); input("正文字体", "serif");
+    click("深色");
+    fireEvent.click(screen.getByRole("combobox", { name: "正文字体" }));
+    fireEvent.click(screen.getByRole("option", { name: "经典衬线" }));
     expect(screen.getByRole("button", { name: /画廊/ }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: /苔绿/ }).getAttribute("aria-pressed")).toBe("true");
     const response = { ...initial, theme: "garden" as const, skin: "sage" as const, mode: "dark" as const, font: "serif" as const };

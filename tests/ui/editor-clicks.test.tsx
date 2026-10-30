@@ -270,11 +270,21 @@ describe("编辑器真实按钮与状态链路", () => {
     });
     setup();
     fireEvent.click(screen.getByRole("button", { name: "发布" }));
-    const visibility = screen.getByLabelText("谁可以阅读");
-    if (!(visibility instanceof HTMLSelectElement)) {
-      throw new Error("阅读权限控件必须是 select 元素");
-    }
-    fireEvent.change(visibility, { target: { value: "unlisted" } });
+    const visibility = screen.getByRole("combobox", {
+      name: "谁可以阅读",
+    }) as HTMLButtonElement;
+    expect(document.querySelector("select")).toBeNull();
+    fireEvent.click(visibility);
+    // 未配置 SESSION_SECRET 时密码选项可见但禁用，与原生 option disabled 一致。
+    expect(
+      screen
+        .getByRole("option", { name: "密码保护 · 输入密码后访问" })
+        .getAttribute("aria-disabled"),
+    ).toBe("true");
+    fireEvent.click(
+      screen.getByRole("option", { name: "不公开列出 · 仅通过链接访问" }),
+    );
+    expect(visibility.textContent).toBe("不公开列出 · 仅通过链接访问");
     fireEvent.click(screen.getByRole("button", { name: "确认发布" }));
     expect(visibility.disabled).toBe(true);
     expect(
@@ -328,3 +338,77 @@ it.each([true, false])(
     });
   },
 );
+
+it("AI 对话框的动作、模型、提示词使用共享下拉；未配置模型禁用，切换动作重置提示词", () => {
+  const settings = {
+    ...defaultSettings,
+    providers: [
+      {
+        id: "p1",
+        name: "甲",
+        kind: "openai" as const,
+        model: "m1",
+        temperature: 0.7,
+        maxTokens: 2048,
+        configured: false,
+        textConfigured: false,
+      },
+      {
+        id: "p2",
+        name: "乙",
+        kind: "openai" as const,
+        model: "m2",
+        temperature: 0.7,
+        maxTokens: 2048,
+        configured: true,
+        textConfigured: true,
+      },
+    ],
+    prompts: [
+      {
+        id: "pr1",
+        name: "我的扩写",
+        action: "expand" as const,
+        template: "{{selection}}",
+      },
+    ],
+  };
+  render(
+    <Editor
+      post={post}
+      settings={settings}
+      authenticated
+      aiConfigured
+      inline
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /AI 助手/ }));
+  const dialog = screen.getByRole("dialog");
+  expect(dialog.querySelector("select")).toBeNull();
+  const model = screen.getByRole("combobox", { name: "模型" });
+  fireEvent.click(model);
+  expect(
+    screen
+      .getByRole("option", { name: "甲 · m1（文本未配置）" })
+      .getAttribute("aria-disabled"),
+  ).toBe("true");
+  fireEvent.click(
+    screen.getByRole("option", { name: "乙 · m2（配置已就绪，未验证联调）" }),
+  );
+  expect(model.textContent).toBe("乙 · m2（配置已就绪，未验证联调）");
+  const action = screen.getByRole("combobox", { name: "想怎么处理" });
+  fireEvent.click(action);
+  expect(screen.getByRole("option", { selected: true }).textContent).toBe(
+    "润色文字",
+  );
+  fireEvent.click(screen.getByRole("option", { name: "展开写写" }));
+  const prompt = screen.getByRole("combobox", { name: "提示词" });
+  fireEvent.click(prompt);
+  fireEvent.click(screen.getByRole("option", { name: "我的扩写" }));
+  expect(prompt.textContent).toBe("我的扩写");
+  fireEvent.click(action);
+  fireEvent.click(screen.getByRole("option", { name: "换一种说法" }));
+  expect(prompt.textContent).toBe("内置提示词");
+  expect(screen.getByRole("dialog")).toBeTruthy();
+});

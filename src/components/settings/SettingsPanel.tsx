@@ -1,5 +1,5 @@
 import TypeSettings from "../../modules/article-types/TypeSettings";
-import TypeDropdown from "../../modules/article-types/TypeDropdown";
+import Dropdown from "../shared/Dropdown";
 import ObsidianSettings from "../../modules/obsidian-local/Settings";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
@@ -31,7 +31,12 @@ import {
   type Provider,
 } from "../../shared/contracts";
 import { settingsPatch, reconcileSettingsResponse } from "./settings-state";
-import { providerOptions, normalizeImageModel } from "./model-options";
+import {
+  providerOptions,
+  fontOptions,
+  promptActionOptions,
+  normalizeImageModel,
+} from "./model-options";
 import { ConfigSection, configProblems } from "./ConfigSection";
 import {
   AI_PARAMS,
@@ -539,17 +544,15 @@ export default function SettingsPanel({
                 </label>
                 <label>
                   正文字体
-                  <select
+                  <Dropdown
+                    id="settings-font"
+                    label="正文字体"
                     value={settings.font}
-                    onChange={(e) =>
-                      change("font", e.target.value as Settings["font"])
+                    options={fontOptions}
+                    onChange={(font) =>
+                      change("font", font as Settings["font"])
                     }
-                  >
-                    <option value="yahei">微软雅黑（默认系统字体）</option>
-                    <option value="sans">系统无衬线</option>
-                    <option value="serif">经典衬线</option>
-                    <option value="mono">利落等宽</option>
-                  </select>
+                  />
                 </label>
               </div>
             </>
@@ -599,7 +602,7 @@ export default function SettingsPanel({
                     </label>
                     <label>
                       服务商
-                      <TypeDropdown
+                      <Dropdown
                         id={`provider-kind-${p.id}`}
                         label="服务商"
                         value={p.kind}
@@ -724,32 +727,22 @@ export default function SettingsPanel({
                     </label>
                     <label>
                       动作
-                      <select
+                      <Dropdown
+                        id={`prompt-action-${p.id}`}
+                        label="动作"
                         value={p.action}
-                        onChange={(e) =>
+                        options={promptActionOptions}
+                        onChange={(action) =>
                           change(
                             "prompts",
                             settings.prompts.map((v, j) =>
                               j === i
-                                ? { ...v, action: e.target.value as AIAction }
+                                ? { ...v, action: action as AIAction }
                                 : v,
                             ),
                           )
                         }
-                      >
-                        {[
-                          "rewrite",
-                          "polish",
-                          "expand",
-                          "translate",
-                          "title",
-                          "excerpt",
-                          "tags",
-                          "slug",
-                        ].map((a) => (
-                          <option key={a}>{a}</option>
-                        ))}
-                      </select>
+                      />
                     </label>
                   </div>
                   <label>

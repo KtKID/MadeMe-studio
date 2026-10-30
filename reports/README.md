@@ -65,3 +65,4 @@
 - [文章类型同主题下拉修正](2026-10-29-article-type-dropdown.md)
 
 - [2026-10-30：设置页服务商下拉改用同主题控件](2026-10-30-provider-dropdown.md)：AI 模型卡片“服务商”复用 `TypeDropdown`，值与保存逻辑不变；新增真实 DOM 用例。
+- [2026-10-30：全站原生 select 替换为共享同主题下拉](2026-10-30-shared-dropdown.md)：`TypeDropdown` 泛化为 `src/components/shared/Dropdown.tsx`（支持禁用选项），替换设置、编辑器、媒体库、Obsidian 的全部原生 select；值与行为不变。

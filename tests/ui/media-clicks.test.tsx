@@ -53,9 +53,9 @@ describe("媒体库 DOM 点击（隔离 API mock）", () => {
         onCover={cover}
       />,
     );
-    fireEvent.change(screen.getByLabelText("媒体类型"), {
-      target: { value: "image" },
-    });
+    expect(document.querySelector("select")).toBeNull();
+    fireEvent.click(screen.getByRole("combobox", { name: "媒体类型" }));
+    fireEvent.click(screen.getByRole("option", { name: "所有图片" }));
     expect(screen.queryByText("文件乙.png")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "插入" }));
     expect(insert).toHaveBeenCalledWith(media("图片甲"));
@@ -213,4 +213,62 @@ it("裁剪保存连续点击只上传一次，失败后原图保留且可重试"
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(screen.getByText("原图.png")).toBeTruthy();
   expect(screen.getByText("裁剪新图.png")).toBeTruthy();
+});
+it("图像服务商与裁剪比例使用共享下拉；未配置项禁用，Escape 只关闭菜单", async () => {
+  const provider = (id: string, imageConfigured: boolean) => ({
+    id,
+    name: id,
+    kind: "openai" as const,
+    model: "m",
+    imageModel: "img",
+    temperature: 0.7,
+    maxTokens: 2048,
+    configured: imageConfigured,
+    imageConfigured,
+  });
+  h.api.mockResolvedValueOnce({ media: media("生成结果") });
+  render(
+    <MediaLibrary
+      initialMedia={[media("图片甲")]}
+      imageConfigured
+      providers={[provider("甲", false), provider("乙", true)]}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "生成图片" }));
+  const dialog = screen.getByRole("dialog");
+  expect(dialog.querySelector("select")).toBeNull();
+  const trigger = within(dialog).getByRole("combobox", { name: "图像服务商" });
+  fireEvent.click(trigger);
+  expect(
+    screen
+      .getByRole("option", { name: "甲 · img（图像未配置）" })
+      .getAttribute("aria-disabled"),
+  ).toBe("true");
+  fireEvent.keyDown(trigger, { key: "Escape" });
+  expect(screen.queryByRole("listbox")).toBeNull();
+  expect(screen.getByRole("dialog")).toBeTruthy();
+  fireEvent.click(trigger);
+  fireEvent.click(
+    screen.getByRole("option", { name: "乙 · img（配置已就绪，未验证联调）" }),
+  );
+  fireEvent.change(within(dialog).getByPlaceholderText(/例如/), {
+    target: { value: "测试" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "生成并保存" }));
+  await waitFor(() => expect(h.api).toHaveBeenCalled());
+  expect(JSON.parse(h.api.mock.calls[0][1].body).providerId).toBe("乙");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  fireEvent.click(screen.getAllByTitle("裁剪")[0]);
+  const ratio = within(screen.getByRole("dialog")).getByRole("combobox", {
+    name: "比例",
+  });
+  fireEvent.click(ratio);
+  expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+    "横向 16 : 9",
+    "方形 1 : 1",
+    "纵向 3 : 4",
+    "原始比例",
+  ]);
+  fireEvent.click(screen.getByRole("option", { name: "原始比例" }));
+  expect(ratio.textContent).toBe("原始比例");
 });
