@@ -1,3 +1,4 @@
+import LocalHarnessNotice from "../../modules/codex-harness/LocalHarnessNotice";
 import TypeSettings from "../../modules/article-types/TypeSettings";
 import ObsidianSettings from "../../modules/obsidian-local/Settings";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
@@ -555,6 +556,7 @@ export default function SettingsPanel({
           )}
           {tab === "models" && (
             <>
+              <LocalHarnessNotice />
               <div className="section-heading">
                 <h2>让工具，跟上你的思路。</h2>
                 <p>选择服务商与模型，密钥始终保留在服务器。</p>
