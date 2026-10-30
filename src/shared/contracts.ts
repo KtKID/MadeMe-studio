@@ -5,6 +5,7 @@ import {
   articleTypeListSchema,
   DEFAULT_ARTICLE_TYPES,
 } from "../modules/article-types/contracts.ts";
+import { coverSettingsSchema } from "../modules/cover/contracts.ts";
 // 显式写 .ts 文件路径：integrations/ 下的 Node 工具直接用 Node 类型剥离加载本文件，
 // 不支持目录导入或省略扩展名。
 import {
@@ -201,6 +202,8 @@ export const editablePostSchema = z.object({
     .array(z.string().trim().min(1).max(TEXT_LIMITS.tag))
     .max(TEXT_LIMITS.tags),
   coverImage: localOrHttps,
+  /** 缺省时按 DEFAULT_COVER_SETTINGS 展示；只存展示参数，不改原图。 */
+  coverSettings: coverSettingsSchema.optional(),
   visibility: visibilitySchema,
   pinned: z.boolean(),
 });
@@ -225,6 +228,7 @@ export const postSummarySchema = postSchema.pick({
   categoryId: true,
   tags: true,
   coverImage: true,
+  coverSettings: true,
   visibility: true,
   pinned: true,
   publishedAt: true,

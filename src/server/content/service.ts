@@ -15,6 +15,7 @@ import { AppError, notFound } from "../errors";
 import { hashPassword } from "../auth/crypto";
 import { slugify, validateContent } from "./validation";
 import { markdownToBlocks } from "./markdown";
+import { resetCoverFraming } from "../../modules/cover/contracts";
 export class PostService {
   constructor(
     readonly repository: PostRepository,
@@ -70,6 +71,14 @@ export class PostService {
     const { version, password, ...patch } = input;
     if (patch.blocks) validateContent(patch.blocks);
     if (password) row.passwordHash = await hashPassword(password);
+    // 只换图未给设置的客户端（如外部发布器）：保留比例/方式，位置与缩放归位。
+    if (
+      patch.coverImage !== undefined &&
+      patch.coverImage !== row.draft.coverImage &&
+      patch.coverSettings === undefined &&
+      row.draft.coverSettings
+    )
+      patch.coverSettings = resetCoverFraming(row.draft.coverSettings);
     row.draft = {
       ...row.draft,
       ...patch,
