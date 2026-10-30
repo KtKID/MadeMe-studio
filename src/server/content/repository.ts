@@ -1,4 +1,8 @@
-import { DEFAULT_ARTICLE_TYPES } from "../../modules/article-types/contracts";
+import { draftWithPublicationStatus } from "../../modules/publication-status/server";
+import {
+  DEFAULT_ARTICLE_TYPES,
+  type ArticleType,
+} from "../../modules/article-types/contracts";
 import { ARTICLE_TYPE_EXISTS_SQL } from "../../modules/article-types/sql";
 import {
   postSummarySchema,
@@ -55,26 +59,28 @@ function decode(row: Row): StoredPost {
 }
 export class D1PostRepository implements PostRepository {
   constructor(private db: D1Database) {}
-  /** 仅作者工作台使用；SQL 提取轻量字段，不传输完整正文或发布快照。 */
-  async listSummaries(): Promise<PostSummary[]> {
-    const fields = Object.keys(postSummarySchema.shape);
-    const projection = fields
-      .map((key) => `json_extract(document_json, '$.${key}') AS "${key}"`)
-      .join(",");
+  /** 仅作者工作台：正文仅在服务器比较，响应仍为不含正文/密码的摘要。 */
+  async listSummaries(
+    types: ArticleType[] = DEFAULT_ARTICLE_TYPES,
+  ): Promise<PostSummary[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT ${projection} FROM posts ORDER BY updated_at DESC LIMIT ?`,
+        "SELECT document_json,published_json FROM posts ORDER BY updated_at DESC LIMIT ?",
       )
       .bind(QUERY_SAFETY_LIMIT)
-      .all<Record<string, unknown>>();
+      .all<Pick<Row, "document_json" | "published_json">>();
     warnIfTruncated(results.length, "summaries");
-    return results.map(({ categoryId, ...row }) =>
-      postSummarySchema.parse({
-        ...row,
-        ...(categoryId == null ? {} : { categoryId }),
-        tags: JSON.parse(row.tags as string),
-        pinned: row.pinned === 1,
-      }),
+    return results.map((row) =>
+      postSummarySchema.parse(
+        draftWithPublicationStatus(
+          decode({
+            ...row,
+            password_hash: null,
+            published_password_hash: null,
+          }),
+          types,
+        ),
+      ),
     );
   }
   async list() {

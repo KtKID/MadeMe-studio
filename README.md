@@ -96,3 +96,5 @@ npm run test:integrations
 - [共享文章本地导出准备](src/modules/local-export/README.md)、[浏览器保存到 Obsidian](src/modules/obsidian-local/README.md)：当前稿、图片与本机目录授权，预设只存此浏览器，不是后台双向同步。
 
 - [文章类型模块](src/modules/article-types/README.md)：设置维护稳定 ID 类型、编辑器内新增并选中、首页动态筛选，兼容旧分类且与标签独立。
+
+- [草稿与线上版本状态](src/modules/publication-status/README.md)：后台提示已保存但尚未发布的语义修改，保留线上可见性，不改变发布流程。

@@ -1,0 +1,42 @@
+/* 状态只补充“待重新发布”，保留原可见性标签，不改变文章展示或发布行为。 */
+.publication-state {
+  --publication-pending-bg: #fff0e8;
+  --publication-pending-border: #f3c0a4;
+  --publication-pending-ink: #a63b15;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.publication-state .publication-pending {
+  background: var(--publication-pending-bg);
+  border-color: var(--publication-pending-border);
+  color: var(--publication-pending-ink);
+}
+@media (max-width: 680px) {
+  .post-row > .publication-state {
+    grid-column: 2;
+    justify-self: end;
+    align-items: flex-end;
+  }
+  .publication-state .status-pill {
+    font-size: 8px;
+    padding: 2px 5px;
+  }
+}
+
+/* 独立橙红语义色，不随暖阳/苔绿等皮肤主色变化。 */
+:root[data-color-mode="dark"] .publication-state,
+:root[data-mode="dark"] .publication-state {
+  --publication-pending-bg: #42271d;
+  --publication-pending-border: #8d4c30;
+  --publication-pending-ink: #ffb58f;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-mode="system"]:not([data-color-mode="light"]) .publication-state {
+    --publication-pending-bg: #42271d;
+    --publication-pending-border: #8d4c30;
+    --publication-pending-ink: #ffb58f;
+  }
+}

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { publicationStatusSchema } from "../modules/publication-status/contracts.ts";
 import {
   articleTypeIdSchema,
   articleTypeListSchema,
@@ -204,6 +205,7 @@ export const editablePostSchema = z.object({
   pinned: z.boolean(),
 });
 export const postSchema = editablePostSchema.extend({
+  ...publicationStatusSchema.shape,
   id: z.string(),
   version: z.number().int().positive(),
   publishedAt: z.string().nullable(),
@@ -213,6 +215,8 @@ export const postSchema = editablePostSchema.extend({
 export type Post = z.infer<typeof postSchema>;
 /** 工作台列表只携带展示字段，正文与发布快照留在按需编辑/阅读路径。 */
 export const postSummarySchema = postSchema.pick({
+  hasUnpublishedChanges: true,
+  publishedVisibility: true,
   id: true,
   version: true,
   title: true,

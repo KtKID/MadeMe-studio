@@ -42,9 +42,7 @@ async function loadBasePageData(context: RequestContext, publicOnly = false) {
           ),
         imageConfigured:
           identity.owner && hasConfiguredImageProvider(settings.providers, env),
-        passwordConfigured:
-          identity.owner &&
-          sessionSecretConfigured(env),
+        passwordConfigured: identity.owner && sessionSecretConfigured(env),
         storageConfigured: !!(env.DB && env.BUCKET),
         ownerConfigured: ownerConfigured(env),
       },
@@ -148,7 +146,9 @@ export async function loadDashboardPageData(
   const posts = !env.DB
     ? []
     : data.capabilities.authenticated
-      ? await new D1PostRepository(env.DB).listSummaries()
+      ? await new D1PostRepository(env.DB).listSummaries(
+          data.settings.articleTypes,
+        )
       : publicPosts(await new D1PostRepository(env.DB).list()).map((post) =>
           postSummarySchema.parse(post),
         );
@@ -235,7 +235,9 @@ export async function loadStudioPageData(
   const [posts, media, tokens] = await Promise.allSettled([
     (async () => {
       if (!env.DB) throw new Error("Storage unavailable");
-      return new D1PostRepository(env.DB).listSummaries();
+      return new D1PostRepository(env.DB).listSummaries(
+        data.settings.articleTypes,
+      );
     })(),
     (async () => {
       if (!env.DB) throw new Error("Storage unavailable");
