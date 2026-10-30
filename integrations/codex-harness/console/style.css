@@ -197,3 +197,30 @@ textarea {
     flex: 0 1 auto;
   }
 }
+
+.credential-form {
+  margin: 20px 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.harness-console input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  margin-bottom: 16px;
+}
+.harness-console input:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.event-list {
+  max-height: 220px;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  overflow-wrap: anywhere;
+}

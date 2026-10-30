@@ -23,6 +23,9 @@ it("云端模型设置展示独立本地 harness 边界，不提供不可完成�
   expect(screen.getByText(/云端博客尚未配对本地运行器/)).toBeTruthy();
   expect(screen.getByText(/同一台电脑/)).toBeTruthy();
   expect(screen.queryByRole("button", { name: /登录 Codex/ })).toBeNull();
+  expect(screen.getByText(/API Key.*仅在本地控制台/)).toBeTruthy();
+  expect(screen.queryByLabelText(/API Key/)).toBeNull();
+  expect(screen.getByText(/默认回放/)).toBeTruthy();
   expect(request).not.toHaveBeenCalled();
   request.mockRestore();
 });
