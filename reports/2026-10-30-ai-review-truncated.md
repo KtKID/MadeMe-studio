@@ -31,3 +31,9 @@ PR #2 手动触发 `AI PR Review (MiniMax)` 后工作流失败，PR 下没有审
 - 带思考的模型，输出上限要按“思考 + 回答”估，不要沿用无思考模型的数值。
 - 长时间思考的模型请求一律用流式，避免各层“等响应头”的默认超时。
 - 调用外部模型必须检查 `finish_reason`，截断要当失败处理，并在用户能看到的地方说明。
+
+## 后续：审核模型换成 GLM（2026-10-30，按用户要求）
+- 结果：流式修复后 MiniMax-M3 对 PR #2 审核成功（约 4.5 分钟，评论已发布）。之后用户要求换成智谱 GLM 订阅。
+- 改动：脚本改成与服务商无关的 `AI_REVIEW_*` 配置；默认接口 `https://open.bigmodel.cn/api/coding/paas/v4`（订阅专用），模型 `glm-5.3-flash`，key 用仓库 secret `GLM_API_KEY`；`thinking: {type: "enabled"}` 只在 `AI_REVIEW_THINKING` 有值时发送。流内 `error` 字段也走 `failWithComment()`。评论标记改为 `<!-- ai-review -->`，兼容更新旧的 `ai-review:minimax` 评论。
+- 踩坑：GLM 的 `max_tokens` 上限是 131072（256K 会返回 1210 参数非法），所以默认改为 128K。换服务商时先用 `/models` 和一次小请求确认模型名与参数范围。
+- MiniMax 的 secret `MINIMAX_API_KEY` 保留，改回只需设置仓库 Variables 并把 workflow 里的 secret 名换回。
