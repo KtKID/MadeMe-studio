@@ -3,7 +3,11 @@ import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { harnessLoginCancelSchema, harnessTaskInputSchema } from "./contracts";
+import {
+  harnessLoginCancelSchema,
+  harnessTaskInputSchema,
+  harnessApiKeySchema,
+} from "./contracts";
 import { HarnessError, safeError } from "./errors";
 import type { HarnessRunner } from "./runner";
 const equal = (a: string, b: string) => {
@@ -110,6 +114,7 @@ export function createHarnessHTTP(
             "/v1/pair": "pair",
             "/v1/status": "status",
             "/v1/login": "login",
+            "/v1/auth/api-key": "auth.configure",
             "/v1/login/cancel": "login.cancel",
             "/v1/logout": "logout",
             "/v1/tasks": "task.create",
@@ -211,6 +216,21 @@ export function createHarnessHTTP(
         );
       if (path === "/v1/status" && method === "GET") {
         send(200, await runner.status());
+        return;
+      }
+      if (path === "/v1/auth/api-key" && method === "POST") {
+        if (!sessionValid || request.headers.origin !== origin)
+          throw new HarnessError(
+            "ORIGIN_INVALID",
+            "凭据只能由已配对同机页面提交。",
+            403,
+          );
+        send(
+          200,
+          await runner.setApiKey(
+            harnessApiKeySchema.parse(await jsonBody(request)),
+          ),
+        );
         return;
       }
       if (path === "/v1/login" && method === "POST") {

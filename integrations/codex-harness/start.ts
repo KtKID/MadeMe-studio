@@ -4,6 +4,7 @@ import { isAbsolute, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startAppServer } from "./transport";
 import { HarnessRunner } from "./runner";
+import { HarnessRecorder } from "./recording";
 import { createHarnessHTTP } from "./http";
 import { HarnessError, safeError } from "./errors";
 /** 不收紧既有目录权限；不安全目录直接拒绝，避免修改用户已有文件。 */
@@ -80,14 +81,16 @@ export async function startLocalHarness(argv: string[]) {
     if ((await lstat(path)).isSymbolicLink())
       throw new HarnessError("INVALID_HOST_CONFIG", "专用目录不能是符号链接。");
   }
-  const rpc = await startAppServer({
-    command,
-    codexHome: home,
-    workspaceRoot: workspace,
-    path: process.env.PATH,
-  });
+  const rpc = () =>
+    startAppServer({
+      command,
+      codexHome: home,
+      workspaceRoot: workspace,
+      path: process.env.PATH,
+    });
   const runner = new HarnessRunner(rpc, {
     workspaceRoot: workspace,
+    recorder: new HarnessRecorder(join(state, "recordings")),
     browserLoginAvailable: argv.includes("--browser-login"),
   });
   const pairCode = randomBytes(32).toString("base64url");

@@ -172,7 +172,7 @@ export async function startAppServer(options: {
       "-c",
       'web_search="disabled"',
       "-c",
-      'forced_login_method="chatgpt"',
+      'cli_auth_credentials_store="ephemeral"',
     ],
     {
       cwd: options.workspaceRoot,

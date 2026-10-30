@@ -9,6 +9,7 @@ describe("独立 harness 业务边界", () => {
     expect(
       harnessTaskInputSchema.safeParse({
         requestId: crypto.randomUUID(),
+        model: "fixture-model",
         kind: "polish-selection",
         input: "你好",
       }).success,
@@ -16,6 +17,7 @@ describe("独立 harness 业务边界", () => {
     expect(
       harnessTaskInputSchema.safeParse({
         requestId: crypto.randomUUID(),
+        model: "fixture-model",
         kind: "shell",
         input: "pwd",
       }).success,
@@ -23,6 +25,7 @@ describe("独立 harness 业务边界", () => {
     expect(
       harnessTaskInputSchema.safeParse({
         requestId: crypto.randomUUID(),
+        model: "fixture-model",
         kind: "polish-selection",
         input: "你好",
         cwd: "/",

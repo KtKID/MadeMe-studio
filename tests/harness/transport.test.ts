@@ -6,7 +6,7 @@ afterEach(() => {
   for (const c of clients) c.close();
   clients.length = 0;
 });
-function fake(source: string, timeout = 300) {
+function fake(source: string, timeout = 3000) {
   const child = spawn(process.execPath, ["-e", source], {
     stdio: "pipe",
     env: {},

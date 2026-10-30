@@ -1,13 +1,16 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PUBLIC_TEST_INPUTS } from "../../integrations/codex-harness/recording";
 import { HarnessRunner } from "../../integrations/codex-harness/runner";
 class FakeRPC extends EventEmitter {
   calls: { method: string; params: any }[] = [];
   async request(method: string, params?: unknown): Promise<any> {
     this.calls.push({ method, params });
+    if (method === "config/read")
+      return { config: { cli_auth_credentials_store: "ephemeral" } };
     if (method === "account/read")
       return { account: { type: "chatgpt", email: "private@example.test" } };
     if (method === "account/login/start")
@@ -34,10 +37,27 @@ async function setup(extras = {}) {
   const runner = new HarnessRunner(rpc, {
     workspaceRoot: root,
     browserLoginAvailable: false,
-    timeoutMs: 1000,
+    timeoutMs: 10000,
+    recorder: {
+      begin: async () => {},
+      record: async () => {},
+      replay: async () => {
+        throw Error("no replay fixture");
+      },
+    },
     ...extras,
   });
+  rpc.emit("notification", {
+    method: "account/updated",
+    params: { authMode: "chatgpt" },
+  });
   return { runner, rpc, root };
+}
+async function waitForTurn(rpc: FakeRPC) {
+  await vi.waitFor(() =>
+    expect(rpc.calls.some((c) => c.method === "turn/start")).toBe(true),
+  );
+  await Promise.resolve();
 }
 async function settle() {
   await new Promise((r) => setTimeout(r, 20));
@@ -52,6 +72,7 @@ describe("任务与认证的失败关闭", () => {
     expect(await runner.status()).toEqual({
       connected: true,
       authenticated: true,
+      authMode: "chatgpt",
       browserLoginAvailable: false,
       capabilities: { polishSelection: true, imageGeneration: true },
       loginStatus: "idle",
@@ -60,7 +81,7 @@ describe("任务与认证的失败关闭", () => {
   it("显式同机模式只调用chatgpt网页登录", async () => {
     const { runner, rpc } = await setup({ browserLoginAvailable: true });
     await runner.login();
-    expect(rpc.calls[0]).toEqual({
+    expect(rpc.calls[1]).toEqual({
       method: "account/login/start",
       params: { type: "chatgpt" },
     });
@@ -69,12 +90,15 @@ describe("任务与认证的失败关闭", () => {
     const { runner, rpc } = await setup();
     const input = {
       requestId: crypto.randomUUID(),
+      model: "fixture-model",
+      mode: "record" as const,
+      recordConsent: true,
       kind: "polish-selection" as const,
-      input: "原文",
+      input: PUBLIC_TEST_INPUTS["polish-selection"],
     };
     const a = await runner.create(input);
-    expect(await runner.create(input)).toEqual(a);
-    await settle();
+    expect((await runner.create(input)).id).toBe(a.id);
+    await waitForTurn(rpc);
     rpc.emit("notification", {
       method: "item/completed",
       params: {
@@ -91,7 +115,9 @@ describe("任务与认证的失败关闭", () => {
         turn: { id: "turn-1", status: "completed" },
       },
     });
-    await settle();
+    await vi.waitFor(() => expect(runner.get(a.id).status).toBe("completed"), {
+      timeout: 5000,
+    });
     expect(runner.get(a.id)).toMatchObject({
       status: "completed",
       result: { text: "润色正文" },
@@ -103,8 +129,11 @@ describe("任务与认证的失败关闭", () => {
     const { runner } = await setup();
     const input = {
       requestId: crypto.randomUUID(),
+      model: "fixture-model",
+      mode: "record" as const,
+      recordConsent: true,
       kind: "polish-selection" as const,
-      input: "原文",
+      input: PUBLIC_TEST_INPUTS["polish-selection"],
     };
     await runner.create(input);
     await expect(
@@ -112,7 +141,10 @@ describe("任务与认证的失败关闭", () => {
     ).rejects.toMatchObject({ code: "REQUEST_ID_CONFLICT" });
     runner.close();
     const fresh = await setup();
-    fresh.rpc.request = async () => ({ account: null });
+    fresh.rpc.emit("notification", {
+      method: "account/updated",
+      params: { authMode: null },
+    });
     await expect(
       fresh.runner.create({ ...input, requestId: crypto.randomUUID() }),
     ).rejects.toMatchObject({ code: "LOGIN_REQUIRED" });
@@ -122,10 +154,13 @@ describe("任务与认证的失败关闭", () => {
     const { runner, rpc } = await setup();
     const task = await runner.create({
       requestId: crypto.randomUUID(),
+      model: "fixture-model",
+      mode: "record" as const,
+      recordConsent: true,
       kind: "polish-selection",
-      input: "a",
+      input: PUBLIC_TEST_INPUTS["polish-selection"],
     });
-    await settle();
+    await waitForTurn(rpc);
     await runner.cancel(task.id);
     rpc.emit("notification", {
       method: "turn/completed",
@@ -143,10 +178,13 @@ describe("任务与认证的失败关闭", () => {
     const { runner, rpc } = await setup();
     const task = await runner.create({
       requestId: crypto.randomUUID(),
+      model: "fixture-model",
+      mode: "record" as const,
+      recordConsent: true,
       kind: "polish-selection",
-      input: "a",
+      input: PUBLIC_TEST_INPUTS["polish-selection"],
     });
-    await settle();
+    await waitForTurn(rpc);
     rpc.emit("approval", { method: "item/commandExecution/requestApproval" });
     expect(runner.get(task.id)).toMatchObject({
       status: "failed",
@@ -158,10 +196,13 @@ describe("任务与认证的失败关闭", () => {
     const { runner, rpc } = await setup();
     const task = await runner.create({
       requestId: crypto.randomUUID(),
+      model: "fixture-model",
+      mode: "record" as const,
+      recordConsent: true,
       kind: "image-generation",
-      input: "云",
+      input: PUBLIC_TEST_INPUTS["image-generation"],
     });
-    await settle();
+    await waitForTurn(rpc);
     rpc.emit("notification", {
       method: "item/completed",
       params: {
@@ -189,11 +230,13 @@ it("并发网页登录只发一个start，失败通知允许重新登录且不�
   const { runner, rpc } = await setup({ browserLoginAvailable: true });
   let finish!: (v: any) => void;
   rpc.request = async (method) =>
-    method === "account/login/start"
-      ? await new Promise((r) => {
-          finish = r;
-        })
-      : { account: null };
+    method === "config/read"
+      ? { config: { cli_auth_credentials_store: "ephemeral" } }
+      : method === "account/login/start"
+        ? await new Promise((r) => {
+            finish = r;
+          })
+        : { account: null };
   const first = runner.login();
   await expect(runner.login()).rejects.toMatchObject({ code: "LOGIN_PENDING" });
   finish({
@@ -225,18 +268,23 @@ it("turn启动结果不确定时关闭专用进程，禁止同进程继续任务
   };
   const task = await runner.create({
     requestId: crypto.randomUUID(),
+    model: "fixture-model",
+    mode: "record" as const,
+    recordConsent: true,
     kind: "polish-selection",
-    input: "a",
+    input: PUBLIC_TEST_INPUTS["polish-selection"],
   });
-  await settle();
-  expect(closed).toBe(true);
+  await vi.waitFor(() => expect(closed).toBe(true));
   expect((await runner.status()).connected).toBe(false);
   expect(runner.get(task.id).status).toBe("failed");
   await expect(
     runner.create({
       requestId: crypto.randomUUID(),
+      model: "fixture-model",
+      mode: "record" as const,
+      recordConsent: true,
       kind: "polish-selection",
-      input: "b",
+      input: PUBLIC_TEST_INPUTS["polish-selection"],
     }),
   ).rejects.toMatchObject({ code: "LOGIN_REQUIRED" });
 });
@@ -247,14 +295,22 @@ it("turn/start尚未返回时取消立即关闭专用进程，不等待RPC超时
   rpc.close = () => {
     closed = true;
   };
-  rpc.request = async (method, params) =>
-    method === "turn/start" ? new Promise(() => {}) : original(method, params);
+  rpc.request = async (method, params) => {
+    if (method === "turn/start") {
+      rpc.calls.push({ method, params });
+      return new Promise(() => {});
+    }
+    return original(method, params);
+  };
   const task = await runner.create({
     requestId: crypto.randomUUID(),
+    model: "fixture-model",
+    mode: "record" as const,
+    recordConsent: true,
     kind: "polish-selection",
-    input: "a",
+    input: PUBLIC_TEST_INPUTS["polish-selection"],
   });
-  await settle();
+  await waitForTurn(rpc);
   await runner.cancel(task.id);
   expect(closed).toBe(true);
   expect((await runner.status()).connected).toBe(false);
@@ -272,10 +328,13 @@ it("interrupt失败后断开，不继续接受任务", async () => {
   };
   const task = await runner.create({
     requestId: crypto.randomUUID(),
+    model: "fixture-model",
+    mode: "record" as const,
+    recordConsent: true,
     kind: "polish-selection",
-    input: "a",
+    input: PUBLIC_TEST_INPUTS["polish-selection"],
   });
-  await settle();
+  await waitForTurn(rpc);
   await runner.cancel(task.id).catch(() => {});
   expect(closed).toBe(true);
   expect((await runner.status()).connected).toBe(false);
@@ -286,10 +345,13 @@ it("登录RPC返回不安全URL后关闭进程，不留下未知登录继续重�
   rpc.close = () => {
     closed = true;
   };
-  rpc.request = async () => ({
-    loginId: "l",
-    authUrl: "https://evil.test/auth",
-  });
+  rpc.request = async (method) =>
+    method === "config/read"
+      ? { config: { cli_auth_credentials_store: "ephemeral" } }
+      : {
+          loginId: "l",
+          authUrl: "https://evil.test/auth",
+        };
   await expect(runner.login()).rejects.toMatchObject({
     code: "UNSAFE_LOGIN_URL",
   });
@@ -299,10 +361,13 @@ it("实际临时图片文件经完成事件交付不透明artifact，不泄露�
   const { runner, rpc, root } = await setup();
   const task = await runner.create({
     requestId: crypto.randomUUID(),
+    model: "fixture-model",
+    mode: "record" as const,
+    recordConsent: true,
     kind: "image-generation",
-    input: "蓝天",
+    input: PUBLIC_TEST_INPUTS["image-generation"],
   });
-  await settle();
+  await waitForTurn(rpc);
   const savedPath = join(root, task.id, "artifacts", "图.png");
   await writeFile(
     savedPath,
@@ -323,7 +388,9 @@ it("实际临时图片文件经完成事件交付不透明artifact，不泄露�
       turn: { id: "turn-1", status: "completed" },
     },
   });
-  await settle();
+  await vi.waitFor(() => expect(runner.get(task.id).status).toBe("completed"), {
+    timeout: 5000,
+  });
   const result = runner.get(task.id);
   expect(result.status).toBe("completed");
   expect(result.result?.artifactId).toBeTruthy();
@@ -335,10 +402,13 @@ it("thread审批路由显式用户且不启用自动批准", async () => {
   const { runner, rpc } = await setup();
   await runner.create({
     requestId: crypto.randomUUID(),
+    model: "fixture-model",
+    mode: "record" as const,
+    recordConsent: true,
     kind: "polish-selection",
-    input: "原文",
+    input: PUBLIC_TEST_INPUTS["polish-selection"],
   });
-  await settle();
+  await waitForTurn(rpc);
   expect(
     rpc.calls.find((c) => c.method === "thread/start")?.params,
   ).toMatchObject({

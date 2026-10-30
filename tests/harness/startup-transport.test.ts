@@ -44,7 +44,7 @@ it("真实fake CLI启动：固定参数、独立HOME、初始化显式OAuth且�
     "-c",
     'web_search="disabled"',
     "-c",
-    'forced_login_method="chatgpt"',
+    'cli_auth_credentials_store="ephemeral"',
   ]);
   expect(probe.envKeys).not.toContain("OPENAI_API_KEY");
   expect(probe.home).toBe(home);

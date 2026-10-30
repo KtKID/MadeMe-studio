@@ -4,13 +4,50 @@ export const harnessTaskKindSchema = z.enum([
   "polish-selection",
   "image-generation",
 ]);
+export const harnessModelSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/);
+export const harnessApiKeySchema = z
+  .object({
+    apiKey: z
+      .string()
+      .min(1)
+      .max(4096)
+      .regex(/^\S+$/),
+  })
+  .strict();
 export const harnessTaskInputSchema = z
   .object({
     requestId: z.uuid(),
     kind: harnessTaskKindSchema,
     input: z.string().trim().min(1).max(20_000),
+    mode: z.enum(["replay", "record"]).default("replay"),
+    model: harnessModelSchema,
+    recordConsent: z.boolean().default(false),
   })
-  .strict();
+  .strict()
+  .refine((value) => value.mode !== "record" || value.recordConsent, {
+    message: "录制前必须明确确认可能产生费用。",
+  });
+export const harnessEventSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("text-delta"),
+      text: z.string().max(200_000),
+      seq: z.number().int().nonnegative(),
+      elapsedMs: z.number().nonnegative(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("state"),
+      status: z.enum(["queued", "running", "completed", "failed", "cancelled"]),
+      seq: z.number().int().nonnegative(),
+      elapsedMs: z.number().nonnegative(),
+    })
+    .strict(),
+]);
+export type HarnessEvent = z.infer<typeof harnessEventSchema>;
 export const harnessErrorSchema = z
   .object({ code: z.string(), message: z.string() })
   .strict();
@@ -18,6 +55,7 @@ export const harnessStatusSchema = z
   .object({
     connected: z.boolean(),
     authenticated: z.boolean(),
+    authMode: z.enum(["none", "chatgpt", "apiKey"]),
     browserLoginAvailable: z.boolean(),
     loginStatus: z.enum(["idle", "pending", "failed"]).optional(),
     loginError: z.string().optional(),
@@ -50,6 +88,9 @@ export const harnessTaskSchema = z
     requestId: z.uuid(),
     kind: harnessTaskKindSchema,
     status: z.enum(["queued", "running", "completed", "failed", "cancelled"]),
+    mode: z.enum(["replay", "record"]),
+    model: harnessModelSchema,
+    events: z.array(harnessEventSchema).max(1000).default([]),
     result: z
       .object({
         text: z.string().max(200_000).optional(),

@@ -152,3 +152,46 @@ it("审计只记录归一化操作和状态，不包含配对code/query/请求�
   );
   expect(records[0]).toMatchObject({ operation: "pair", status: 200 });
 });
+it("API key仅已配对同源页面可提交，Bearer或缺Origin拒绝，审计与响应不回显", async () => {
+  let configured = 0;
+  const records: unknown[] = [];
+  const local = {
+    ...runner,
+    setApiKey: async (input: { apiKey: string }) => {
+      expect(input.apiKey).toBe("sk-fixture-only");
+      configured++;
+      return { ok: true };
+    },
+  };
+  const server = createHarnessHTTP(local, {
+    pairCode: "pair-for-key-test",
+    pairExpiresAt: Date.now() + 60_000,
+    bearerToken: "x".repeat(32),
+    audit: (event) => records.push(event),
+  });
+  server.listen(0, "127.0.0.1");
+  servers.push(server);
+  await once(server, "listening");
+  const origin = `http://127.0.0.1:${(server.address() as any).port}`;
+  const send = (headers: Record<string, string>) =>
+    fetch(origin + "/v1/auth/api-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ apiKey: "sk-fixture-only" }),
+    });
+  expect(
+    (await send({ Authorization: "Bearer " + "x".repeat(32) })).status,
+  ).toBe(403);
+  const paired = await fetch(origin + "/v1/pair", {
+    method: "POST",
+    headers: { Origin: origin, "Content-Type": "application/json" },
+    body: JSON.stringify({ code: "pair-for-key-test" }),
+  });
+  const cookie = paired.headers.get("set-cookie")!.split(";")[0];
+  expect((await send({ Cookie: cookie })).status).toBe(403);
+  const accepted = await send({ Origin: origin, Cookie: cookie });
+  expect(accepted.status).toBe(200);
+  expect(await accepted.json()).toEqual({ ok: true });
+  expect(configured).toBe(1);
+  expect(JSON.stringify(records)).not.toContain("sk-fixture-only");
+});
