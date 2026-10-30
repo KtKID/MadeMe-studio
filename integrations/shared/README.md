@@ -2,6 +2,8 @@
 
 `client.ts` 为 Chrome、Obsidian、agent CLI 复用的安全客户端。请求正文直接通过 `src/shared/contracts.ts` 的 Zod schema 校验，不另造 BlockNote JSON 协议。
 
+请求带 `Accept: application/json; mademe-post-schema=2`（CORS 安全头，旧服务端忽略）；响应由容忍未知字段的 `postMutationResponseSchema` 解析，服务端新增字段（如 `coverSettings`）不会让客户端失败。客户端只建草稿和发布，不读后回写文章，因此不会丢失 `coverSettings`。
+
 文章写入响应统一使用 `postMutationResponseSchema`：仅写 Token 获得 `{post:{id,version}}`，owner 或具备 `posts:read` 的 Token 可获得完整 Post。客户端不要求读取权限，不为了补充标题、正文或可见性再发 GET；对外摘要也不会复制完整响应中的私人内容。摘要 `visibility` 来自本次明确请求，完整响应若回显不同可见性则拒绝。
 
 - `normalizeSiteUrl`：HTTPS 原点校验，固定 API 路径。

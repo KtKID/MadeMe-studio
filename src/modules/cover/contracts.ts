@@ -34,6 +34,8 @@ export const coverSettingsSchema = z
   })
   .strict();
 export type CoverSettings = z.infer<typeof coverSettingsSchema>;
+/** 只用于读取响应：同样校验已知字段，但剥离以后新增的键，不让旧客户端因增量字段失败。 */
+export const coverSettingsReadSchema = z.object(coverSettingsSchema.shape);
 
 /** 唯一默认值：新文章与没有 coverSettings 的旧文章都使用它。 */
 export const DEFAULT_COVER_SETTINGS: Readonly<CoverSettings> = Object.freeze({

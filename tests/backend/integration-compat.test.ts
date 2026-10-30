@@ -44,7 +44,7 @@ async function call(
   method: string,
   body: unknown,
   auth: { token?: string; accept?: string } = {},
-) {
+): Promise<Omit<Response, "json"> & { json(): Promise<any> }> {
   return handleAPI({
     request: new Request(`https://site.test/api/${path}`, {
       method,
