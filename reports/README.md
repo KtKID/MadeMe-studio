@@ -67,3 +67,5 @@
 - [已发布文章的有新修改状态](2026-10-29-publication-status.md)
 
 - [Codex 本地 Harness 接入验收](2026-10-29-codex-harness.md)：独立本地 App Server 适配、离线安全测试和用户网页登录验收边界。
+
+- [本地 Harness API Key 与录制回放验收](2026-10-30-harness-record-replay.md)：临时凭据、明确计费首录、严格匹配离线回放与宿主限制。

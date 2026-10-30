@@ -99,5 +99,5 @@ npm run test:integrations
 
 - [草稿与线上版本状态](src/modules/publication-status/README.md)：后台提示已保存但尚未发布的语义修改，保留线上可见性，不改变发布流程。
 
-- [Codex 独立本地 Harness](integrations/codex-harness/README.md)：App Server 进程适配、同机网页登录、白名单任务与受认证本地控制台；不托管订阅认证。
+- [Codex 独立本地 Harness](integrations/codex-harness/README.md)：App Server 进程适配、同机网页登录/临时 API Key、固定公开样本录制与默认离线回放；不托管认证服务。
 - [博客 Harness 适配边界](src/modules/codex-harness/README.md)：共享业务协议与待审阅结果，不耦合 CLI；云端到本地连接尚未配置。
