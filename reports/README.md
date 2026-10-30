@@ -66,3 +66,6 @@
 
 - [已发布文章的有新修改状态](2026-10-29-publication-status.md)
 - [2026-10-30：AI PR 审核被思考过程截断](2026-10-30-ai-review-truncated.md)：MiniMax-M3 思考用完 8000 token 上限；改为 256K、思考 high、可用仓库变量覆盖，截断时在 PR 留言并让工作流失败；改为流式请求避开 Node fetch 5 分钟响应头超时；之后按用户要求换成 GLM glm-5.3-flash（上限 128K）；另说明冲突 PR 不触发工作流。
+- [2026-10-30：设置页服务商下拉改用同主题控件](2026-10-30-provider-dropdown.md)：AI 模型卡片“服务商”复用 `TypeDropdown`，值与保存逻辑不变；新增真实 DOM 用例。
+- [2026-10-30：全站原生 select 替换为共享同主题下拉](2026-10-30-shared-dropdown.md)：`TypeDropdown` 泛化为 `src/components/shared/Dropdown.tsx`（支持禁用选项），替换设置、编辑器、媒体库、Obsidian 的全部原生 select；值与行为不变。
+- [2026-10-30：共享下拉审核修复](2026-10-30-dropdown-review-fixes.md)：重选当前值不再触发 `onChange`（避免清空 AI 建议、重置提示词）；选项禁用状态变化时校正活动项；新增回归用例。

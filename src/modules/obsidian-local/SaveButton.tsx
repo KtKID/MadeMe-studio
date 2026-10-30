@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { resolveObsidianUri } from "./open";
 import { useRef, useState } from "react";
+import Dropdown from "../../components/shared/Dropdown";
 import { Modal, Notice, downloadText } from "../../components/shared/ui";
 import { clientLog } from "../log/client";
 import { OBSIDIAN_LOCAL_DEFAULTS } from "../config/limits";
@@ -298,18 +299,26 @@ export default function SaveButton({
               <>
                 <label>
                   保存预设
-                  <select
-                    aria-label="保存预设"
+                  <Dropdown
+                    id="obsidian-save-preset"
+                    label="保存预设"
                     disabled={busy}
                     value={
                       records.some((r) => r.preset.id === selected?.preset.id)
-                        ? selected?.preset.id
+                        ? (selected?.preset.id ?? "")
                         : ""
                     }
-                    onChange={(event) => {
+                    options={[
+                      { value: "", label: "选择预设或其他位置" },
+                      ...records.map((record) => ({
+                        value: record.preset.id,
+                        label: record.preset.name,
+                      })),
+                    ]}
+                    onChange={(presetId) => {
                       request.current++;
                       const record = records.find(
-                        (r) => r.preset.id === event.target.value,
+                        (r) => r.preset.id === presetId,
                       );
                       setSelected(record);
                       setDirectory(record?.preset.noteDirectory ?? "");
@@ -318,14 +327,7 @@ export default function SaveButton({
                       setResult(undefined);
                       snapshot.current = null;
                     }}
-                  >
-                    <option value="">选择预设或其他位置</option>
-                    {records.map((record) => (
-                      <option key={record.preset.id} value={record.preset.id}>
-                        {record.preset.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
                 <div className="field-heading button-group">
                   <p className="form-hint">
