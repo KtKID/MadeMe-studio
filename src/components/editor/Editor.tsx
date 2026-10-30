@@ -26,6 +26,7 @@ import {
   Link,
   Save,
   Settings2,
+  SlidersHorizontal,
   Sparkles,
   X,
 } from "lucide-react";
@@ -70,6 +71,14 @@ import {
 import { describeEditorError, type EditorAction } from "./errors";
 import { en as blockNoteEn } from "@blocknote/core/locales";
 import MediaLibrary from "../media/MediaLibrary";
+import CoverFrame from "../../modules/cover/CoverFrame";
+import CoverAdjuster from "../../modules/cover/CoverAdjuster";
+import {
+  DEFAULT_COVER_SETTINGS,
+  normalizeCoverSettings,
+  resetCoverFraming,
+  type CoverSettings,
+} from "../../modules/cover/contracts";
 import { resolveMode } from "../shared/appearance";
 import { EditClock, hasDocumentContent } from "./editor-state";
 import { AIRequestState } from "./ai-request-state";
@@ -199,6 +208,12 @@ export default function Editor({
   const [tags, setTags] = useState(post?.tags.join(", ") || "");
   const [slug, setSlug] = useState(post?.slug || "");
   const [cover, setCover] = useState(post?.coverImage || "");
+  const [coverSettings, setCoverSettings] = useState<CoverSettings>(() =>
+    normalizeCoverSettings(post?.coverSettings),
+  );
+  /** “调整封面”弹窗中的未确认设置；取消即丢弃。 */
+  const [coverDraft, setCoverDraft] = useState<CoverSettings | null>(null);
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [visibility, setVisibility] = useState(() =>
     initialPublishVisibility(post?.visibility),
   );
@@ -427,9 +442,21 @@ export default function Editor({
         .map((t) => t.trim())
         .filter(Boolean),
       coverImage: cover,
+      coverSettings: cover ? coverSettings : { ...DEFAULT_COVER_SETTINGS },
       ...(slug.trim() ? { slug: slug.trim() } : {}),
       ...(current ? {} : { visibility: "draft" as const }),
     };
+  }
+  /** 换图只重置位置与缩放；比例与展示方式沿用。 */
+  function chooseCover(url: string) {
+    if (url !== cover) setCoverSettings((s) => resetCoverFraming(s));
+    setCover(url);
+    markDirty();
+  }
+  function removeCover() {
+    setCover("");
+    setCoverSettings({ ...DEFAULT_COVER_SETTINGS });
+    markDirty();
   }
   async function save(
     keepLock = false,
@@ -580,6 +607,7 @@ export default function Editor({
           setCategory(p.category);
           setCategoryId(p.categoryId);
           setCover(p.coverImage);
+          setCoverSettings(normalizeCoverSettings(p.coverSettings));
           setSlug(p.slug);
           markClean();
           setConflict(false);
@@ -795,6 +823,7 @@ export default function Editor({
           setCategoryId(p.categoryId);
           setTags(p.tags.join(", "));
           setCover(p.coverImage);
+          setCoverSettings(normalizeCoverSettings(p.coverSettings));
           setSlug(p.slug);
           markClean();
           setPanel(null);
@@ -954,16 +983,32 @@ export default function Editor({
         <div className="editor-document">
           {cover ? (
             <div className="editor-cover">
-              <img src={cover} alt="文章封面" />
-              <button
-                className="button small"
-                onClick={() => {
-                  setCover("");
-                  markDirty();
-                }}
-              >
-                移除封面
-              </button>
+              <CoverFrame src={cover} settings={coverSettings} alt="文章封面" />
+              <div className="editor-cover-actions">
+                <button
+                  className="button small"
+                  disabled={!!busy}
+                  onClick={() => setCoverDraft(coverSettings)}
+                >
+                  <SlidersHorizontal size={14} />
+                  调整封面
+                </button>
+                <button
+                  className="button small"
+                  disabled={!!busy}
+                  onClick={() => setPanel("media")}
+                >
+                  <ImagePlus size={14} />
+                  更换封面
+                </button>
+                <button
+                  className="button small"
+                  disabled={!!busy}
+                  onClick={removeCover}
+                >
+                  移除封面
+                </button>
+              </div>
             </div>
           ) : (
             <button className="add-cover" onClick={() => setPanel("media")}>
@@ -1171,8 +1216,7 @@ export default function Editor({
             providers={settings.providers}
             onInsert={insertMedia}
             onCover={(m) => {
-              setCover(m.url);
-              markDirty();
+              chooseCover(m.url);
               setPanel(null);
             }}
           />
@@ -1391,6 +1435,53 @@ export default function Editor({
               />
             </label>
           )}
+          <fieldset className="publish-cover">
+            <legend>封面</legend>
+            {cover ? (
+              <>
+                <CoverAdjuster
+                  src={cover}
+                  value={coverSettings}
+                  disabled={!!busy}
+                  onChange={(next) => {
+                    setCoverSettings(next);
+                    markDirty();
+                  }}
+                />
+                <div className="button-group">
+                  <button
+                    className="button small"
+                    disabled={!!busy}
+                    onClick={() => setCoverPickerOpen(true)}
+                  >
+                    <ImagePlus size={14} />
+                    更换图片
+                  </button>
+                  <button
+                    className="button small"
+                    disabled={!!busy}
+                    onClick={removeCover}
+                  >
+                    移除封面
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="publish-cover-empty">
+                <p className="muted">
+                  还没有封面。选一张图片，再选择比例与展示方式。
+                </p>
+                <button
+                  className="button small"
+                  disabled={!!busy}
+                  onClick={() => setCoverPickerOpen(true)}
+                >
+                  <ImagePlus size={14} />
+                  选择封面图片
+                </button>
+              </div>
+            )}
+          </fieldset>
           <div className="modal-actions">
             <button
               className="button"
@@ -1412,6 +1503,48 @@ export default function Editor({
                   确认发布
                 </>
               )}
+            </button>
+          </div>
+        </Modal>
+      )}
+      {coverPickerOpen && (
+        <Modal
+          title="选择封面图片"
+          wide
+          onClose={() => setCoverPickerOpen(false)}
+        >
+          <MediaLibrary
+            config={limits}
+            postId={current?.id}
+            imageConfigured={imageConfigured}
+            providers={settings.providers}
+            onCover={(m) => {
+              chooseCover(m.url);
+              setCoverPickerOpen(false);
+            }}
+          />
+        </Modal>
+      )}
+      {coverDraft && cover && (
+        <Modal title="调整封面 · 保留原图" onClose={() => setCoverDraft(null)}>
+          <CoverAdjuster
+            src={cover}
+            value={coverDraft}
+            onChange={setCoverDraft}
+          />
+          <div className="modal-actions">
+            <button className="button" onClick={() => setCoverDraft(null)}>
+              取消
+            </button>
+            <button
+              className="button primary"
+              onClick={() => {
+                setCoverSettings(coverDraft);
+                setCoverDraft(null);
+                markDirty();
+              }}
+            >
+              应用
             </button>
           </div>
         </Modal>

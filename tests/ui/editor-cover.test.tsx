@@ -128,8 +128,11 @@ describe("编辑器封面：调整入口与持久化", () => {
   it("调整→取消不改动；调整→应用后保存草稿带上设置", async () => {
     setup();
     fireEvent.click(screen.getByRole("button", { name: "调整封面" }));
-    const dialog = () => screen.getByRole("dialog", { name: "调整封面 · 保留原图" });
-    fireEvent.click(within(dialog()).getByRole("radio", { name: "正方形 1:1" }));
+    const dialog = () =>
+      screen.getByRole("dialog", { name: "调整封面 · 保留原图" });
+    fireEvent.click(
+      within(dialog()).getByRole("radio", { name: "正方形 1:1" }),
+    );
     fireEvent.click(within(dialog()).getByRole("button", { name: "取消" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(editorFrame().dataset.aspect).toBe("original");
@@ -160,7 +163,13 @@ describe("编辑器封面：调整入口与持久化", () => {
   it("载入已有设置；移除封面同时清回默认设置", async () => {
     setup({
       ...post,
-      coverSettings: { aspect: "4:3", fit: "cover", focusX: 0, focusY: 0, zoom: 2 },
+      coverSettings: {
+        aspect: "4:3",
+        fit: "cover",
+        focusX: 0,
+        focusY: 0,
+        zoom: 2,
+      },
     });
     expect(editorFrame().dataset.aspect).toBe("4:3");
     fireEvent.click(screen.getByRole("button", { name: "移除封面" }));
@@ -178,16 +187,25 @@ describe("编辑器封面：调整入口与持久化", () => {
     fireEvent.click(screen.getByRole("button", { name: /发布/ }));
     const dialog = screen.getByRole("dialog");
     const section = within(dialog).getByRole("group", { name: "封面" });
-    fireEvent.click(within(section).getByRole("radio", { name: "标准横版 4:3" }));
+    fireEvent.click(
+      within(section).getByRole("radio", { name: "标准横版 4:3" }),
+    );
     const preview = within(section).getByLabelText("实时预览");
     expect(
       preview.querySelector<HTMLElement>(".cover-frame")!.dataset.aspect,
     ).toBe("4:3");
-    expect(within(section).getByRole("button", { name: "更换图片" })).toBeTruthy();
+    expect(
+      within(section).getByRole("button", { name: "更换图片" }),
+    ).toBeTruthy();
     h.api
       .mockResolvedValueOnce({ post: { ...post, version: 2 } })
       .mockResolvedValueOnce({
-        post: { ...post, version: 3, visibility: "public", publishedAt: post.updatedAt },
+        post: {
+          ...post,
+          version: 3,
+          visibility: "public",
+          publishedAt: post.updatedAt,
+        },
       });
     fireEvent.click(within(dialog).getByRole("button", { name: "确认发布" }));
     await act(async () => {});
@@ -204,6 +222,8 @@ describe("编辑器封面：调整入口与持久化", () => {
     const section = within(screen.getByRole("dialog")).getByRole("group", {
       name: "封面",
     });
-    expect(within(section).getByRole("button", { name: "选择封面图片" })).toBeTruthy();
+    expect(
+      within(section).getByRole("button", { name: "选择封面图片" }),
+    ).toBeTruthy();
   });
 });

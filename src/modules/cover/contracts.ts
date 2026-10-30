@@ -51,7 +51,9 @@ export function normalizeCoverSettings(value: unknown): CoverSettings {
     return result;
   const shape = coverSettingsSchema.shape;
   for (const key of Object.keys(shape) as (keyof CoverSettings)[]) {
-    const parsed = shape[key].safeParse((value as Record<string, unknown>)[key]);
+    const parsed = shape[key].safeParse(
+      (value as Record<string, unknown>)[key],
+    );
     if (parsed.success) (result as Record<string, unknown>)[key] = parsed.data;
   }
   return result;

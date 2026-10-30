@@ -52,12 +52,12 @@ describe("封面设置协议", () => {
     expect(coverSettingsSchema.safeParse(crop("1:1", 50, -1)).success).toBe(
       false,
     );
-    expect(coverSettingsSchema.safeParse(crop("1:1", 50, 50, 0.9)).success).toBe(
-      false,
-    );
-    expect(coverSettingsSchema.safeParse(crop("1:1", 50, 50, 3.1)).success).toBe(
-      false,
-    );
+    expect(
+      coverSettingsSchema.safeParse(crop("1:1", 50, 50, 0.9)).success,
+    ).toBe(false);
+    expect(
+      coverSettingsSchema.safeParse(crop("1:1", 50, 50, 3.1)).success,
+    ).toBe(false);
     expect(
       coverSettingsSchema.safeParse({ ...crop("1:1"), extra: 1 }).success,
     ).toBe(false);
@@ -163,7 +163,14 @@ describe("封面几何：一处计算，处处一致", () => {
       [1000, 1000, crop("4:3", 50, 50, 1.25)],
     ];
     for (const [w, h, s] of cases) {
-      const g = cropGeometry(w, h, coverRatio(s.aspect)!, s.zoom, s.focusX, s.focusY);
+      const g = cropGeometry(
+        w,
+        h,
+        coverRatio(s.aspect)!,
+        s.zoom,
+        s.focusX,
+        s.focusY,
+      );
       const r = visibleRegion(w, h, s);
       expect(r.x * w).toBeCloseTo(g.sx, 6);
       expect(r.y * h).toBeCloseTo(g.sy, 6);

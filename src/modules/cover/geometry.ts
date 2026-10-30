@@ -25,7 +25,8 @@ export function coverImageStyle(s: CoverSettings): {
   transform?: string;
   transformOrigin?: string;
 } {
-  if (!isCropping(s)) return { objectFit: "contain", objectPosition: "50% 50%" };
+  if (!isCropping(s))
+    return { objectFit: "contain", objectPosition: "50% 50%" };
   const position = `${pct(s.focusX)} ${pct(s.focusY)}`;
   return {
     objectFit: "cover",

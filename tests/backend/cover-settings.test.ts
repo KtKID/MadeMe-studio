@@ -14,7 +14,12 @@ beforeEach(() => {
   env = fixtureEnv();
 });
 afterEach(() => env.DB.close());
-async function request(path: string, method = "GET", body?: unknown, owner = true) {
+async function request(
+  path: string,
+  method = "GET",
+  body?: unknown,
+  owner = true,
+) {
   return handleAPI({
     request: new Request(`https://site.test/api/${path}`, {
       method,
@@ -58,7 +63,9 @@ it("封面设置随草稿保存、重新载入、发布快照、工作台摘要�
     visibility: "public",
   });
   expect(p.hasUnpublishedChanges).toBe(false);
-  const owner = postsResponseSchema.parse(await (await request("posts")).json());
+  const owner = postsResponseSchema.parse(
+    await (await request("posts")).json(),
+  );
   expect(owner.posts[0].coverSettings).toEqual(square);
   const anonymous = postsResponseSchema.parse(
     await (await request("posts", "GET", undefined, false)).json(),
@@ -166,7 +173,12 @@ it("通过接口更换封面图但未给设置时，只重置位置与缩放", a
     version: p.version,
     title: "只改标题",
   });
-  expect(p.coverSettings).toEqual({ ...square, focusX: 50, focusY: 50, zoom: 1 });
+  expect(p.coverSettings).toEqual({
+    ...square,
+    focusX: 50,
+    focusY: 50,
+    zoom: 1,
+  });
 });
 
 it("恢复历史版本带回当时的封面设置", async () => {

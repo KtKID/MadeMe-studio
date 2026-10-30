@@ -57,7 +57,9 @@ describe("封面调整器", () => {
       "宽屏 16:9",
     ]);
     expect(
-      screen.getByRole("radio", { name: "原图比例" }).getAttribute("aria-checked"),
+      screen
+        .getByRole("radio", { name: "原图比例" })
+        .getAttribute("aria-checked"),
     ).toBe("true");
     expect(
       (screen.getByRole("radio", { name: "铺满裁切" }) as HTMLButtonElement)
@@ -76,9 +78,7 @@ describe("封面调整器", () => {
   });
   it("完整显示不出现裁切控件；切到铺满裁切后出现缩放与位置", () => {
     const spy = vi.fn();
-    render(
-      <Harness initial={{ ...square, fit: "contain" }} spy={spy} />,
-    );
+    render(<Harness initial={{ ...square, fit: "contain" }} spy={spy} />);
     expect(screen.queryByLabelText("缩放")).toBeNull();
     expect(screen.getByText(/白色补足/)).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: "铺满裁切" }));
@@ -115,7 +115,17 @@ describe("封面调整器", () => {
     loadImage(1600, 900);
     const area = screen.getByLabelText("拖动或用方向键调整保留区域");
     area.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 200, height: 112.5, right: 200, bottom: 112.5, x: 0, y: 0, toJSON() {} }) as DOMRect;
+      ({
+        left: 0,
+        top: 0,
+        width: 200,
+        height: 112.5,
+        right: 200,
+        bottom: 112.5,
+        x: 0,
+        y: 0,
+        toJSON() {},
+      }) as DOMRect;
     fireEvent.pointerDown(area, { clientX: 100, clientY: 50, pointerId: 1 });
     fireEvent.pointerMove(area, { clientX: 110, clientY: 50, pointerId: 1 });
     fireEvent.pointerUp(area, { clientX: 110, clientY: 50, pointerId: 1 });

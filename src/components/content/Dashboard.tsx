@@ -1,4 +1,5 @@
 import "../../modules/publication-status/styles.css";
+import CoverFrame from "../../modules/cover/CoverFrame";
 import TypeDropdown from "../../modules/article-types/TypeDropdown";
 import { useArticleTypes } from "../../modules/article-types/client";
 import { DEFAULT_ARTICLE_TYPES } from "../../modules/article-types/contracts";
@@ -274,9 +275,16 @@ export default function Dashboard({
               {filtered.map((p) => (
                 <article className="post-row" key={p.id}>
                   <a className="post-main" href={`/studio/edit?id=${p.id}`}>
-                    <div className="post-thumb">
+                    <div
+                      className={`post-thumb${p.coverImage ? " has-cover" : ""}`}
+                    >
                       {p.coverImage ? (
-                        <img src={p.coverImage} alt="" loading="lazy" />
+                        <CoverFrame
+                          src={p.coverImage}
+                          settings={p.coverSettings}
+                          variant="thumb"
+                          loading="lazy"
+                        />
                       ) : (
                         <FileText size={23} />
                       )}

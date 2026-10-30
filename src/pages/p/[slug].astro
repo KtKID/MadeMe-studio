@@ -4,6 +4,8 @@ import ProductCredit from "../../components/shared/ProductCredit";
 import { canIndexPost } from "../../server/response-policy";
 import Base from "../../layouts/Base.astro";
 import BlockReader from "../../components/content/BlockReader";
+import CoverFrame from "../../modules/cover/CoverFrame";
+import "../../modules/cover/styles.css";
 import InlineEditor from "../../components/editor/InlineEditor";
 import Unlock from "../../components/content/Unlock";
 import { Feather, ArrowLeft, ArrowUpRight } from "lucide-react";
@@ -90,7 +92,11 @@ const capabilities = authenticated
             </header>
             {post.coverImage && (
               <figure class="reading-cover">
-                <img src={post.coverImage} alt={post.title} />
+                <CoverFrame
+                  src={post.coverImage}
+                  settings={post.coverSettings}
+                  alt={post.title}
+                />
               </figure>
             )}
             <div class="reading-prose">

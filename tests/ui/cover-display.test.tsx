@@ -72,10 +72,14 @@ describe("首页卡片、工作台缩略图共用封面设置", () => {
         authenticated={false}
       />,
     );
-    const frames = [...container.querySelectorAll<HTMLElement>(".article-card .cover-frame")];
+    const frames = [
+      ...container.querySelectorAll<HTMLElement>(".article-card .cover-frame"),
+    ];
     expect(frames.map((f) => f.dataset.aspect)).toEqual(["16:9", "original"]);
     expect(
-      container.querySelector(".article-card-visual")!.classList.contains("has-cover"),
+      container
+        .querySelector(".article-card-visual")!
+        .classList.contains("has-cover"),
     ).toBe(true);
   });
   it("工作台缩略图使用同一设置，不另行裁切", () => {
@@ -95,7 +99,9 @@ describe("首页卡片、工作台缩略图共用封面设置", () => {
         }}
       />,
     );
-    const frame = container.querySelector<HTMLElement>(".post-thumb .cover-frame")!;
+    const frame = container.querySelector<HTMLElement>(
+      ".post-thumb .cover-frame",
+    )!;
     expect(frame.dataset.aspect).toBe("16:9");
     expect(frame.classList.contains("cover-frame--thumb")).toBe(true);
   });
@@ -112,7 +118,9 @@ describe("封面样式约束", () => {
   it("旧的固定高度与二次裁切已移除", () => {
     expect(global).not.toMatch(/\.editor-cover\s*\{[^}]*height:\s*230px/);
     expect(global).not.toMatch(/\.editor-cover\s*\{[^}]*height:\s*160px/);
-    expect(global).not.toMatch(/\.reading-cover img\s*\{[^}]*object-fit:\s*cover/);
+    expect(global).not.toMatch(
+      /\.reading-cover img\s*\{[^}]*object-fit:\s*cover/,
+    );
     expect(global).not.toMatch(/\.post-thumb img\s*\{[^}]*object-fit:\s*cover/);
   });
 });
