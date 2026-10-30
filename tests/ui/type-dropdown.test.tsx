@@ -22,8 +22,8 @@ it("方向键/Home/End/Enter 选择，Escape 取消不改变值", () => {
  fireEvent.keyDown(trigger, { key: "End" });
  expect(trigger.getAttribute("aria-activedescendant")).toBe(screen.getByRole("option", { name: "感悟" }).id);
  fireEvent.keyDown(trigger, { key: "Home" });
- fireEvent.keyDown(trigger, { key: "ArrowDown" });
- fireEvent.keyDown(trigger, { key: "Enter" }); expect(change).toHaveBeenCalledWith("ai");
+ fireEvent.keyDown(trigger, { key: "ArrowDown" }); fireEvent.keyDown(trigger, { key: "ArrowDown" });
+ fireEvent.keyDown(trigger, { key: "Enter" }); expect(change).toHaveBeenCalledWith("reflection");
  fireEvent.keyDown(trigger, { key: " " }); fireEvent.keyDown(trigger, { key: "ArrowUp" }); fireEvent.keyDown(trigger, { key: "Escape" });
  expect(change).toHaveBeenCalledTimes(1); expect(screen.queryByRole("listbox")).toBeNull(); expect(document.activeElement).toBe(trigger);
 });

@@ -412,3 +412,70 @@ it("AI 对话框的动作、模型、提示词使用共享下拉；未配置模�
   expect(prompt.textContent).toBe("内置提示词");
   expect(screen.getByRole("dialog")).toBeTruthy();
 });
+
+it("AI 对话框重新选择当前动作/模型/提示词不清空已编辑的建议与提示词选择", async () => {
+  const settings = {
+    ...defaultSettings,
+    providers: [
+      {
+        id: "p2",
+        name: "乙",
+        kind: "openai" as const,
+        model: "m2",
+        temperature: 0.7,
+        maxTokens: 2048,
+        configured: true,
+        textConfigured: true,
+      },
+    ],
+    prompts: [
+      {
+        id: "pr1",
+        name: "我的润色",
+        action: "polish" as const,
+        template: "{{selection}}",
+      },
+    ],
+  };
+  render(
+    <Editor
+      post={post}
+      settings={settings}
+      authenticated
+      aiConfigured
+      inline
+      onClose={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /AI 助手/ }));
+  const pick = (combo: string, option: string) => {
+    fireEvent.click(screen.getByRole("combobox", { name: combo }));
+    fireEvent.click(screen.getByRole("option", { name: option }));
+  };
+  const modelLabel = "乙 · m2（配置已就绪，未验证联调）";
+  // 先把模型、提示词设为目标值（这一步是真实变化，允许清空结果）。
+  pick("模型", modelLabel);
+  pick("提示词", "我的润色");
+  fireEvent.change(screen.getByLabelText("处理的文字"), {
+    target: { value: "原文" },
+  });
+  h.api.mockResolvedValueOnce({ text: "AI 结果" });
+  fireEvent.click(screen.getByRole("button", { name: /生成建议/ }));
+  const suggestion = (await screen.findByLabelText(
+    /AI 建议/,
+  )) as HTMLTextAreaElement;
+  fireEvent.change(suggestion, { target: { value: "我改过的建议" } });
+  // 再次选择当前值：不应触发 onChange，因此已编辑的建议与提示词选择都保留。
+  pick("想怎么处理", "润色文字");
+  pick("模型", modelLabel);
+  pick("提示词", "我的润色");
+  expect(
+    (screen.getByLabelText(/AI 建议/) as HTMLTextAreaElement).value,
+  ).toBe("我改过的建议");
+  expect(screen.getByRole("combobox", { name: "提示词" }).textContent).toBe(
+    "我的润色",
+  );
+  expect(screen.getByRole("combobox", { name: "模型" }).textContent).toBe(
+    modelLabel,
+  );
+});

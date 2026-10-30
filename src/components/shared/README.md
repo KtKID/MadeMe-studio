@@ -20,7 +20,7 @@
 
 ## 同主题下拉 `Dropdown.tsx`
 
-全站不使用原生 `select`：设置（服务商、正文字体、提示词动作）、编辑器 AI 对话框（动作、模型、提示词）与发布可见范围、媒体库类型筛选/裁剪比例/图像服务商、Obsidian 保存预设，以及文章类型入口都使用 `Dropdown`。选项为 `{ value, label, disabled? }`；`disabled` 与原生 option disabled 等价：可见、`aria-disabled`、不可点击，方向键/Home/End 跳过。当前值为禁用项时仍显示其文案，打开后活动项落在第一个可用项。`className` 只追加到触发器，用于局部尺寸（如 `.media-tools > .media-filter`）。
+全站不使用原生 `select`：设置（服务商、正文字体、提示词动作）、编辑器 AI 对话框（动作、模型、提示词）与发布可见范围、媒体库类型筛选/裁剪比例/图像服务商、Obsidian 保存预设，以及文章类型入口都使用 `Dropdown`。选项为 `{ value, label, disabled? }`；`disabled` 与原生 option disabled 等价：可见、`aria-disabled`、不可点击，方向键/Home/End 跳过。当前值为禁用项时仍显示其文案，打开后活动项落在第一个可用项。`className` 只追加到触发器，用于局部尺寸（如 `.media-tools > .media-filter`）。与原生 `select` 一致，重新选择当前值只关闭菜单、不调用 `onChange`；菜单打开期间选项值或禁用状态变化时，活动项若已不可用会回到已选/第一个可用项。
 
 交互：combobox/listbox 语义，焦点留在触发器并用活动后代；Enter/空格选择，Escape 关闭菜单且阻止冒泡，不会连带关闭外层 `Modal`；Tab/外点关闭不抢焦点。浮层 portal 到 body，样式见 `dropdown.css`，类名前缀 `ui-dropdown-`，继承主题 token。测试：`tests/ui/dropdown.test.tsx`、`tests/ui/type-dropdown.test.tsx`。
 

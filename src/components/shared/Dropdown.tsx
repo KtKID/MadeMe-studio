@@ -58,9 +58,17 @@ export default function Dropdown({
 
   useEffect(() => setHydrated(true), []);
   useEffect(() => { if (unavailable) setOpen(false); }, [unavailable]);
+  // 选项值/顺序/禁用状态的稳定签名：数量不变但内容或禁用变化时也要校正活动项。
+  const optionsSignature = options
+    .map((option) => `${option.value}\u0000${option.disabled ? 1 : 0}`)
+    .join("\u0001");
   useEffect(() => {
-    if (open) setActive(initialActive());
-  }, [value, options.length]);
+    if (!open) return;
+    // 当前活动项仍可用则保留，否则回到已选/第一个可用项，避免 aria-activedescendant 指向禁用项。
+    setActive((current) =>
+      options[current] && !options[current].disabled ? current : initialActive(),
+    );
+  }, [open, value, optionsSignature]);
 
   function close(restoreFocus = false) {
     setOpen(false);
@@ -75,7 +83,8 @@ export default function Dropdown({
     const option = options[index];
     if (!option || option.disabled || unavailable) return;
     close(true);
-    onChange(option.value);
+    // 与原生 select 一致：值未变化时不触发 change，避免重复执行调用方副作用。
+    if (option.value !== value) onChange(option.value);
   }
 
   useLayoutEffect(() => {

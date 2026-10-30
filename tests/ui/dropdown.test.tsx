@@ -49,8 +49,71 @@ it("方向键与 End 跳过禁用选项，循环回到第一个可用项", () =>
   expect(trigger.getAttribute("aria-activedescendant")).toBe(
     screen.getByRole("option", { name: "不公开列出" }).id,
   );
+  fireEvent.keyDown(trigger, { key: "ArrowUp" });
+  expect(trigger.getAttribute("aria-activedescendant")).toBe(
+    screen.getByRole("option", { name: "公开" }).id,
+  );
   fireEvent.keyDown(trigger, { key: "Enter" });
-  expect(change).toHaveBeenCalledWith("unlisted");
+  expect(change).toHaveBeenCalledWith("public");
+});
+it("重新选择当前值只关闭菜单，不触发 onChange（原生 select 语义）", () => {
+  const { change, trigger } = setup("unlisted");
+  fireEvent.click(trigger);
+  fireEvent.click(screen.getByRole("option", { name: "不公开列出" }));
+  expect(screen.queryByRole("listbox")).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+  fireEvent.keyDown(trigger, { key: "Enter" });
+  fireEvent.keyDown(trigger, { key: "Enter" });
+  expect(screen.queryByRole("listbox")).toBeNull();
+  expect(change).not.toHaveBeenCalled();
+});
+it("选项数量不变但禁用状态变化时，活动项移出新禁用项", () => {
+  const change = vi.fn();
+  const make = (lockUnlisted: boolean) => [
+    { value: "public", label: "公开" },
+    { value: "unlisted", label: "不公开列出", disabled: lockUnlisted },
+    { value: "password", label: "密码保护" },
+  ];
+  const { rerender } = render(
+    <Dropdown
+      label="范围"
+      value="public"
+      options={make(false)}
+      onChange={change}
+    />,
+  );
+  const trigger = screen.getByRole("combobox", { name: "范围" });
+  fireEvent.keyDown(trigger, { key: "ArrowDown" });
+  fireEvent.keyDown(trigger, { key: "ArrowDown" });
+  expect(trigger.getAttribute("aria-activedescendant")).toBe(
+    screen.getByRole("option", { name: "不公开列出" }).id,
+  );
+  rerender(
+    <Dropdown
+      label="范围"
+      value="public"
+      options={make(true)}
+      onChange={change}
+    />,
+  );
+  expect(trigger.getAttribute("aria-activedescendant")).toBe(
+    screen.getByRole("option", { name: "公开" }).id,
+  );
+  // 仍可用的活动项保持不动。
+  fireEvent.keyDown(trigger, { key: "End" });
+  rerender(
+    <Dropdown
+      label="范围"
+      value="public"
+      options={make(false)}
+      onChange={change}
+    />,
+  );
+  expect(trigger.getAttribute("aria-activedescendant")).toBe(
+    screen.getByRole("option", { name: "密码保护" }).id,
+  );
+  fireEvent.keyDown(trigger, { key: "Enter" });
+  expect(change).toHaveBeenCalledWith("password");
 });
 it("当前值为禁用项时打开定位到第一个可用项", () => {
   const { trigger } = setup("password");
