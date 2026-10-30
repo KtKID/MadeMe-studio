@@ -1,0 +1,199 @@
+:root {
+  font-family:
+    system-ui,
+    -apple-system,
+    "PingFang SC",
+    sans-serif;
+  color-scheme: light dark;
+  --bg: #faf9f6;
+  --panel: #fff;
+  --ink: #302d27;
+  --muted: #716b60;
+  --line: #e7e2d8;
+  --accent: #f6c552;
+  --accent-ink: #332500;
+  --hover: #f1ede4;
+  --error: #a43a25;
+  --error-bg: #fff0e9;
+  color: var(--ink);
+  background: var(--bg);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+a,
+textarea {
+  font: inherit;
+}
+button,
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0.65rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+button:hover:not(:disabled),
+.button:hover {
+  filter: brightness(0.96);
+}
+button.secondary,
+.button.secondary {
+  background: var(--panel);
+  color: var(--ink);
+  border-color: var(--line);
+}
+button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+button:focus-visible,
+a:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.harness-console {
+  max-width: 850px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+.eyebrow {
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+h1 {
+  font-size: 1.8rem;
+  margin: 0.5rem 0;
+}
+h2 {
+  font-size: 1.1rem;
+  margin: 0 0 1rem;
+}
+p {
+  line-height: 1.65;
+  margin: 0.6rem 0;
+}
+header {
+  margin-bottom: 24px;
+}
+header > p:last-child,
+.hint {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+section {
+  padding: 24px;
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 14px;
+}
+.section-heading,
+.actions,
+.task-options {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.section-heading {
+  justify-content: space-between;
+}
+.section-heading h2 {
+  margin: 0;
+}
+.actions {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.task-options {
+  margin-bottom: 20px;
+}
+label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+textarea {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+}
+.notice {
+  padding: 12px 16px;
+  border-radius: 9px;
+}
+.error {
+  color: var(--error);
+  background: var(--error-bg);
+}
+.result-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.8;
+}
+.result-image {
+  display: block;
+  max-width: 100%;
+  max-height: 600px;
+  margin: 16px auto;
+  border-radius: 9px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #191917;
+    --panel: #23231f;
+    --ink: #f2eee5;
+    --muted: #bbb4a6;
+    --line: #444239;
+    --hover: #343128;
+    --error: #ffb197;
+    --error-bg: #452a22;
+  }
+}
+@media (max-width: 520px) {
+  .harness-console {
+    padding: 24px 14px 40px;
+  }
+  section {
+    padding: 18px;
+  }
+  h1 {
+    font-size: 1.5rem;
+  }
+  .actions {
+    gap: 8px;
+  }
+  .actions > button,
+  .actions > .button {
+    flex: 0 1 auto;
+  }
+}
