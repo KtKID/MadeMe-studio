@@ -1,4 +1,5 @@
 import TypeSettings from "../../modules/article-types/TypeSettings";
+import TypeDropdown from "../../modules/article-types/TypeDropdown";
 import ObsidianSettings from "../../modules/obsidian-local/Settings";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
@@ -30,7 +31,7 @@ import {
   type Provider,
 } from "../../shared/contracts";
 import { settingsPatch, reconcileSettingsResponse } from "./settings-state";
-import { providerLabels, normalizeImageModel } from "./model-options";
+import { providerOptions, normalizeImageModel } from "./model-options";
 import { ConfigSection, configProblems } from "./ConfigSection";
 import {
   AI_PARAMS,
@@ -598,22 +599,15 @@ export default function SettingsPanel({
                     </label>
                     <label>
                       服务商
-                      <select
+                      <TypeDropdown
+                        id={`provider-kind-${p.id}`}
+                        label="服务商"
                         value={p.kind}
-                        onChange={(e) =>
-                          provider(i, {
-                            kind: e.target.value as Provider["kind"],
-                          })
+                        options={providerOptions}
+                        onChange={(kind) =>
+                          provider(i, { kind: kind as Provider["kind"] })
                         }
-                      >
-                        {Object.entries(providerLabels).map(
-                          ([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ),
-                        )}
-                      </select>
+                      />
                     </label>
                     <label>
                       模型 ID

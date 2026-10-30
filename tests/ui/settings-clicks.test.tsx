@@ -67,6 +67,26 @@ describe("设置真实 DOM 点击链路", () => {
     expect(h.api).toHaveBeenCalledTimes(2);
     expect(screen.getByText("设置已同步")).toBeTruthy();
   });
+  it("服务商使用主题下拉而非原生 select，选择后值与保存载荷一致", async () => {
+    const { guard } = setup({ providers: [{ id: "model_kind", name: "测试模型", kind: "openai", model: "m", temperature: 0.7, maxTokens: 2048, configured: false }] });
+    click("AI 模型");
+    expect(document.querySelector(".config-card select")).toBeNull();
+    const trigger = screen.getByRole("combobox", { name: "服务商" });
+    expect(trigger.textContent).toBe("OpenAI");
+    fireEvent.click(trigger);
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["OpenAI", "OpenRouter", "SiliconFlow", "Cloudflare AI", "Google Gemini"]);
+    expect(screen.getByRole("option", { selected: true }).textContent).toBe("OpenAI");
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(trigger.textContent).toBe("OpenRouter");
+    expect(guard.mock.lastCall?.[0].dirty).toBe(true);
+    h.api.mockImplementationOnce(async (_url: string, init: RequestInit) => ({ settings: { ...structuredClone(defaultSettings), navigation: [], prompts: [], providers: JSON.parse(String(init.body)).providers } }));
+    click("保存设置");
+    await waitFor(() => expect(h.api).toHaveBeenCalled());
+    expect(JSON.parse(h.api.mock.calls[0][1].body).providers[0].kind).toBe("openrouter");
+  });
   it("提示词新增、编辑、切换回来保留，删除不误写服务器", () => {
     const { guard } = setup();
     click("提示词"); click("添加提示词"); input("名称", "专属提示词"); input("动作", "expand"); input("提示词模板", "扩写 {{selection}}");

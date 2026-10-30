@@ -7,6 +7,10 @@ export const providerLabels: Record<Provider["kind"], string> = {
   cloudflare: "Cloudflare AI",
   gemini: "Google Gemini",
 };
+/** 设置页服务商下拉选项；顺序与 providerLabels 一致。 */
+export const providerOptions = Object.entries(providerLabels).map(
+  ([value, label]) => ({ value, label }),
+);
 export function normalizeImageModel<T extends { imageModel?: string }>(
   value: T,
 ): T {

@@ -12,7 +12,7 @@
 
 `theme` 只决定首页结构（编辑刊物 / 时间线 / 画廊 / 极简）；`skin` 决定配色；`mode` 决定明暗；`font` 决定正文、标题和编辑器字栈。默认微软雅黑、暖黄、跟随系统。`accent:null` 表示无自定义覆盖；“恢复皮肤默认”会明确提交 null，不覆盖其他字段。
 
-`model-options.ts` 只负责共享 Provider 枚举的展示名称。支持 Google Gemini、OpenAI、OpenRouter、SiliconFlow、Cloudflare AI，文本与图片模型独立；空白图片模型省略。模型列表从已保存的服务端配置读取，不接收任意 baseURL 或密钥。
+`model-options.ts` 只负责共享 Provider 枚举的展示名称及由其派生的 `providerOptions`；AI 模型卡片的“服务商”使用与文章类型相同的 `TypeDropdown`，不使用原生 select。支持 Google Gemini、OpenAI、OpenRouter、SiliconFlow、Cloudflare AI，文本与图片模型独立；空白图片模型省略。模型列表从已保存的服务端配置读取，不接收任意 baseURL 或密钥。
 
 ## 并发保存策略
 
