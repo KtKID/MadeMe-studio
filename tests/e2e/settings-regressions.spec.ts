@@ -10,6 +10,20 @@ async function chooseFont(page: Page, font: string) {
     .getByRole("option", { name: fontLabels[font], exact: true })
     .click();
 }
+async function openAppearance(page: Page) {
+  await page.goto("/studio/settings");
+  await expect(page.locator("[data-studio-ready=true]")).toBeVisible();
+  const appearance = page.getByRole("button", {
+    name: "主题与字体",
+    exact: true,
+  });
+  await expect(appearance).toBeEnabled();
+  await appearance.click();
+  await expect(
+    page.getByRole("button", { name: "深色", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "正文字体" })).toBeVisible();
+}
 test.describe.configure({ mode: "serial" });
 test("@author 设置回归：延迟PATCH只提交dirty字段且保留后续字体修改", async ({
   page,
@@ -29,8 +43,7 @@ test("@author 设置回归：延迟PATCH只提交dirty字段且保留后续字�
   const started = new Promise<void>((resolve) => (arrived = resolve));
   let payload: Record<string, unknown> = {};
   try {
-    await page.goto("/studio/settings");
-    await page.getByRole("button", { name: "主题与字体", exact: true }).click();
+    await openAppearance(page);
     await page
       .getByRole("button", {
         name: mode === "dark" ? "深色" : "浅色",
@@ -76,12 +89,7 @@ test("@author 设置回归：两个窗口分别改mode与font不会互相覆盖"
   const font = original.font === "serif" ? "mono" : "serif";
   const second = await context.newPage();
   try {
-    await page.goto("/studio/settings");
-    await second.goto("/studio/settings");
-    for (const target of [page, second])
-      await target
-        .getByRole("button", { name: "主题与字体", exact: true })
-        .click();
+    for (const target of [page, second]) await openAppearance(target);
     await page
       .getByRole("button", {
         name: mode === "dark" ? "深色" : "浅色",

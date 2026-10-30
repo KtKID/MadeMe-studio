@@ -167,7 +167,7 @@ export default function SettingsPanel({
   const [loadingModels, setLoadingModels] = useState<Set<string>>(
     () => new Set(),
   );
-  // 新入口在水合前保持禁用，避免首屏点击无事件反馈。
+  // 所有设置分类在水合前保持禁用，避免 SSR 首屏点击丢失。
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
   const pendingModels = useRef(new Set<string>());
@@ -330,7 +330,7 @@ export default function SettingsPanel({
           ].map((t) => (
             <button
               key={t.id}
-              disabled={t.id === "article-types" && !hydrated}
+              disabled={!hydrated}
               className={tab === t.id ? "active" : ""}
               onClick={() => setTab(t.id)}
             >

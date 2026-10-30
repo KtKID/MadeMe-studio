@@ -158,13 +158,21 @@ it("设置提供独立文章类型维护入口，不再靠文章自由输入列�
   expect(screen.getByText("感悟")).toBeTruthy();
 });
 
- it("文章类型入口在 SSR 水合前禁用，绑定事件后可进入", () => {
+it("所有设置分类在 SSR 水合前禁用，绑定事件后可切换", () => {
   const html = renderToString(<SettingsPanel initial={defaultSettings} authenticated />);
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const button = [...doc.querySelectorAll("button")].find((node) => node.textContent === "文章类型");
-  expect(button?.disabled).toBe(true);
+  const buttons = [...doc.querySelectorAll<HTMLButtonElement>(".settings-nav button")];
+  expect(buttons.length).toBeGreaterThan(1);
+  for (const button of buttons) {
+    expect(button.disabled, `${button.textContent} 在水合前不应可点`).toBe(true);
+  }
+  h.api.mockResolvedValue({ types: [] });
   setup();
-  expect((screen.getByRole("button", { name: "文章类型" }) as HTMLButtonElement).disabled).toBe(false);
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".settings-nav button")) {
+    expect(button.disabled, `${button.textContent} 在水合后应可点`).toBe(false);
+  }
+  click("主题与字体");
+  expect(screen.getByRole("button", { name: /^深色$/ })).toBeTruthy();
   click("文章类型");
   expect(screen.getByRole("heading", { name: "文章类型" })).toBeTruthy();
- });
+});
