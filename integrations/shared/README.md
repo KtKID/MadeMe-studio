@@ -12,3 +12,15 @@
 - `sourceUrl` / `clipMarkdown`：移除剪藏 URL 的 query/fragment，引用文本不当作 HTML 执行。
 
 浏览器/Obsidian 由 esbuild 打包；CLI 使用 Node 原生 TS。此模块的单元测试在 `../tests/client.node.mjs`。HTTP Mock 测试并不等于真实部署端到端验证。
+
+## Post 字段契约（post-fields.ts）
+
+`post-fields.ts` 为每个客户端（obsidian-publisher、chrome-clipper、agent-publisher）逐字段标注服务端 Post 字段是 `'used'` 还是 `'ignored'`。
+`tests/post-fields-contract.test.ts`（vitest，CI 中运行）会在以下情况失败：
+
+- 服务端 `postSchema` 新增字段而某个客户端未标注；
+- 清单中出现服务端已删除的字段；
+- 客户端 `used` 的字段不在 `postReadSchema`，或不在 `LEGACY_POST_KEYS` 却不是可选字段；
+- `LEGACY_POST_KEYS` 被改动或包含服务端已删除的字段。
+
+`npm run check` 也会对清单做类型检查（缺少或多出字段都是类型错误）。
