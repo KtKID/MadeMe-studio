@@ -98,3 +98,6 @@ npm run test:integrations
 - [文章类型模块](src/modules/article-types/README.md)：设置维护稳定 ID 类型、编辑器内新增并选中、首页动态筛选，兼容旧分类且与标签独立。
 
 - [草稿与线上版本状态](src/modules/publication-status/README.md)：后台提示已保存但尚未发布的语义修改，保留线上可见性，不改变发布流程。
+
+- [Codex 独立本地 Harness](integrations/codex-harness/README.md)：App Server 进程适配、同机网页登录、白名单任务与受认证本地控制台；不托管订阅认证。
+- [博客 Harness 适配边界](src/modules/codex-harness/README.md)：共享业务协议与待审阅结果，不耦合 CLI；云端到本地连接尚未配置。

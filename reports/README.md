@@ -65,3 +65,5 @@
 - [文章类型同主题下拉修正](2026-10-29-article-type-dropdown.md)
 
 - [已发布文章的有新修改状态](2026-10-29-publication-status.md)
+
+- [Codex 本地 Harness 接入验收](2026-10-29-codex-harness.md)：独立本地 App Server 适配、离线安全测试和用户网页登录验收边界。
