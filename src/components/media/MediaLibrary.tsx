@@ -11,6 +11,10 @@ import {
   type RuntimeConfig,
 } from "../../modules/config";
 import { clientLog } from "../../modules/log/client";
+import {
+  mayNeedShrink,
+  shrinkForUpload,
+} from "../../modules/image-delivery/upload-shrink";
 import { useEffect, useRef, useState } from "react";
 import Dropdown from "../shared/Dropdown";
 import {
@@ -136,12 +140,19 @@ function CropImage({
         }
       });
       guard.current.assertReady(cropKey);
-      const form = new FormData();
-      form.append(
-        "file",
-        blob,
+      // 大图裁剪结果同样可能超出 Worker 解码上限，与普通上传共用预缩小。
+      // 本文件导入了同名图标 File，这里必须用全局构造函数。
+      let cropped = new globalThis.File(
+        [blob],
         `crop-${media.name.replace(/\.[^.]+$/, "")}.jpg`,
+        { type: "image/jpeg" },
       );
+      if (mayNeedShrink(cropped)) {
+        cropped = await shrinkForUpload(cropped);
+        guard.current.assertReady(cropKey);
+      }
+      const form = new FormData();
+      form.append("file", cropped);
       if (postId) form.append("postId", postId);
       const result = await api<{ media: Media }>("/api/media", {
         method: "POST",
@@ -301,7 +312,11 @@ export default function MediaLibrary({
     setBusy(true);
     setError("");
     try {
-      for (const file of Array.from(files)) {
+      for (const picked of Array.from(files)) {
+        // 超出 Worker 解码上限的照片先在浏览器缩到落库宽度，避免 413。
+        const file = mayNeedShrink(picked)
+          ? await shrinkForUpload(picked)
+          : picked;
         // 与服务端同一个检查函数（src/modules/config uploadProblem），上传前就给出中文原因。
         const problem = mediaUploadProblem(file, config.upload);
         if (problem) {

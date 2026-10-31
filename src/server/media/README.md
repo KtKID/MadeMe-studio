@@ -2,7 +2,7 @@
 
 媒体二进制存入 R2，文件元数据写入 D1；数据库失败时清理刚写入的对象，避免孤立上传。上传上限按类型来自设置页“上传与媒体”（默认 25 MB，硬上限 50 MB，见 `src/modules/config`），校验允许 MIME 与主要文件签名，不接受 HTML 或 SVG。
 
-新增的[图片衍生与安全缓存](../../modules/image-delivery/README.md)保留这条原图链路，按需生成 480/960 WebP；公开/私有路径分别授权，只有确实被公开快照引用的衍生图允许短时浏览器缓存。下文的 `private, no-store` 继续适用于原图与音视频，不应整体把媒体桶或 `/api/files` 改为公开缓存。
+上传的静态 PNG/JPEG/WebP 在 `saveMedia` 中按 EXIF 方向转正、缩到最大 960 宽并转 WebP，只存 `media/<id>.webp`（`stored-image.ts` 定义键名、`raster-codec.ts` 为共用转码核心、`image-wasm.ts` 为 Worker WASM 注入）；GIF/动画/音视频/文档原样存 `media/<id>`。超出 Worker 解码上限返回 413，解码失败返回 422 并记录日志，不会退回保存大原图。展示衍生与缓存见[图片衍生与安全缓存](../../modules/image-delivery/README.md)；公开/私有路径分别授权，只有确实被公开快照引用的衍生图允许短时浏览器缓存。下文的 `private, no-store` 继续适用于 `/api/files` 与音视频，不应整体把媒体桶或 `/api/files` 改为公开缓存。
 
 文件 URL 只暴露不可预测媒体 ID。每次读取均检查作者身份，或检查未删除已发布文章中的引用和该文章的访问权限。未发布媒体、没有有效密码授权的文件不能直接访问。
 

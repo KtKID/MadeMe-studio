@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { providerSchema } from "../../src/shared/contracts";
 import { generateImage, listModels, runAI } from "../../src/server/ai/service";
 import { writeSettings } from "../../src/server/settings";
@@ -7,9 +8,12 @@ import { captureLogs } from "./log-capture";
 import { fixtureEnv } from "./support";
 
 let env: ReturnType<typeof fixtureEnv>;
-const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+// 生成图同样经 saveMedia 转为 960 WebP 落库，因此 fixture 必须是可解码的真实图片。
+const png = new Uint8Array(readFileSync("tests/fixtures/valid-image.png"));
 const png64 = btoa(String.fromCharCode(...png));
-const jpeg64 = btoa(String.fromCharCode(255, 216, 255, 224));
+const jpeg64 = btoa(
+  String.fromCharCode(...readFileSync("tests/fixtures/valid-image.jpg")),
+);
 const mockFetch = vi.fn<typeof fetch>();
 beforeEach(() => {
   env = fixtureEnv();
@@ -105,7 +109,7 @@ describe("新增提供商协议：官方格式 fixture，先测后实现", () =>
       "TEXT",
       "IMAGE",
     ]);
-    expect(image.mime).toBe("image/png");
+    expect(image.mime).toBe("image/webp");
   });
   it("Gemini 文本使用原生 systemInstruction 和候选正文", async () => {
     Object.assign(env, { GEMINI_API_KEY: "fixture-gemini-key" });
@@ -171,7 +175,7 @@ describe("新增提供商协议：官方格式 fixture，先测后实现", () =>
       new Headers(mockFetch.mock.calls[1][1]?.headers).has("authorization"),
     ).toBe(false);
     expect(mockFetch.mock.calls[1][1]?.redirect).toBe("manual");
-    expect(image.mime).toBe("image/png");
+    expect(image.mime).toBe("image/webp");
   });
   it.each([
     "http://127.0.0.1/image.png",
@@ -213,7 +217,7 @@ describe("新增提供商协议：官方格式 fixture，先测后实现", () =>
     expect(sent().url).toBe(
       `https://api.cloudflare.com/client/v4/accounts/${"a".repeat(32)}/ai/run/@cf/black-forest-labs/flux-1-schnell`,
     );
-    expect(image.mime).toBe("image/jpeg");
+    expect(image.mime).toBe("image/webp");
   });
   it("Cloudflare 模型发现使用 models/search 并返回模型名称而不是内部 UUID", async () => {
     env.CLOUDFLARE_AI_TOKEN = "fixture-cloudflare-key";
@@ -495,6 +499,6 @@ describe("提供商边界与失败路径", () => {
           providerId: "provider",
         })
       ).mime,
-    ).toBe("image/png");
+    ).toBe("image/webp");
   });
 });

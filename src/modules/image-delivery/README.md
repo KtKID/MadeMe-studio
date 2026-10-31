@@ -2,16 +2,26 @@
 
 封面位置比例、素材和展示设计见 [docs/COVERS.md](../../../docs/COVERS.md)；本文件只维护衍生处理与缓存实现，不据首页卡片位置强制裁切原图。
 
-## 原图和展示图
+## 落库图（960 WebP）和展示图
 
-`/api/media` 继续原样保存上传字节、媒体 ID 和 `/api/files/:id`，不删除或覆盖原图。编辑器、媒体库、API/CLI 导入、裁剪另存、AI 图片落库仍复用 `saveMedia`；没有另建仅针对 UI 上传的压缩链。
+上传只存一份缩小后的图，不保留大原图。`saveMedia` 是唯一入口，编辑器、媒体库上传、API/CLI/Markdown 导入、裁剪另存、AI 生成图都经过它：
 
-展示端由 `imageSources` 把本站原图 ID 映射到两档 WebP 请求，首次经过权限检查后由服务端统一生成并存入 R2。新图、旧图和不同上传来源使用同一管线，不用重写文章 JSON、复制原图或迁移 D1。外部 HTTPS 图片保持原地址，不做代理抓取。空封面保持原有占位。
+- 静态 PNG、JPEG、静态 WebP：按 EXIF 方向转正，等比缩到最大 960 宽（从不放大），WebP q80（alpha 质量 100，透明保留）编码后写入 `media/<id>.webp`。D1 行的 `mime=image/webp`、`size` 为新字节数、`name` 改为 `.webp` 扩展名。常量 `IMAGE_STORE_RECIPE=s1`、`IMAGE_STORE_MAX_WIDTH=960`、`IMAGE_STORE_QUALITY=80` 只在 `src/modules/config/limits.ts` 维护。
+- 宽度不进设置页：`960.webp` URL、srcset 宽度描述、`s1/` 衍生路径与存量迁移都依赖它；要改必须升级 `IMAGE_STORE_RECIPE` 并另写迁移。
+- GIF、AVIF、动画 PNG/WebP、SVG（本来就不允许上传）、音视频、文档：原样保存在 `media/<id>`，不转码，避免丢帧或破坏矢量/媒体。浏览器预缩小同样识别动画 PNG（acTL）/动画 WebP（VP8X 动画位）并跳过，不会只留首帧；动画图超过 Worker 解码上限也照样原样保存（服务端先识别动画再检查尺寸）。
+- 元数据：重新编码只写像素，EXIF/XMP/ICC 全部去除。ICC 只识别、不做色彩转换，输出按 sRGB 解释；广色域（Display P3/Adobe RGB）照片可能轻微偏色。浏览器导出的裁剪 JPEG 通常带 sRGB 配置，去掉不影响颜色。
+- Worker 解码上限：16MiB / 400 万像素 / 单边 8192（实测 12MP JPEG 解码+缩放 RSS≈285MB，超过 128MB 限制）。超限上传返回 `413 IMAGE_TOO_LARGE`（提示先缩小再上传）。界面上传与裁剪另存先经 `upload-shrink.ts` 在浏览器按方向转正并缩到同时满足 960 宽、单边 8192、400 万像素的尺寸（无损 PNG 交给服务端），因此手机原图可以直接从 UI 上传；API/CLI 不做预缩小。
+- 失败不静默、不退回保存大原图：尺寸头无效 `422 IMAGE_DIMENSIONS`、解码/编码失败 `422 IMAGE_CONVERT_FAILED`，经统一日志 `media.image_rejected`（warn）/`media.image_convert_failed`（error）记录；成功记 `media.image_stored_webp`（含前后字节数、尺寸、方向、是否有 ICC）。
 
-- 配方 `v1`、宽度 480/960、WebP quality 80，常量唯一来源是 `src/modules/config/limits.ts`。等比缩小、从不放大，1536×1024 对应 960×640、480×320。
-- Worker 使用 Photon 解码/Lanczos3 缩放、jSquash WebP 编码，WASM 在部署产物中预编译导入；不使用 sharp，不需要 Cloudflare Images 绑定，不发起外部处理或真实模型请求。
-- 封面原图/1:1/4:3/16:9、contain/cover、焦点和缩放继续由现有 `CoverFrame` 控制；衍生文件保持原始比例。选 16:9 + cover 才按已有相对焦点裁切展示，不把所有原图硬裁成 3:2 或 16:9。
-- 首页主次卡片、普通网格、文章封面、正文图片和媒体库缩略图使用 `srcset/sizes`。编辑器和下载/裁剪输入仍能读取原图，避免把缩略图作为再次编辑的源。
+`/api/files/:id`（含“下载原图”）现在返回的就是落库的 960 WebP。
+
+展示端 `imageSources` 仍输出 480/960 两档 srcset，并附带 `data-fallback-src=/api/files/:id`：
+
+- 落库图请求 `960.webp` 时直接返回 R2 中的落库对象（`X-Image-Processing: s1-stored`，ETag 为对象 SHA-256），不另存 960 衍生；`480.webp` 从落库图生成并存放在 `image-derivatives/v1/<id>/s1/`。
+- 尚未迁移的旧原图（`media/<id>`、原 MIME）继续走旧路径 `image-derivatives/v1/<id>/` 生成 480+960，迁移前后 URL 不变。
+- `Base.astro` 注册一次捕获阶段 `error` 监听：带 `data-fallback-src` 的图片加载失败时去掉 srcset，改用落库图，只回退一次并打印 `image.derivative_fallback`（内联脚本无法引入日志模块，格式与 `clientLog` 一致）。
+- Photon 解码/Lanczos3 缩放、jSquash WebP 编码，WASM 在部署产物中预编译导入；上传落库、展示衍生与存量迁移脚本共用 `src/server/media/raster-codec.ts`，算法与参数一致。
+- 封面原图/1:1/4:3/16:9、contain/cover、焦点和缩放继续由 `CoverFrame` 控制；落库图保持原始比例，1536×1024 落库为 960×640，480 档为 480×320。
 
 ## 对象和并发
 
@@ -29,12 +39,12 @@ manifest 最后提交，完成前不可被读取为成功。请求重复时复�
 
 ## 降级与限制
 
-在读取/解码前限制 16MiB 源文件、4百万像素和单边8192像素，以适应 Workers 内存；正常超限文件、GIF/AVIF、动画和带 EXIF 方向信息的图像保留原图，通过不可缓存重定向返回，并标记 `X-Image-Processing: original-unprocessed`，不声称已优化。不丢弃动画或旋转方向。静态 PNG、普通 JPEG、静态 WebP 支持衍生，透明 PNG/WebP 保留 alpha。
+衍生（480 档或旧原图）同样受 16MiB / 400 万像素 / 单边 8192 限制；超限或动画/GIF/AVIF 通过不可缓存重定向返回 `/api/files`，标记 `X-Image-Processing: original-unprocessed`。EXIF 方向现在在转码时被应用，不再因方向信息降级。尺寸头无效返回 422，解码/编码/存储失败返回 503 并记录日志；落库对象缺失记 `image.stored_object_missing` 并返回 503，前端回退到 `/api/files`。
 
-尺寸头无效/冲突返回 422，真实解码/编码/存储错误返回明确 503，记录日志；不伪造已压缩成功。损坏或缺失的衍生对象也不会返回错误长度的图片。现存原图仍可通过原受控地址读取。
+迁移后内部边缘缓存最多 600 秒内仍可能返回旧衍生字节（同一张图、旧编码），不影响授权检查，过期后自然更新。
 
 ## 验证与生效
 
-`npm run build && CHROMIUM_PATH=<已安装Chromium路径> npm run test:e2e:images`：在一次性 Worker/D1/R2 验证真实 WASM、上传/Markdown 导入引用、裁剪另存、960/480 实际解码尺寸、透明度、原图逐字节一致、正文/封面响应式、复访浏览器缓存、ETag/HEAD、公开与私有权限、撤回及失败后恢复。不调用生产数据库、桶或模型。
+单测覆盖：落库 WebP 与 D1 字段、960 缩放、不放大、EXIF 方向 6/8 像素级核对、alpha、GIF 原样、413/422 与日志、WASM 失败后可继续、960 直接返回落库对象、480 存放于 `s1/`、旧原图路径。`npm run build && CHROMIUM_PATH=<Chromium> npm run test:e2e:images` 在一次性 Worker 验证上传即 960 WebP、`/api/files` 与 960 展示图逐字节一致、裁剪另存 960×540、响应式与权限。
 
-本次仅本地实现。需要部署新的 Worker 才会生效，当前线上原图与缓存策略未改变。没有执行生产迁移、批量历史转换或源文章重写；部署后旧图片首次被正常访问时才按需生成衍生文件。实际托管层是否另加缓存头仍需部署后核验，不能用本地浏览器结果冒充线上效果。
+存量原图由 `scripts/migrate-media-960.ts` 一次性转换（见 `scripts/README.md`），必须在新 Worker 部署之后运行；部署前旧代码不认识 `media/<id>.webp`。

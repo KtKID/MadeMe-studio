@@ -8,7 +8,11 @@ import { D1PostRepository } from "../../src/server/content/repository";
 import type { Identity } from "../../src/server/auth/identity";
 import { handleAPI } from "../../src/server/api";
 const { encode } = vi.hoisted(() => ({ encode: vi.fn() }));
-vi.mock("../../src/server/media/image-encoder", () => ({
+// 只替换展示衍生编码；上传落库仍走真实 Photon/jSquash（encodeForStorage）。
+vi.mock("../../src/server/media/image-encoder", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../src/server/media/image-encoder")
+  >()),
   encodeVariants: encode,
 }));
 let env: ReturnType<typeof fixtureEnv>;
@@ -21,8 +25,8 @@ const guest: Identity = { owner: false, trustedIdentity: null, scopes: [] };
 const png = new Uint8Array(readFileSync("tests/fixtures/valid-image.png"));
 beforeEach(() => {
   env = fixtureEnv();
-  encode.mockReset().mockResolvedValue(
-    [480, 960].map((target) => ({
+  encode.mockReset().mockImplementation(async (_b, _m, widths = [480, 960]) =>
+    (widths as number[]).map((target) => ({
       target,
       width: target,
       height: (target * 2) / 3,
@@ -49,13 +53,34 @@ const get = (
     identity,
     { id, width: 960, publicOnly },
   );
+/** 尚未迁移的旧原图：对象键 media/<id>、原 MIME，模拟本 PR 之前上传的数据。 */
+async function legacyMedia(name = "image.png") {
+  const id = crypto.randomUUID();
+  await env.BUCKET.put(`media/${id}`, png);
+  await env.DB.prepare(
+    "INSERT INTO media (id,object_key,name,mime,size,post_id,source,prompt,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+  )
+    .bind(
+      id,
+      `media/${id}`,
+      name,
+      "image/png",
+      png.length,
+      null,
+      "upload",
+      null,
+      new Date().toISOString(),
+    )
+    .run();
+  return { id, url: `/api/files/${id}` };
+}
 async function setup(
   visibility: "public" | "unlisted" | "password" = "public",
+  stored = false,
 ) {
-  const media = await saveMedia(env, png, {
-    name: "image.png",
-    mime: "image/png",
-  });
+  const media = stored
+    ? await saveMedia(env, png, { name: "image.png", mime: "image/png" })
+    : await legacyMedia();
   const posts = new PostService(new D1PostRepository(env.DB));
   const draft = await posts.create({
     title: "Image",
@@ -70,10 +95,7 @@ async function setup(
   return { media, posts, post };
 }
 it("私有/无引用图片连作者也不能走公开路径，拒绝在 R2/处理之前", async () => {
-  const media = await saveMedia(env, png, {
-    name: "draft.png",
-    mime: "image/png",
-  });
+  const media = await legacyMedia("draft.png");
   await expect(get(media.id, true, owner)).rejects.toMatchObject({
     status: 404,
   });
@@ -215,4 +237,45 @@ it("manifest 写入结果不确定时不误删已提交批次，下一次先回�
   expect(env.BUCKET.objects.has(`media/${media.id}`)).toBe(true);
   expect((await get(media.id)).status).toBe(200);
   expect(encode).toHaveBeenCalledTimes(1);
+});
+
+it("落库图：960 直接返回 R2 中的 WebP，不再生成或另存 960 衍生", async () => {
+  const { media } = await setup("public", true);
+  const stored = env.BUCKET.objects.get(`media/${media.id}.webp`)!;
+  expect(stored).toBeDefined();
+  expect(env.BUCKET.objects.has(`media/${media.id}`)).toBe(false);
+  const response = await get(media.id);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("X-Image-Processing")).toBe("s1-stored");
+  expect(response.headers.get("X-Image-Width")).toMatch(/^[1-9]\d*$/);
+  expect(response.headers.get("X-Image-Height")).toMatch(/^[1-9]\d*$/);
+  expect(new Uint8Array(await response.arrayBuffer())).toEqual(stored);
+  expect(encode).not.toHaveBeenCalled();
+  const etag = response.headers.get("ETag")!;
+  const again = await get(media.id, true, guest, {
+    headers: { "If-None-Match": etag },
+  });
+  expect(again.status).toBe(304);
+});
+it("落库图：480 只生成一档并存放在 s1/，权限检查仍在处理之前", async () => {
+  const { media, posts, post } = await setup("public", true);
+  const response = await serveImageVariant(
+    new Request(`https://site.test/api/images/public/v1/${media.id}/480.webp`),
+    env,
+    guest,
+    { id: media.id, width: 480, publicOnly: true },
+  );
+  expect(response.status).toBe(200);
+  expect(encode).toHaveBeenCalledTimes(1);
+  expect(encode.mock.calls[0][1]).toBe("image/webp");
+  expect(encode.mock.calls[0][2]).toEqual([480]);
+  const keys = [...env.BUCKET.objects.keys()].filter((k) =>
+    k.startsWith("image-derivatives/"),
+  );
+  expect(
+    keys.every((k) => k.startsWith(`image-derivatives/v1/${media.id}/s1/`)),
+  ).toBe(true);
+  expect(keys.some((k) => k.endsWith("960.webp"))).toBe(false);
+  await posts.unpublish(post.id, post.version);
+  await expect(get(media.id)).rejects.toMatchObject({ status: 404 });
 });

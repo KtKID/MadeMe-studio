@@ -53,6 +53,10 @@ import {
   type UploadConfig,
 } from "../../modules/config";
 import { clientCaught, clientLog } from "../../modules/log/client";
+import {
+  mayNeedShrink,
+  shrinkForUpload,
+} from "../../modules/image-delivery/upload-shrink";
 import { SafeEmbed } from "../content/BlockReader";
 import {
   embedRejectMessage,
@@ -272,7 +276,11 @@ export default function Editor({
     initialContent: post?.blocks.length
       ? (post.blocks as unknown as PartialBlock<typeof schema.blockSchema>[])
       : undefined,
-    uploadFile: async (file) => {
+    uploadFile: async (picked) => {
+      // 超出 Worker 解码上限的照片先在浏览器缩到落库宽度，避免 413。
+      const file = mayNeedShrink(picked)
+        ? await shrinkForUpload(picked)
+        : picked;
       // BlockNote 上传面板吞掉异常、只显示通用“上传失败”，块会以空 url 留在正文里；
       // 因此拒绝原因必须由这里写日志并显示到编辑器提示栏，避免失败静默。
       const problem = mediaUploadProblem(file, limits.upload);

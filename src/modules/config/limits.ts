@@ -152,6 +152,17 @@ export const IMAGE_MAX_PIXELS = 4_000_000;
 export const IMAGE_MAX_SIDE = 8192;
 export const IMAGE_MAX_SOURCE_BYTES = 16 * 1024 * 1024;
 export const IMAGE_BROWSER_TTL = 60;
+/**
+ * 上传落库配方：静态 PNG/JPEG/WebP 在保存时等比缩到最大宽度并转 WebP，R2 只保存这份结果（不保留大原图）。
+ * 最大宽度必须等于 IMAGE_WIDTHS 最大档：/api/images/.../960.webp 直接返回落库对象，不再另存一份 960 衍生。
+ * 不放进设置页：srcset 宽度描述、衍生 URL 和存量迁移都依赖这个值，修改必须升级 IMAGE_STORE_RECIPE 并迁移。
+ */
+export const IMAGE_STORE_RECIPE = "s1";
+export const IMAGE_STORE_MAX_WIDTH = 960;
+export const IMAGE_STORE_QUALITY = 80;
+/** 一次性迁移脚本在本机 Node 中运行，不受 Workers 128MiB 限制，可处理历史大图。 */
+export const IMAGE_MIGRATION_MAX_PIXELS = 100_000_000;
+export const IMAGE_MIGRATION_MAX_SIDE = 20_000;
 export const IMAGE_EDGE_TTL = 600;
 /** 不透明令牌前缀与格式：API 令牌、作者会话、Google 会话共用。 */
 export const OPAQUE_TOKEN_PREFIX = "mm_";

@@ -72,6 +72,32 @@ const accentStyle = accentOverrideStyle(accent);
         };
       })();
     </script>
+    <script is:inline>
+      // 展示衍生（/api/images/...）失败时回退到落库图本身（data-fallback-src，即 /api/files/:id）。
+      // 捕获阶段监听整个文档：图片 error 事件不冒泡，React/Astro 渲染的图片都能覆盖；只回退一次。
+      // 不加 data-astro-rerun：监听挂在 document 上，客户端路由切页后仍然有效，避免重复注册。
+      if (!window.__mademeImageFallback) {
+        window.__mademeImageFallback = true;
+        document.addEventListener(
+          "error",
+          (event) => {
+            const image = event.target;
+            if (!(image instanceof HTMLImageElement)) return;
+            const fallback = image.dataset.fallbackSrc;
+            if (!fallback || image.dataset.fallbackUsed) return;
+            image.dataset.fallbackUsed = "1";
+            image.removeAttribute("srcset");
+            image.removeAttribute("sizes");
+            image.src = fallback;
+            console.warn("[mademe]", {
+              event: "image.derivative_fallback",
+              src: fallback,
+            });
+          },
+          true,
+        );
+      }
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main">

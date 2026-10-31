@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { postSchema } from "../../src/shared/contracts";
 
-test("@author 原图保留、真实Worker WASM WebP、透明、响应式与撤回鉴权", async ({
+test("@author 上传即落库 960 WebP、真实Worker WASM、透明、响应式与撤回鉴权", async ({
   page,
   request,
   playwright,
@@ -16,7 +16,7 @@ test("@author 原图保留、真实Worker WASM WebP、透明、响应式与撤�
   const guest = await playwright.request.newContext({
     baseURL: process.env.SECOND_BASE_URL,
   });
-  // 错误签名头通过旧上传签名检查，但绝不能伪装成一次成功的 WebP 转换。
+  // 错误签名头通过上传签名检查，但无法解码：直接拒绝保存，不能伪装成功也不能保留坏原图。
   const broken = Buffer.alloc(24);
   broken.set([137, 80, 78, 71, 13, 10, 26, 10]);
   broken.set([73, 72, 68, 82], 12);
@@ -28,14 +28,10 @@ test("@author 原图保留、真实Worker WASM WebP、透明、响应式与撤�
       file: { name: "E2E-broken.png", mimeType: "image/png", buffer: broken },
     },
   });
-  expect(badUpload.status()).toBe(201);
-  const bad = (await badUpload.json()).media;
-  const badDerivative = await request.get(
-    `/api/images/private/v1/${bad.id}/960.webp`,
+  expect(badUpload.status()).toBe(422);
+  expect(JSON.stringify(await badUpload.json())).toContain(
+    "IMAGE_CONVERT_FAILED",
   );
-  expect(badDerivative.status()).toBe(503);
-  expect(badDerivative.headers()["cache-control"]).toBe("private, no-store");
-  expect(await (await request.get(bad.url)).body()).toEqual(broken);
   await page.goto("/");
   const png = await page.evaluate(() => {
     const c = document.createElement("canvas");
@@ -79,7 +75,14 @@ test("@author 原图保留、真实Worker WASM WebP、透明、响应式与撤�
   const privateImage = await request.get(image("private", 960));
   expect(privateImage.status(), await privateImage.text()).toBe(200);
   expect(privateImage.headers()["cache-control"]).toBe("private, no-store");
-  expect(await (await request.get(media.url)).body()).toEqual(input);
+  // 不保留原 PNG：/api/files 返回的就是落库的 960 WebP，960 展示图与之逐字节一致。
+  expect(media.mime).toBe("image/webp");
+  expect(media.name).toBe("E2E-image-derivatives.webp");
+  const storedFile = await request.get(media.url);
+  expect(storedFile.headers()["content-type"]).toBe("image/webp");
+  const stored = await storedFile.body();
+  expect(stored.length).toBeLessThan(input.length);
+  expect(await privateImage.body()).toEqual(stored);
   const created = await request.post("/api/posts", {
     headers: { Origin: origin },
     data: {

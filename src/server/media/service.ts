@@ -1,4 +1,6 @@
-import { logCaught } from "../../modules/log/server";
+import { log, logCaught } from "../../modules/log/server";
+import { encodeForStorage, STORE_CONVERTIBLE_MIME } from "./image-encoder";
+import { storedImageKey, webpName } from "./stored-image";
 import type { Media } from "../../shared/contracts";
 import {
   DEFAULT_CONFIG,
@@ -105,6 +107,58 @@ export function validateMedia(
   if (mime.startsWith("text/") && bytes.some((v) => v === 0))
     throw new AppError(415, "INVALID_TEXT", "The file is not plain text.");
 }
+export { storedImageKey, isStoredImage, webpName } from "./stored-image";
+/**
+ * 静态位图转成 960 WebP；动画/其他类型原样。转换失败不保存（不会退回存大原图），
+ * 预期的 4xx（超限、尺寸头异常）记 warn，意外的解码/编码异常记 error 并转为明确的 422。
+ */
+async function prepareStorage(bytes: Uint8Array, mime: string) {
+  if (!(STORE_CONVERTIBLE_MIME as readonly string[]).includes(mime))
+    return { bytes, mime, converted: false };
+  let stored: Awaited<ReturnType<typeof encodeForStorage>>;
+  try {
+    stored = await encodeForStorage(bytes, mime);
+  } catch (error) {
+    if (error instanceof AppError) {
+      logCaught(
+        "media.image_rejected",
+        error,
+        { mime, bytes: bytes.length },
+        "warn",
+      );
+      throw error;
+    }
+    logCaught("media.image_convert_failed", error, {
+      mime,
+      bytes: bytes.length,
+    });
+    throw new AppError(
+      422,
+      "IMAGE_CONVERT_FAILED",
+      "图片无法转换为 WebP，未保存。请换用标准的 PNG/JPEG/WebP 文件后重试。",
+    );
+  }
+  if (stored.kind === "kept") {
+    log("info", "media.image_kept_original", { mime, reason: stored.reason });
+    return { bytes, mime, converted: false };
+  }
+  log("info", "media.image_stored_webp", {
+    mime,
+    sourceBytes: bytes.length,
+    storedBytes: stored.data.length,
+    sourceWidth: stored.sourceWidth,
+    sourceHeight: stored.sourceHeight,
+    width: stored.width,
+    height: stored.height,
+    orientation: stored.orientation,
+    icc: stored.icc,
+  });
+  return {
+    bytes: stored.data,
+    mime: "image/webp",
+    converted: true,
+  };
+}
 function publicMedia(row: MediaRow): Media {
   return {
     id: row.id,
@@ -141,22 +195,24 @@ export async function saveMedia(
   if (input.postId && !(await new D1PostRepository(env.DB).get(input.postId)))
     throw notFound();
   const id = crypto.randomUUID();
+  const prepared = await prepareStorage(bytes, input.mime);
+  const sanitized = input.name.replace(/[\x00-\x1f\x7f/\\"]/g, "_");
   const name =
-    input.name
-      .replace(/[\x00-\x1f\x7f/\\"]/g, "_")
-      .slice(0, MEDIA_FILENAME_MAX) || "file";
+    (prepared.converted
+      ? webpName(sanitized.slice(0, MEDIA_FILENAME_MAX - ".webp".length))
+      : sanitized.slice(0, MEDIA_FILENAME_MAX)) || "file";
   const row: MediaRow = {
     id,
-    object_key: `media/${id}`,
+    object_key: prepared.converted ? storedImageKey(id) : `media/${id}`,
     name,
-    mime: input.mime,
-    size: bytes.length,
+    mime: prepared.mime,
+    size: prepared.bytes.length,
     post_id: input.postId ?? null,
     source: input.source ?? "upload",
     prompt: input.prompt ?? null,
     created_at: new Date().toISOString(),
   };
-  await env.BUCKET.put(row.object_key, bytes, {
+  await env.BUCKET.put(row.object_key, prepared.bytes, {
     httpMetadata: { contentType: row.mime },
   });
   try {
