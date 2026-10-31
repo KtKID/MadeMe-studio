@@ -5,6 +5,7 @@
 - `guest-smoke.spec.ts`：`@guest`，首页可读、工作台入口、窄屏无横向溢出。
 - `author-flow.spec.ts`：`@author`，真实 BlockNote 编辑、草稿/发布快照隔离、软删除恢复、版本冲突。
 - `editor-regressions.spec.ts`：`@author`，延迟保存继续输入、单段 Markdown 导入取消、作者首页不泄漏草稿、原地发布回读刷新、明确撤回发布。
+- `home-featured-grid.spec.ts`：`@author`，默认刊物三篇主次、桌面四列按行排序、平板/手机、系统明暗、Android 触屏模拟、缺封面、少量文章/搜索空态、长标题和无 JavaScript 阅读。`npm run build && CHROMIUM_PATH=<已安装 Chromium 路径> npm run test:e2e:home` 在独立临时 Worker/D1/R2 运行并清理；可用 `HOME_SCREENSHOT_DIR` 保存真实页面截图。仅验证 Chromium/Android 模拟，不能替代实体手机和所有浏览器验收。
 
 作者用例必须使用隔离环境的显式测试身份；`/api/bootstrap` 未确认作者权限时直接失败，不使用 `test.skip` 把未跑场景算通过。测试创建带 E2E 标记的内容并尽力清理，不导入私人笔记。
 

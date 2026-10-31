@@ -359,8 +359,9 @@ for (const viewport of [
           .evaluate((h) => getComputedStyle(h).fontSize),
       );
     }
-    // 卡片封面高度可以不同，但除首篇 featured 外文字排版一致。
-    expect(bodies.size).toBeLessThanOrEqual(2);
+    // 卡片封面高度可以不同，但同一版位的文字排版一致：默认刊物布局（HomeFeaturedPosts）
+    // 有主篇 / 次篇 / 普通网格三种标题字号，其余布局为 featured / 普通两种。
+    expect(bodies.size).toBeLessThanOrEqual(3);
     for (const [index, { c, slug, title }] of created.entries()) {
       await page.goto(`/p/${slug}`);
       const frame = page.locator(".reading-cover .cover-frame");

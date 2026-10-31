@@ -13,6 +13,8 @@ import {
   matchesArticleType,
 } from "../../modules/article-types/matching";
 import { DEFAULT_CONFIG } from "../../modules/config/defaults";
+import HomeFeaturedPosts from "./HomeFeaturedPosts";
+import type { Settings } from "../../shared/contracts";
 export default function PublicFeed({
   posts,
   authenticated,
@@ -23,7 +25,7 @@ export default function PublicFeed({
   posts: Post[];
   authenticated: boolean;
   types?: ArticleType[];
-  theme?: "paper" | "ink" | "garden" | "mono";
+  theme?: Settings["theme"];
   /** 设置页“嵌入与阅读 → 文章卡片显示标签数”。 */
   cardTags?: number;
 }) {
@@ -64,64 +66,71 @@ export default function PublicFeed({
         />
       </div>
       {filtered.length ? (
-        <div className="article-grid">
-          {filtered.map((post, index) => (
-            <article
-              key={post.id}
-              className={`article-card ${index === 0 ? "featured" : ""}`}
-            >
-              <a
-                className={`article-card-visual${post.coverImage ? " has-cover" : ""}`}
-                href={`/p/${post.slug}`}
-                aria-label={`阅读 ${post.title}`}
+        theme === "paper" ? (
+          <HomeFeaturedPosts posts={filtered} types={types} />
+        ) : (
+          <div className="article-grid">
+            {filtered.map((post, index) => (
+              <article
+                key={post.id}
+                className={`article-card ${index === 0 ? "featured" : ""}`}
               >
-                {post.coverImage ? (
-                  <CoverFrame
-                    src={post.coverImage}
-                    settings={post.coverSettings}
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className={`abstract-cover cover-${index % 4}`}>
-                    <span className="cover-circle" />
-                    <span className="cover-line" />
-                    <span className="cover-word">
-                      {articleTypeName(post, types) || "NOTES"}
+                <a
+                  className={`article-card-visual${post.coverImage ? " has-cover" : ""}`}
+                  href={`/p/${post.slug}`}
+                  aria-label={`阅读 ${post.title}`}
+                >
+                  {post.coverImage ? (
+                    <CoverFrame
+                      src={post.coverImage}
+                      settings={post.coverSettings}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className={`abstract-cover cover-${index % 4}`}>
+                      <span className="cover-circle" />
+                      <span className="cover-line" />
+                      <span className="cover-word">
+                        {articleTypeName(post, types) || "NOTES"}
+                      </span>
+                    </div>
+                  )}
+                  {post.pinned && (
+                    <span className="pinned-label">
+                      <Pin size={12} />
+                      置顶
                     </span>
-                  </div>
-                )}
-                {post.pinned && (
-                  <span className="pinned-label">
-                    <Pin size={12} />
-                    置顶
-                  </span>
-                )}
-              </a>
-              <div className="article-card-body">
-                <div className="article-meta">
-                  <span>{articleTypeName(post, types) || "随笔"}</span>
-                  <span>{date(post.publishedAt)}</span>
-                </div>
-                <a href={`/p/${post.slug}`}>
-                  <h2>{post.title}</h2>
+                  )}
                 </a>
-                <p>
-                  {post.excerpt || "每一个值得记录的想法，都有它自己的故事。"}
-                </p>
-                <div className="article-card-bottom">
-                  <div>
-                    {post.tags.slice(0, cardTags).map((t) => (
-                      <span key={t}>#{t}</span>
-                    ))}
+                <div className="article-card-body">
+                  <div className="article-meta">
+                    <span>{articleTypeName(post, types) || "随笔"}</span>
+                    <span>{date(post.publishedAt)}</span>
                   </div>
-                  <a href={`/p/${post.slug}`} aria-label={`阅读 ${post.title}`}>
-                    <ArrowUpRight size={20} />
+                  <a href={`/p/${post.slug}`}>
+                    <h2>{post.title}</h2>
                   </a>
+                  <p>
+                    {post.excerpt || "每一个值得记录的想法，都有它自己的故事。"}
+                  </p>
+                  <div className="article-card-bottom">
+                    <div>
+                      {post.tags.slice(0, cardTags).map((t) => (
+                        <span key={t}>#{t}</span>
+                      ))}
+                    </div>
+                    <a
+                      href={`/p/${post.slug}`}
+                      aria-label={`阅读 ${post.title}`}
+                    >
+                      <ArrowUpRight size={20} />
+                    </a>
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
-        </div>
+              </article>
+            ))}
+          </div>
+        )
       ) : (
         <Empty
           title={query ? "没有找到相关文字" : "好故事，正在酝酿"}

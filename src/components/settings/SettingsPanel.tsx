@@ -449,7 +449,7 @@ export default function SettingsPanel({
                   {
                     id: "paper",
                     name: "编辑刊物",
-                    detail: "首篇大图 · 清晰分栏",
+                    detail: "三篇重点 · 四列文章",
                   },
                   { id: "ink", name: "时间线", detail: "横向列表 · 连续阅读" },
                   { id: "garden", name: "画廊", detail: "视觉卡片 · 素材优先" },
