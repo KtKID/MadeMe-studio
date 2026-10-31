@@ -142,6 +142,17 @@ export const HARD_MAX_AI_TIMEOUT_SECONDS = 180;
 // ---------- 账号与安全 ----------
 /** SESSION_SECRET 最短长度（作者会话、Google 会话、文章密码 Cookie 共用）。 */
 export const SESSION_SECRET_MIN_LENGTH = 32;
+
+/** 展示图配方：改编码器/质量/尺寸时必须升级版本，不覆盖原媒体对象。 */
+export const IMAGE_RECIPE = "v1";
+export const IMAGE_WIDTHS = [480, 960] as const;
+export const IMAGE_QUALITY = 80;
+// Workers 128MiB 内存：从读取原图字节起串行处理，在解码前限制分配。
+export const IMAGE_MAX_PIXELS = 4_000_000;
+export const IMAGE_MAX_SIDE = 8192;
+export const IMAGE_MAX_SOURCE_BYTES = 16 * 1024 * 1024;
+export const IMAGE_BROWSER_TTL = 60;
+export const IMAGE_EDGE_TTL = 600;
 /** 不透明令牌前缀与格式：API 令牌、作者会话、Google 会话共用。 */
 export const OPAQUE_TOKEN_PREFIX = "mm_";
 export const OPAQUE_TOKEN_BYTES = 32;

@@ -84,6 +84,7 @@ export default function PublicFeed({
                     <CoverFrame
                       src={post.coverImage}
                       settings={post.coverSettings}
+                      publiclyVisible={post.visibility === "public"}
                       loading="lazy"
                     />
                   ) : (

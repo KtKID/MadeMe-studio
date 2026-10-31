@@ -1,4 +1,5 @@
 import { MediaOperation } from "./media-operation";
+import { imageSources } from "../../modules/image-delivery/contracts";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { CropRenderGuard, cropGeometry } from "./crop-state";
@@ -433,7 +434,12 @@ export default function MediaLibrary({
             <article className="media-card" key={m.id}>
               <div className="media-preview">
                 {m.mime.startsWith("image/") ? (
-                  <img src={m.url} alt={m.name} loading="lazy" />
+                  <img
+                    {...imageSources(m.url)}
+                    sizes="180px"
+                    alt={m.name}
+                    loading="lazy"
+                  />
                 ) : (
                   <File size={34} />
                 )}

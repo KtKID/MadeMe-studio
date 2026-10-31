@@ -40,6 +40,11 @@ import { loadPageData } from "./page-data";
 import { json, readJSON, boundedBody, errorResponse } from "./http";
 import { requestLogContext } from "../modules/log/server";
 import { listMedia, saveMedia, serveMedia } from "./media/service";
+import { serveImageVariant } from "./media/image-delivery";
+import {
+  IMAGE_RECIPE,
+  IMAGE_WIDTHS,
+} from "../modules/image-delivery/contracts";
 import { runAI, generateImage, listModels } from "./ai/service";
 import { createToken, listTokens, revokeToken } from "./tokens";
 import { rateLimit } from "./rate-limit";
@@ -79,6 +84,29 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
       return await handleGoogleAuth(request, env, path[2]);
     if (path[0] === "auth" && path.length === 2)
       return await handleAuth(request, env, path[1]);
+    if (
+      path[0] === "images" &&
+      path.length === 5 &&
+      ["GET", "HEAD"].includes(method)
+    ) {
+      if (
+        !["public", "private"].includes(path[1]) ||
+        path[2] !== IMAGE_RECIPE ||
+        !/^[a-zA-Z0-9-]+$/.test(path[3]) ||
+        !/^\d{1,4}\.webp$/.test(path[4]) ||
+        !IMAGE_WIDTHS.some((width) => width === Number(path[4].split(".")[0]))
+      )
+        throw notFound();
+      const imageIdentity: Identity =
+        path[1] === "public"
+          ? { owner: false, trustedIdentity: null, scopes: [] }
+          : await authenticate(request, env);
+      return await serveImageVariant(request, env, imageIdentity, {
+        publicOnly: path[1] === "public",
+        id: path[3],
+        width: Number(path[4].split(".")[0]),
+      });
+    }
     const identity = await authenticate(request, env);
     const write = !["GET", "HEAD"].includes(method);
     if (write) assertSameOrigin(request, identity);

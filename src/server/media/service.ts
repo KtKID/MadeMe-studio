@@ -15,7 +15,7 @@ import {
 } from "../content/repository";
 import { canReadPost } from "../auth/access";
 import { referencesMedia } from "../content/validation";
-type MediaRow = {
+export type MediaRow = {
   id: string;
   object_key: string;
   name: string;
@@ -60,7 +60,8 @@ export function validateMedia(
   policy: UploadConfig = DEFAULT_CONFIG.upload,
 ) {
   const problem = uploadProblem({ size: bytes.length, type: mime }, policy);
-  if (problem) throw new AppError(problem.status, problem.code, problem.message);
+  if (problem)
+    throw new AppError(problem.status, problem.code, problem.message);
   const start = String.fromCharCode(...bytes.slice(0, 16));
   const match =
     mime === "image/png"
@@ -141,7 +142,9 @@ export async function saveMedia(
     throw notFound();
   const id = crypto.randomUUID();
   const name =
-    input.name.replace(/[\x00-\x1f\x7f/\\"]/g, "_").slice(0, MEDIA_FILENAME_MAX) || "file";
+    input.name
+      .replace(/[\x00-\x1f\x7f/\\"]/g, "_")
+      .slice(0, MEDIA_FILENAME_MAX) || "file";
   const row: MediaRow = {
     id,
     object_key: `media/${id}`,
@@ -206,18 +209,20 @@ export async function listMedia(
     )
     .map(publicMedia);
 }
-export async function serveMedia(
+/** 原图与衍生图复用同一关联授权；公开衍生路径不依赖访问者身份。 */
+export async function readableMedia(
   request: Request,
   env: RuntimeEnv,
   identity: Identity,
   id: string,
+  publicOnly = false,
 ) {
   if (!env.DB || !env.BUCKET) throw notFound();
   const row = await env.DB.prepare("SELECT * FROM media WHERE id=?")
     .bind(id)
     .first<MediaRow>();
   if (!row) throw notFound();
-  if (!identity.owner) {
+  if (publicOnly || !identity.owner) {
     let permitted = false;
     const repository = new D1PostRepository(env.DB);
     let afterId = "";
@@ -228,8 +233,11 @@ export async function serveMedia(
         // 候选查询只缩小范围；实际引用、删除状态和密码授权仍逐篇复核。
         if (
           post.published &&
+          !post.draft.deletedAt &&
           referencesMedia(post.published, id) &&
-          (await canReadPost(request, env, identity, post))
+          (publicOnly
+            ? post.published.visibility === "public"
+            : await canReadPost(request, env, identity, post))
         ) {
           permitted = true;
           break;
@@ -240,6 +248,16 @@ export async function serveMedia(
     }
     if (!permitted) throw notFound();
   }
+  return row;
+}
+export async function serveMedia(
+  request: Request,
+  env: RuntimeEnv,
+  identity: Identity,
+  id: string,
+) {
+  const row = await readableMedia(request, env, identity, id);
+  if (!env.BUCKET) throw notFound();
   // 只在访问检查通过后处理范围；未授权者不能通过 416 获知私有文件大小。
   const rawRange =
     request.method === "GET" && !request.headers.has("If-Range")

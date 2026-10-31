@@ -1,6 +1,15 @@
-import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { DEFAULT_CONFIG, type ReadingConfig } from "../../modules/config";
 import { safeUrl } from "../shared/ui";
+import {
+  imageSources,
+  IMAGE_SIZES,
+} from "../../modules/image-delivery/contracts";
 import {
   parseEmbed,
   reportEmbedRejection,
@@ -111,8 +120,32 @@ export function embedUrl(
   };
 }
 /** 阅读相关配置（设置页“嵌入与阅读”）；未提供时使用默认值。 */
-export type ReaderOptions = Pick<ReadingConfig, "disabledEmbeds" | "xInitialHeight">;
+export type ReaderOptions = Pick<
+  ReadingConfig,
+  "disabledEmbeds" | "xInitialHeight"
+>;
 const ReaderConfig = createContext<ReaderOptions>(DEFAULT_CONFIG.reading);
+const PublicImages = createContext(false);
+
+function ReaderImage({
+  src,
+  alt,
+  width,
+}: {
+  src: string;
+  alt: string;
+  width?: number;
+}) {
+  return (
+    <img
+      {...imageSources(src, useContext(PublicImages))}
+      sizes={IMAGE_SIZES}
+      alt={alt}
+      loading="lazy"
+      width={width}
+    />
+  );
+}
 /**
  * 按 src/modules/embed 注册表渲染嵌入：iframe 类用提供方配置的属性，link 类渲染安全跳转卡片。
  * silent 用于编辑器弹窗的实时预览，避免每次按键都写拒绝日志。
@@ -449,10 +482,9 @@ function One({ block }: { block: Block }) {
                   : "left",
           }}
         >
-          <img
+          <ReaderImage
             src={url}
             alt={String(p.caption || p.name || "文章图片")}
-            loading="lazy"
             width={safeImageWidth(p.previewWidth)}
           />
           {!!p.caption && <figcaption>{String(p.caption)}</figcaption>}
@@ -495,11 +527,19 @@ function One({ block }: { block: Block }) {
 export default function BlockReader({
   blocks,
   reading,
+  publicImages,
 }: {
   blocks: unknown[];
   /** 只在最外层传入；嵌套的子块通过 context 继承。 */
   reading?: ReaderOptions;
+  publicImages?: boolean;
 }) {
+  if (publicImages !== undefined)
+    return (
+      <PublicImages.Provider value={publicImages}>
+        <BlockReader blocks={blocks} reading={reading} />
+      </PublicImages.Provider>
+    );
   if (reading)
     return (
       <ReaderConfig.Provider value={reading}>
