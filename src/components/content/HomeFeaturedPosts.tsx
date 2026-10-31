@@ -36,6 +36,12 @@ function HomePost({
             <CoverFrame
               src={post.coverImage}
               settings={post.coverSettings}
+              publiclyVisible={post.visibility === "public"}
+              sizes={
+                variant === "grid"
+                  ? "(max-width: 360px) 100vw, (max-width: 960px) 50vw, 25vw"
+                  : "(max-width: 680px) 100vw, 65vw"
+              }
               loading={variant === "grid" ? "lazy" : "eager"}
             />
           ) : (

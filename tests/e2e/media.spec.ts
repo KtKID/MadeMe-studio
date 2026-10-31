@@ -9,6 +9,7 @@ test("@author 媒体：有效PNG上传解码、裁剪保留原图、输出尺寸
     true,
   );
   await page.goto("/studio/media");
+  await expect(page.locator("[data-studio-ready=true]")).toBeVisible();
   const png = await page.evaluate(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 640;
@@ -33,9 +34,15 @@ test("@author 媒体：有效PNG上传解码、裁剪保留原图、输出尺寸
       async () =>
         await original
           .locator("img")
-          .evaluate((image) => (image as HTMLImageElement).naturalWidth),
+          .evaluate(
+            (image) =>
+              (image as HTMLImageElement).naturalWidth > 0 &&
+              (image as HTMLImageElement).currentSrc.includes(
+                "/images/private/",
+              ),
+          ),
     )
-    .toBe(640);
+    .toBe(true);
   await original.getByTitle("裁剪", { exact: true }).click();
   const save = page.getByRole("button", { name: "保存为新图片" });
   await expect(save).toBeEnabled();
@@ -57,15 +64,33 @@ test("@author 媒体：有效PNG上传解码、裁剪保留原图、输出尺寸
   await expect
     .poll(
       async () =>
-        await cropped.locator("img").evaluate((image) => ({
-          width: (image as HTMLImageElement).naturalWidth,
-          height: (image as HTMLImageElement).naturalHeight,
-        })),
+        await cropped
+          .locator("img")
+          .evaluate((image) => (image as HTMLImageElement).naturalWidth > 0),
     )
-    .toEqual({ width: 1200, height: 675 });
+    .toBe(true);
   const list = await (await request.get("/api/media")).json();
   const entry = list.media.find((item: { name: string }) => item.name === name);
   expect(entry).toBeTruthy();
+  const cropEntry = list.media.find(
+    (item: { name: string }) =>
+      item.name === `crop-${name.replace(".png", ".jpg")}`,
+  );
+  expect(cropEntry).toBeTruthy();
+  // 缩略图已是衍生图；裁剪输出尺寸必须在实际原文件上检查。
+  for (const [url, width, height] of [
+    [entry.url, 640, 480],
+    [cropEntry.url, 1200, 675],
+  ] as const) {
+    expect(
+      await page.evaluate(async (source) => {
+        const bitmap = await createImageBitmap(
+          await (await fetch(source)).blob(),
+        );
+        return { width: bitmap.width, height: bitmap.height };
+      }, url),
+    ).toEqual({ width, height });
+  }
   await page.route(`**${entry.url}`, (route) =>
     route.fulfill({ status: 404, body: "missing" }),
   );

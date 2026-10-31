@@ -95,12 +95,13 @@ const capabilities = authenticated
                 <CoverFrame
                   src={post.coverImage}
                   settings={post.coverSettings}
+                  publiclyVisible={post.visibility === "public" && !!post.publishedAt}
                   alt={post.title}
                 />
               </figure>
             )}
             <div class="reading-prose">
-              <BlockReader blocks={post.blocks} reading={settings.limits.reading} />
+              <BlockReader blocks={post.blocks} reading={settings.limits.reading} publicImages={post.visibility === "public" && !!post.publishedAt} />
             </div>
             <footer class="article-end">
               <span class="end-mark">✳</span>

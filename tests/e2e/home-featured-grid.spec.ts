@@ -125,7 +125,9 @@ test("@author 刊物：首页三篇主次、四列顺序、窄屏、明暗及边
           .locator(".home-post img")
           .evaluateAll((images) =>
             images.every(
-              (img) => (img as HTMLImageElement).naturalWidth === 1200,
+              (img) =>
+                (img as HTMLImageElement).naturalWidth > 0 &&
+                /\/(480|960)\.webp$/.test((img as HTMLImageElement).currentSrc),
             ),
           ),
       )

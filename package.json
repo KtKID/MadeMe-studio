@@ -17,7 +17,8 @@
     "test:ui": "vitest run tests/ui/",
     "test:e2e:obsidian": "node scripts/test-obsidian-e2e.mjs",
     "test:e2e:home": "node scripts/test-home-e2e.mjs",
-    "test:e2e:cover": "node scripts/test-cover-e2e.mjs"
+    "test:e2e:cover": "node scripts/test-cover-e2e.mjs",
+    "test:e2e:images": "node scripts/test-images-e2e.mjs"
   },
   "dependencies": {
     "astro": "7.4.2",
@@ -33,7 +34,9 @@
     "zod": "^4.0.0",
     "lucide-react": "^1.31.0",
     "drizzle-orm": "0.45.2",
-    "jose": "^6.2.13"
+    "jose": "^6.2.13",
+    "@cf-wasm/photon": "^0.4.0",
+    "@jsquash/webp": "^1.5.0"
   },
   "devDependencies": {
     "@astrojs/check": "latest",

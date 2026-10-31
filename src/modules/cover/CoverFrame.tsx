@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { normalizeCoverSettings, type CoverSettings } from "./contracts";
 import { coverFrameStyle, coverImageStyle, isCropping } from "./geometry";
 import "./styles.css";
+import { imageSources, IMAGE_SIZES } from "../image-delivery/contracts";
 
 /**
  * 首页卡片、文章页、编辑器、工作台缩略图共用的封面展示。
@@ -14,6 +15,8 @@ export default function CoverFrame({
   variant = "flow",
   loading,
   className = "",
+  publiclyVisible = false,
+  sizes = IMAGE_SIZES,
 }: {
   src: string;
   settings?: Partial<CoverSettings> | null;
@@ -21,6 +24,8 @@ export default function CoverFrame({
   variant?: "flow" | "thumb";
   loading?: "lazy" | "eager";
   className?: string;
+  publiclyVisible?: boolean;
+  sizes?: string;
 }) {
   const s = normalizeCoverSettings(settings);
   return (
@@ -31,7 +36,8 @@ export default function CoverFrame({
       style={coverFrameStyle(s) as CSSProperties}
     >
       <img
-        src={src}
+        {...imageSources(src, publiclyVisible)}
+        sizes={imageSources(src, publiclyVisible).srcSet ? sizes : undefined}
         alt={alt}
         loading={loading}
         decoding="async"

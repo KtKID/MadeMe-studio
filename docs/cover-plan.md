@@ -1,5 +1,7 @@
 # 作品封面比例与展示设置 · 实施方案与实施记录
 
+> 本文保留历史分析和阶段实施记录。当前封面规范及与已确认设计的差异见 [COVERS.md](COVERS.md)，模块入口见 [MODULES.md](MODULES.md)；下文早期“现状”不表示当前源码状态。
+
 > Phase 1 分析稿 + Phase 2 实施记录。§7 的问题已由 KID 确认（见 §7），与之冲突的早期建议（主题色补底、方图 560px 上限）以 §7 为准。
 
 来源：KtKID/agent-mailbox#2（KID 已确认的产品方案）。分支 `feat/cover-aspect-ratio`，基于 origin/main `cf1887f`。

@@ -38,7 +38,10 @@ npm run test:integrations
 
 ## 文档与模块索引
 
+- [各模块职责与说明入口](docs/MODULES.md)
+- [封面规范、桌面基准与当前实现差异](docs/COVERS.md)
 - [Obsidian 本地保存规则与重复保存判断](docs/OBSIDIAN-LOCAL-SAVE.md)
+- [图片衍生、响应式展示与公开/私有缓存](src/modules/image-delivery/README.md)
 
 ### 工程与验收
 

@@ -1,5 +1,7 @@
 # 浏览器端到端验收
 
+`npm run test:e2e:images` 在两个隔离 Worker（作者/访客，共用本轮临时 D1/R2）验证真实 WASM WebP、透明度、原图保留、Markdown 导入引用、媒体库上传与裁剪、公开/私有缓存、撤回权限、响应式及浏览器复访缓存。必须先 build，并提供已安装的 `CHROMIUM_PATH`；测试合成图片不是用户指定封面的压缩效果。
+
 所有页面与 API 请求使用相对路径，统一继承 Playwright 配置的 `use.baseURL`（父配置通过 `BASE_URL` 指定）。不在测试文件写入第二套地址或生产域名。
 
 - `guest-smoke.spec.ts`：`@guest`，首页可读、工作台入口、窄屏无横向溢出。
