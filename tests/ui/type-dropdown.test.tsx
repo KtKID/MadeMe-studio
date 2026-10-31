@@ -22,8 +22,8 @@ it("方向键/Home/End/Enter 选择，Escape 取消不改变值", () => {
  fireEvent.keyDown(trigger, { key: "End" });
  expect(trigger.getAttribute("aria-activedescendant")).toBe(screen.getByRole("option", { name: "感悟" }).id);
  fireEvent.keyDown(trigger, { key: "Home" });
- fireEvent.keyDown(trigger, { key: "ArrowDown" });
- fireEvent.keyDown(trigger, { key: "Enter" }); expect(change).toHaveBeenCalledWith("ai");
+ fireEvent.keyDown(trigger, { key: "ArrowDown" }); fireEvent.keyDown(trigger, { key: "ArrowDown" });
+ fireEvent.keyDown(trigger, { key: "Enter" }); expect(change).toHaveBeenCalledWith("reflection");
  fireEvent.keyDown(trigger, { key: " " }); fireEvent.keyDown(trigger, { key: "ArrowUp" }); fireEvent.keyDown(trigger, { key: "Escape" });
  expect(change).toHaveBeenCalledTimes(1); expect(screen.queryByRole("listbox")).toBeNull(); expect(document.activeElement).toBe(trigger);
 });
@@ -64,23 +64,24 @@ it("弹层在窗口与页面滚动后重新测量，卸载后无遗留菜单", (
 });
 it("样式继承暗色/换肤变量，保留选中/焦点与滚动，过滤器不叠双边框", async () => {
  const { readFileSync } = await import("node:fs");
- const css = readFileSync("src/modules/article-types/type-dropdown.css", "utf8");
+ const css = readFileSync("src/components/shared/dropdown.css", "utf8");
+ const filterCss = readFileSync("src/modules/article-types/type-dropdown.css", "utf8");
  for (const token of ["--surface", "--surface-raised", "--ink", "--line", "--accent", "--tint", "--tint-strong"]) expect(css).toContain(`var(${token})`);
  expect(css).toContain(":focus-visible"); expect(css).toContain("overflow-y: auto"); expect(css).toContain("overscroll-behavior: contain");
- expect(css).toMatch(/\.category-filter\.article-type-filter\s*\{\s*padding: 0; border: 0;/);
+ expect(filterCss).toMatch(/\.category-filter\.article-type-filter\s*\{\s*padding: 0; border: 0;/);
 });
 it("鼠标展开不叠加金色外圈，键盘焦点只保留单一内描边", async () => {
  const { readFileSync } = await import("node:fs");
- const css = readFileSync("src/modules/article-types/type-dropdown.css", "utf8");
- const focus = css.match(/\.article-type-dropdown-trigger:focus-visible\s*\{([^}]+)\}/)?.[1] ?? "";
+ const css = readFileSync("src/components/shared/dropdown.css", "utf8");
+ const focus = css.match(/\.ui-dropdown-trigger:focus-visible\s*\{([^}]+)\}/)?.[1] ?? "";
  expect(focus).toContain("outline: none");
  expect(focus).toContain("border-color: transparent");
  expect(focus).toContain("box-shadow: inset 0 0 0 2px var(--accent)");
- const hover = css.match(/\.article-type-dropdown-trigger:hover:not\(:disabled\)\s*\{([^}]+)\}/)?.[1] ?? "";
- const expanded = css.match(/\.article-type-dropdown-trigger\[aria-expanded="true"\]\s*\{([^}]+)\}/)?.[1] ?? "";
+ const hover = css.match(/\.ui-dropdown-trigger:hover:not\(:disabled\)\s*\{([^}]+)\}/)?.[1] ?? "";
+ const expanded = css.match(/\.ui-dropdown-trigger\[aria-expanded="true"\]\s*\{([^}]+)\}/)?.[1] ?? "";
  expect(hover).not.toContain("border-color: var(--accent)");
  expect(expanded).not.toContain("border-color: var(--accent)");
- expect(css).toMatch(/\.article-type-dropdown-trigger\s*\{[^}]*box-shadow: none/s);
+ expect(css).toMatch(/\.ui-dropdown-trigger\s*\{[^}]*box-shadow: none/s);
 });
 it("键盘活动项仅滚动列表自身，不调用会滚动页面的 scrollIntoView", () => {
  const prior = Element.prototype.scrollIntoView;

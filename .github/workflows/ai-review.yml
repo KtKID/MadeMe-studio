@@ -1,0 +1,54 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+  workflow_dispatch:            # 手动给 fork 来的 PR 做审核：Actions 页面 → Run workflow → 填 PR 号
+    inputs:
+      pr_number:
+        description: "要审核的 PR 编号"
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # 自动触发只跑：本仓库分支提的 PR（fork PR 拿不到 secret）、非草稿、非机器人；
+    # 加 label "skip-ai-review" 可跳过
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       !github.event.pull_request.draft &&
+       github.event.pull_request.user.type != 'Bot' &&
+       !contains(github.event.pull_request.labels.*.name, 'skip-ai-review'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # 只取脚本本身，不安装依赖、不构建、不执行 PR 里的任何代码
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.repository.default_branch || '' }}
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run AI review
+        env:
+          # 换模型只需改仓库 Variables，或改这里的默认值；key 放在 Secrets
+          AI_REVIEW_API_KEY: ${{ secrets.GLM_API_KEY }}
+          AI_REVIEW_BASE_URL: ${{ vars.AI_REVIEW_BASE_URL || 'https://open.bigmodel.cn/api/coding/paas/v4' }}
+          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL || 'glm-5.3-flash' }}
+          AI_REVIEW_MAX_TOKENS: ${{ vars.AI_REVIEW_MAX_TOKENS || '131072' }}
+          AI_REVIEW_REASONING_EFFORT: ${{ vars.AI_REVIEW_REASONING_EFFORT || 'high' }}
+          AI_REVIEW_THINKING: ${{ vars.AI_REVIEW_THINKING || 'enabled' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: node .github/scripts/ai-review.mjs

@@ -1,4 +1,29 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+import { fontOptions } from "../../src/components/settings/model-options";
+const fontLabels = Object.fromEntries(
+  fontOptions.map((o) => [o.value, o.label]),
+) as Record<string, string>;
+/** 正文字体为共享自定义下拉，通过真实点击选项而非 selectOption。 */
+async function chooseFont(page: Page, font: string) {
+  await page.getByRole("combobox", { name: "正文字体" }).click();
+  await page
+    .getByRole("option", { name: fontLabels[font], exact: true })
+    .click();
+}
+async function openAppearance(page: Page) {
+  await page.goto("/studio/settings");
+  await expect(page.locator("[data-studio-ready=true]")).toBeVisible();
+  const appearance = page.getByRole("button", {
+    name: "主题与字体",
+    exact: true,
+  });
+  await expect(appearance).toBeEnabled();
+  await appearance.click();
+  await expect(
+    page.getByRole("button", { name: "深色", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "正文字体" })).toBeVisible();
+}
 test.describe.configure({ mode: "serial" });
 test("@author 设置回归：延迟PATCH只提交dirty字段且保留后续字体修改", async ({
   page,
@@ -18,8 +43,7 @@ test("@author 设置回归：延迟PATCH只提交dirty字段且保留后续字�
   const started = new Promise<void>((resolve) => (arrived = resolve));
   let payload: Record<string, unknown> = {};
   try {
-    await page.goto("/studio/settings");
-    await page.getByRole("button", { name: "主题与字体", exact: true }).click();
+    await openAppearance(page);
     await page
       .getByRole("button", {
         name: mode === "dark" ? "深色" : "浅色",
@@ -36,10 +60,12 @@ test("@author 设置回归：延迟PATCH只提交dirty字段且保留后续字�
     });
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
     await started;
-    await page.getByLabel("正文字体").selectOption(font);
+    await chooseFont(page, font);
     release();
     await expect(page.getByRole("status")).toContainText("仍未保存");
-    await expect(page.getByLabel("正文字体")).toHaveValue(font);
+    await expect(page.getByRole("combobox", { name: "正文字体" })).toHaveText(
+      fontLabels[font],
+    );
     await expect(page.locator(".settings-dirty")).toHaveText("有未保存设置");
     expect(Object.keys(payload)).toEqual(["mode"]);
   } finally {
@@ -63,12 +89,7 @@ test("@author 设置回归：两个窗口分别改mode与font不会互相覆盖"
   const font = original.font === "serif" ? "mono" : "serif";
   const second = await context.newPage();
   try {
-    await page.goto("/studio/settings");
-    await second.goto("/studio/settings");
-    for (const target of [page, second])
-      await target
-        .getByRole("button", { name: "主题与字体", exact: true })
-        .click();
+    for (const target of [page, second]) await openAppearance(target);
     await page
       .getByRole("button", {
         name: mode === "dark" ? "深色" : "浅色",
@@ -77,7 +98,7 @@ test("@author 设置回归：两个窗口分别改mode与font不会互相覆盖"
       .click();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("设置已保存");
-    await second.getByLabel("正文字体").selectOption(font);
+    await chooseFont(second, font);
     await second.getByRole("button", { name: "保存设置", exact: true }).click();
     await expect(second.getByRole("status")).toContainText("设置已保存");
     const result = await (await request.get("/api/settings")).json();

@@ -1554,7 +1554,7 @@ kbd {
   flex: 1;
   min-width: 180px;
 }
-.media-tools > select {
+.media-tools > .media-filter {
   width: 130px;
   font-size: 11px;
   padding: 9px;
@@ -2771,7 +2771,7 @@ kbd {
     width: 100%;
     justify-content: flex-end;
   }
-  .media-tools > select {
+  .media-tools > .media-filter {
     width: 100px;
   }
   .media-grid {

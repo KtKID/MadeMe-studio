@@ -11,6 +11,7 @@ import {
 } from "../../modules/config";
 import { clientLog } from "../../modules/log/client";
 import { useEffect, useRef, useState } from "react";
+import Dropdown from "../shared/Dropdown";
 import {
   Upload,
   ImagePlus,
@@ -167,16 +168,19 @@ function CropImage({
       <div className="form-grid">
         <label>
           比例
-          <select
+          <Dropdown
+            id="crop-ratio"
+            label="比例"
             value={ratio}
             disabled={busy}
-            onChange={(e) => setRatio(e.target.value)}
-          >
-            <option value="1.7778">横向 16 : 9</option>
-            <option value="1">方形 1 : 1</option>
-            <option value="0.75">纵向 3 : 4</option>
-            <option value="0">原始比例</option>
-          </select>
+            options={[
+              { value: "1.7778", label: "横向 16 : 9" },
+              { value: "1", label: "方形 1 : 1" },
+              { value: "0.75", label: "纵向 3 : 4" },
+              { value: "0", label: "原始比例" },
+            ]}
+            onChange={setRatio}
+          />
         </label>
         <label>
           缩放
@@ -372,15 +376,17 @@ export default function MediaLibrary({
           onChange={setQuery}
           placeholder="搜索文件名或生成提示词…"
         />
-        <select
+        <Dropdown
+          label="媒体类型"
+          className="media-filter"
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          aria-label="媒体类型"
-        >
-          <option value="all">全部文件</option>
-          <option value="image">所有图片</option>
-          <option value="generated">AI 生成历史</option>
-        </select>
+          options={[
+            { value: "all", label: "全部文件" },
+            { value: "image", label: "所有图片" },
+            { value: "generated", label: "AI 生成历史" },
+          ]}
+          onChange={setFilter}
+        />
         <div className="button-group">
           <button
             className="button"
@@ -493,8 +499,8 @@ export default function MediaLibrary({
         </Empty>
       )}
       <p className="form-hint">
-        最多展示 {config.media.listLimit}{" "}
-        项匹配结果（可在“设置 → 上传与媒体”调整）。媒体访问权限由服务器校验，未发布文章的附件不会成为公开资源。
+        最多展示 {config.media.listLimit} 项匹配结果（可在“设置 →
+        上传与媒体”调整）。媒体访问权限由服务器校验，未发布文章的附件不会成为公开资源。
       </p>
       {crop && (
         <CropImage
@@ -520,26 +526,27 @@ export default function MediaLibrary({
           )}
           <label>
             图像服务商
-            <select
+            <Dropdown
+              id="image-provider"
+              label="图像服务商"
               value={providerId}
               disabled={busy}
-              onChange={(event) => setProviderId(event.target.value)}
-            >
-              <option value="">第一个已配置的图像服务商</option>
-              {providers.map((provider) => (
-                <option
-                  value={provider.id}
-                  key={provider.id}
-                  disabled={!provider.imageConfigured}
-                >
-                  {provider.name} ·{" "}
-                  {provider.imageModel || "服务端默认图像模型"}
-                  {provider.imageConfigured
-                    ? "（配置已就绪，未验证联调）"
-                    : "（图像未配置）"}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "第一个已配置的图像服务商" },
+                ...providers.map((provider) => ({
+                  value: provider.id,
+                  disabled: !provider.imageConfigured,
+                  label: `${provider.name} · ${
+                    provider.imageModel || "服务端默认图像模型"
+                  }${
+                    provider.imageConfigured
+                      ? "（配置已就绪，未验证联调）"
+                      : "（图像未配置）"
+                  }`,
+                })),
+              ]}
+              onChange={setProviderId}
+            />
           </label>
           <label>
             描述你想要的图片

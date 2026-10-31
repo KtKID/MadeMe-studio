@@ -1,4 +1,5 @@
 import TypeSettings from "../../modules/article-types/TypeSettings";
+import Dropdown from "../shared/Dropdown";
 import ObsidianSettings from "../../modules/obsidian-local/Settings";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
@@ -30,7 +31,12 @@ import {
   type Provider,
 } from "../../shared/contracts";
 import { settingsPatch, reconcileSettingsResponse } from "./settings-state";
-import { providerLabels, normalizeImageModel } from "./model-options";
+import {
+  providerOptions,
+  fontOptions,
+  promptActionOptions,
+  normalizeImageModel,
+} from "./model-options";
 import { ConfigSection, configProblems } from "./ConfigSection";
 import {
   AI_PARAMS,
@@ -161,7 +167,7 @@ export default function SettingsPanel({
   const [loadingModels, setLoadingModels] = useState<Set<string>>(
     () => new Set(),
   );
-  // 新入口在水合前保持禁用，避免首屏点击无事件反馈。
+  // 所有设置分类在水合前保持禁用，避免 SSR 首屏点击丢失。
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
   const pendingModels = useRef(new Set<string>());
@@ -324,7 +330,7 @@ export default function SettingsPanel({
           ].map((t) => (
             <button
               key={t.id}
-              disabled={t.id === "article-types" && !hydrated}
+              disabled={!hydrated}
               className={tab === t.id ? "active" : ""}
               onClick={() => setTab(t.id)}
             >
@@ -538,17 +544,15 @@ export default function SettingsPanel({
                 </label>
                 <label>
                   正文字体
-                  <select
+                  <Dropdown
+                    id="settings-font"
+                    label="正文字体"
                     value={settings.font}
-                    onChange={(e) =>
-                      change("font", e.target.value as Settings["font"])
+                    options={fontOptions}
+                    onChange={(font) =>
+                      change("font", font as Settings["font"])
                     }
-                  >
-                    <option value="yahei">微软雅黑（默认系统字体）</option>
-                    <option value="sans">系统无衬线</option>
-                    <option value="serif">经典衬线</option>
-                    <option value="mono">利落等宽</option>
-                  </select>
+                  />
                 </label>
               </div>
             </>
@@ -598,22 +602,15 @@ export default function SettingsPanel({
                     </label>
                     <label>
                       服务商
-                      <select
+                      <Dropdown
+                        id={`provider-kind-${p.id}`}
+                        label="服务商"
                         value={p.kind}
-                        onChange={(e) =>
-                          provider(i, {
-                            kind: e.target.value as Provider["kind"],
-                          })
+                        options={providerOptions}
+                        onChange={(kind) =>
+                          provider(i, { kind: kind as Provider["kind"] })
                         }
-                      >
-                        {Object.entries(providerLabels).map(
-                          ([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ),
-                        )}
-                      </select>
+                      />
                     </label>
                     <label>
                       模型 ID
@@ -730,32 +727,22 @@ export default function SettingsPanel({
                     </label>
                     <label>
                       动作
-                      <select
+                      <Dropdown
+                        id={`prompt-action-${p.id}`}
+                        label="动作"
                         value={p.action}
-                        onChange={(e) =>
+                        options={promptActionOptions}
+                        onChange={(action) =>
                           change(
                             "prompts",
                             settings.prompts.map((v, j) =>
                               j === i
-                                ? { ...v, action: e.target.value as AIAction }
+                                ? { ...v, action: action as AIAction }
                                 : v,
                             ),
                           )
                         }
-                      >
-                        {[
-                          "rewrite",
-                          "polish",
-                          "expand",
-                          "translate",
-                          "title",
-                          "excerpt",
-                          "tags",
-                          "slug",
-                        ].map((a) => (
-                          <option key={a}>{a}</option>
-                        ))}
-                      </select>
+                      />
                     </label>
                   </div>
                   <label>

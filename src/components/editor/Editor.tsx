@@ -79,6 +79,7 @@ import {
   resetCoverFraming,
   type CoverSettings,
 } from "../../modules/cover/contracts";
+import Dropdown from "../shared/Dropdown";
 import { resolveMode } from "../shared/appearance";
 import { EditClock, hasDocumentContent } from "./editor-state";
 import { AIRequestState } from "./ai-request-state";
@@ -1235,64 +1236,67 @@ export default function Editor({
           <div className="form-grid">
             <label>
               想怎么处理
-              <select
+              <Dropdown
+                id="ai-action"
+                label="想怎么处理"
                 value={aiAction}
                 disabled={!!busy}
-                onChange={(e) => {
+                options={Object.entries(actionNames).map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+                onChange={(action) => {
                   aiSession.current.invalidate();
                   setAiText("");
-                  setAiAction(e.target.value as AIAction);
+                  setAiAction(action as AIAction);
                   setPromptId("");
                 }}
-              >
-                {Object.entries(actionNames).map(([value, label]) => (
-                  <option value={value} key={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
             <label>
               模型
-              <select
+              <Dropdown
+                id="ai-provider"
+                label="模型"
                 value={provider}
                 disabled={!!busy}
-                onChange={(e) => {
+                options={[
+                  { value: "", label: "第一个已配置的文本服务商" },
+                  ...settings.providers.map((p) => ({
+                    value: p.id,
+                    disabled: !p.textConfigured,
+                    label: `${p.name} · ${p.model}${
+                      p.textConfigured
+                        ? "（配置已就绪，未验证联调）"
+                        : "（文本未配置）"
+                    }`,
+                  })),
+                ]}
+                onChange={(id) => {
                   setAiText("");
-                  setProvider(e.target.value);
+                  setProvider(id);
                 }}
-              >
-                <option value="">第一个已配置的文本服务商</option>
-                {settings.providers.map((p) => (
-                  <option value={p.id} key={p.id} disabled={!p.textConfigured}>
-                    {p.name} · {p.model}
-                    {p.textConfigured
-                      ? "（配置已就绪，未验证联调）"
-                      : "（文本未配置）"}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
           </div>
           <label>
             提示词
-            <select
+            <Dropdown
+              id="ai-prompt"
+              label="提示词"
               value={promptId}
               disabled={!!busy}
-              onChange={(e) => {
+              options={[
+                { value: "", label: "内置提示词" },
+                ...settings.prompts
+                  .filter((p) => p.action === aiAction)
+                  .map((p) => ({ value: p.id, label: p.name })),
+              ]}
+              onChange={(id) => {
                 setAiText("");
-                setPromptId(e.target.value);
+                setPromptId(id);
               }}
-            >
-              <option value="">内置提示词</option>
-              {settings.prompts
-                .filter((p) => p.action === aiAction)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-            </select>
+            />
           </label>
           <label>
             处理的文字
@@ -1402,19 +1406,22 @@ export default function Editor({
           {adviceList}
           <label>
             谁可以阅读
-            <select
+            <Dropdown
+              id="publish-visibility"
+              label="谁可以阅读"
               value={visibility}
               disabled={!!busy}
-              onChange={(e) =>
-                setVisibility(e.target.value as typeof visibility)
-              }
-            >
-              <option value="public">公开 · 显示在首页与 RSS</option>
-              <option value="unlisted">不公开列出 · 仅通过链接访问</option>
-              <option value="password" disabled={!passwordConfigured}>
-                密码保护 · 输入密码后访问
-              </option>
-            </select>
+              options={[
+                { value: "public", label: "公开 · 显示在首页与 RSS" },
+                { value: "unlisted", label: "不公开列出 · 仅通过链接访问" },
+                {
+                  value: "password",
+                  label: "密码保护 · 输入密码后访问",
+                  disabled: !passwordConfigured,
+                },
+              ]}
+              onChange={(next) => setVisibility(next as typeof visibility)}
+            />
           </label>
           {!passwordConfigured && (
             <Notice>

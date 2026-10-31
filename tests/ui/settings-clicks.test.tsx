@@ -67,12 +67,35 @@ describe("设置真实 DOM 点击链路", () => {
     expect(h.api).toHaveBeenCalledTimes(2);
     expect(screen.getByText("设置已同步")).toBeTruthy();
   });
+  it("服务商使用主题下拉而非原生 select，选择后值与保存载荷一致", async () => {
+    const { guard } = setup({ providers: [{ id: "model_kind", name: "测试模型", kind: "openai", model: "m", temperature: 0.7, maxTokens: 2048, configured: false }] });
+    click("AI 模型");
+    expect(document.querySelector(".config-card select")).toBeNull();
+    const trigger = screen.getByRole("combobox", { name: "服务商" });
+    expect(trigger.textContent).toBe("OpenAI");
+    fireEvent.click(trigger);
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["OpenAI", "OpenRouter", "SiliconFlow", "Cloudflare AI", "Google Gemini"]);
+    expect(screen.getByRole("option", { selected: true }).textContent).toBe("OpenAI");
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(trigger.textContent).toBe("OpenRouter");
+    expect(guard.mock.lastCall?.[0].dirty).toBe(true);
+    h.api.mockImplementationOnce(async (_url: string, init: RequestInit) => ({ settings: { ...structuredClone(defaultSettings), navigation: [], prompts: [], providers: JSON.parse(String(init.body)).providers } }));
+    click("保存设置");
+    await waitFor(() => expect(h.api).toHaveBeenCalled());
+    expect(JSON.parse(h.api.mock.calls[0][1].body).providers[0].kind).toBe("openrouter");
+  });
   it("提示词新增、编辑、切换回来保留，删除不误写服务器", () => {
     const { guard } = setup();
-    click("提示词"); click("添加提示词"); input("名称", "专属提示词"); input("动作", "expand"); input("提示词模板", "扩写 {{selection}}");
+    click("提示词"); click("添加提示词"); input("名称", "专属提示词");
+    fireEvent.click(screen.getByRole("combobox", { name: "动作" }));
+    fireEvent.click(screen.getByRole("option", { name: "expand" })); input("提示词模板", "扩写 {{selection}}");
     click("站点信息"); click("提示词");
     expect(screen.getByDisplayValue("专属提示词")).toBeTruthy();
     expect(screen.getByDisplayValue("扩写 {{selection}}")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "动作" }).textContent).toBe("expand");
     click("删除提示词");
     expect(screen.queryByLabelText("提示词模板")).toBeNull();
     expect(guard.mock.lastCall?.[0].dirty).toBe(false);
@@ -83,7 +106,9 @@ describe("设置真实 DOM 点击链路", () => {
     click("主题与字体");
     fireEvent.click(screen.getByRole("button", { name: /画廊/ }));
     fireEvent.click(screen.getByRole("button", { name: /苔绿/ }));
-    click("深色"); input("正文字体", "serif");
+    click("深色");
+    fireEvent.click(screen.getByRole("combobox", { name: "正文字体" }));
+    fireEvent.click(screen.getByRole("option", { name: "经典衬线" }));
     expect(screen.getByRole("button", { name: /画廊/ }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: /苔绿/ }).getAttribute("aria-pressed")).toBe("true");
     const response = { ...initial, theme: "garden" as const, skin: "sage" as const, mode: "dark" as const, font: "serif" as const };
@@ -133,13 +158,21 @@ it("设置提供独立文章类型维护入口，不再靠文章自由输入列�
   expect(screen.getByText("感悟")).toBeTruthy();
 });
 
- it("文章类型入口在 SSR 水合前禁用，绑定事件后可进入", () => {
+it("所有设置分类在 SSR 水合前禁用，绑定事件后可切换", () => {
   const html = renderToString(<SettingsPanel initial={defaultSettings} authenticated />);
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const button = [...doc.querySelectorAll("button")].find((node) => node.textContent === "文章类型");
-  expect(button?.disabled).toBe(true);
+  const buttons = [...doc.querySelectorAll<HTMLButtonElement>(".settings-nav button")];
+  expect(buttons.length).toBeGreaterThan(1);
+  for (const button of buttons) {
+    expect(button.disabled, `${button.textContent} 在水合前不应可点`).toBe(true);
+  }
+  h.api.mockResolvedValue({ types: [] });
   setup();
-  expect((screen.getByRole("button", { name: "文章类型" }) as HTMLButtonElement).disabled).toBe(false);
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".settings-nav button")) {
+    expect(button.disabled, `${button.textContent} 在水合后应可点`).toBe(false);
+  }
+  click("主题与字体");
+  expect(screen.getByRole("button", { name: /^深色$/ })).toBeTruthy();
   click("文章类型");
   expect(screen.getByRole("heading", { name: "文章类型" })).toBeTruthy();
- });
+});
