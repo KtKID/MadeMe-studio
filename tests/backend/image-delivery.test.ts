@@ -247,6 +247,8 @@ it("落库图：960 直接返回 R2 中的 WebP，不再生成或另存 960 衍�
   const response = await get(media.id);
   expect(response.status).toBe(200);
   expect(response.headers.get("X-Image-Processing")).toBe("s1-stored");
+  expect(response.headers.get("X-Image-Width")).toMatch(/^[1-9]\d*$/);
+  expect(response.headers.get("X-Image-Height")).toMatch(/^[1-9]\d*$/);
   expect(new Uint8Array(await response.arrayBuffer())).toEqual(stored);
   expect(encode).not.toHaveBeenCalled();
   const etag = response.headers.get("ETag")!;

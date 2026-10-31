@@ -13,7 +13,13 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import {
   inspectRaster,
@@ -197,9 +203,25 @@ async function r2List(prefix: string) {
   return keys;
 }
 
+/** 旧衍生：image-derivatives/v1/<id>/ 下除 s1/ 以外的全部对象（含未写入 manifest 的残留批次）。 */
+async function legacyDerivatives(id: string) {
+  return (await r2List(`image-derivatives/v1/${id}/`)).filter(
+    (key) => !key.startsWith(`image-derivatives/v1/${id}/s1/`),
+  );
+}
+/** 已转换行残留的旧对象：原图 media/<id> 与旧衍生。 */
+async function legacyKeys(id: string) {
+  const original = (await r2List(`media/${id}`)).filter(
+    (key) => key === `media/${id}`,
+  );
+  return [...original, ...(await legacyDerivatives(id))];
+}
+
 async function main() {
-  mkdirSync(join(backupDir, "originals"), { recursive: true });
-  mkdirSync(join(backupDir, "converted"), { recursive: true });
+  // 备份含整库导出（会话/令牌哈希、未发布草稿），目录仅当前用户可读。
+  mkdirSync(join(backupDir, "originals"), { recursive: true, mode: 0o700 });
+  mkdirSync(join(backupDir, "converted"), { recursive: true, mode: 0o700 });
+  chmodSync(backupDir, 0o700);
   console.log(
     `模式：${dryRun ? "dry-run（只读）" : "apply（真实写入）"}  D1=${database}  R2=${bucket}  目录=${backupDir}`,
   );
@@ -226,7 +248,26 @@ async function main() {
     try {
       if (!ID.test(row.id)) throw new Error("媒体 ID 格式异常");
       if (isStoredImage(row)) {
-        results.push({ ...base, action: "skip: 已是落库 WebP" });
+        // 已转换：检查上次是否有删除失败留下的旧原图/旧衍生，重跑时补删。
+        const leftovers = await legacyKeys(row.id);
+        if (!leftovers.length) {
+          results.push({ ...base, action: "skip: 已是落库 WebP" });
+          continue;
+        }
+        if (dryRun) {
+          results.push({
+            ...base,
+            derivatives: leftovers.length,
+            action: `would-cleanup: ${leftovers.length} 个旧对象`,
+          });
+          continue;
+        }
+        for (const key of leftovers) r2Delete(key);
+        results.push({
+          ...base,
+          derivatives: leftovers.length,
+          action: `cleanup: 删除 ${leftovers.length} 个旧对象`,
+        });
         continue;
       }
       if (!(STORE_CONVERTIBLE_MIME as readonly string[]).includes(row.mime)) {
@@ -254,9 +295,7 @@ async function main() {
       const variant = await encodeStoredImageNode(original, info);
       const convertedFile = join(backupDir, "converted", `${row.id}.webp`);
       writeFileSync(convertedFile, variant.data);
-      const derivatives = (
-        await r2List(`image-derivatives/v1/${row.id}/`)
-      ).filter((key) => !key.startsWith(`image-derivatives/v1/${row.id}/s1/`));
+      const derivatives = await legacyDerivatives(row.id);
       const result: Result = {
         ...base,
         width: info.width,
@@ -301,9 +340,18 @@ async function main() {
         throw error;
       }
       // D1 已指向新对象；此后才删除原图和旧衍生（备份已在本机）。
-      r2Delete(row.object_key);
-      for (const key of derivatives) r2Delete(key);
-      results.push({ ...result, action: "converted" });
+      // 删除失败不影响已完成的转换：标记 cleanup-failed，重跑脚本会补删。
+      try {
+        r2Delete(row.object_key);
+        for (const key of derivatives) r2Delete(key);
+        results.push({ ...result, action: "converted" });
+      } catch (error) {
+        failures++;
+        results.push({
+          ...result,
+          action: `converted; cleanup-failed（重跑脚本补删）: ${(error as Error).message.split("\n")[0]}`,
+        });
+      }
     } catch (error) {
       failures++;
       results.push({

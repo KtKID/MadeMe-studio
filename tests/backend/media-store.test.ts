@@ -164,6 +164,14 @@ it("EXIF 方向解析与像素变换", () => {
     2, 2, 2, 2, 1, 1, 1, 1,
   ]);
   expect(orientPixels(px, 2, 1, 6)).toMatchObject({ width: 1, height: 2 });
+  // 2×2：A B / C D。方向 5（转置）→ A C / B D；方向 7（反转置）→ D B / C A。
+  const quad = new Uint8Array([1, 2, 3, 4].flatMap((v) => [v, v, v, v]));
+  const firstChannel = (o: { pixels: Uint8Array }) =>
+    Array.from(o.pixels).filter((_, i) => i % 4 === 0);
+  expect(firstChannel(orientPixels(quad, 2, 2, 5))).toEqual([1, 3, 2, 4]);
+  expect(firstChannel(orientPixels(quad, 2, 2, 7))).toEqual([4, 2, 3, 1]);
+  expect(firstChannel(orientPixels(quad, 2, 2, 3))).toEqual([4, 3, 2, 1]);
+  expect(firstChannel(orientPixels(quad, 2, 2, 4))).toEqual([3, 4, 1, 2]);
   expect(
     inspectRaster(fixture("orientation-6.jpg"), "image/jpeg"),
   ).toMatchObject({

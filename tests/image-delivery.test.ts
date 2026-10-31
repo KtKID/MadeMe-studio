@@ -88,6 +88,10 @@ it("浏览器预缩小跳过动画 PNG/WebP，避免只剩首帧", async () => {
   ]);
   expect(isAnimatedRaster(apng, "image/png")).toBe(true);
   expect(isAnimatedRaster(png, "image/png")).toBe(false);
+  // 只读到前置大块、没见到 IDAT：不能判定为静态。
+  expect(isAnimatedRaster(apng.subarray(0, 8 + 25 + 6), "image/png")).toBe(
+    "unknown",
+  );
   const webp = new Uint8Array(30);
   webp.set(Array.from("RIFF\0\0\0\0WEBPVP8X", (c) => c.charCodeAt(0)));
   webp[20] = 0x02;

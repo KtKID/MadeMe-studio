@@ -51,7 +51,10 @@ export function browserShrinkSize(width: number, height: number) {
  * 动画 PNG（acTL 出现在 IDAT 之前）或动画 WebP（VP8X 动画位）：不在浏览器缩小，
  * 否则画布只会取首帧。服务端会识别动画并原样保存。
  */
-export function isAnimatedRaster(head: Uint8Array, mime: string) {
+export function isAnimatedRaster(
+  head: Uint8Array,
+  mime: string,
+): boolean | "unknown" {
   const tag = (offset: number) =>
     String.fromCharCode(...head.subarray(offset, offset + 4));
   if (mime === "image/webp")
@@ -69,7 +72,8 @@ export function isAnimatedRaster(head: Uint8Array, mime: string) {
     if (type === "IDAT" || type === "IEND") return false;
     offset += 12 + length;
   }
-  return false;
+  // 窗口内没走到 IDAT（例如前面有很大的 iCCP/eXIf）：无法确认，调用方不得缩小。
+  return "unknown";
 }
 
 /** 是否可能需要预缩小（同步判断）；为 false 时调用方不必 await，保持上传同步启动。 */
@@ -88,7 +92,16 @@ export async function shrinkForUpload(file: File): Promise<File> {
   let bitmap: ImageBitmap | undefined;
   try {
     const head = new Uint8Array(await file.slice(0, 64 * 1024).arrayBuffer());
-    if (isAnimatedRaster(head, file.type)) return file;
+    const animated = isAnimatedRaster(head, file.type);
+    if (animated !== false) {
+      // 动画或无法确认：原样交给服务端（服务端读全文件，动画原样保存，静态超限给出 413）。
+      clientLog("info", "media.upload_shrink_skipped", {
+        mime: file.type,
+        size: file.size,
+        reason: animated === true ? "animated" : "unknown-chunks",
+      });
+      return file;
+    }
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
     if (!needsBrowserShrink(bitmap.width, bitmap.height, file.size))
       return file;

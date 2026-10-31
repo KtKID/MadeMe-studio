@@ -14,7 +14,7 @@ import type { Identity } from "../auth/identity";
 import { AppError, notFound } from "../errors";
 import { log, logCaught } from "../../modules/log/server";
 import { readableMedia, isStoredImage, type MediaRow } from "./service";
-import { encodeVariants } from "./image-encoder";
+import { encodeVariants, inspectRaster } from "./image-encoder";
 
 const jobs = new WeakMap<R2Bucket, Map<string, Promise<ImageManifest>>>();
 // 从读取源字节起串行，不能仅串行解码而让排队请求提前把大原图全部读入内存。
@@ -216,13 +216,25 @@ export async function serveImageVariant(
       throw new AppError(503, "IMAGE_VARIANT_MISSING", "图片对象缺失。");
     }
     const data = new Uint8Array(await new Response(object.body).arrayBuffer());
-    response = new Response(data, {
-      headers: variantHeaders(
-        data.length,
-        await digest(data),
-        `${IMAGE_STORE_RECIPE}-stored`,
-      ),
-    });
+    const headers: Record<string, string> = variantHeaders(
+      data.length,
+      await digest(data),
+      `${IMAGE_STORE_RECIPE}-stored`,
+    );
+    try {
+      // 只读 WebP 文件头，与衍生分支保持相同的尺寸响应头。
+      const size = inspectRaster(data, "image/webp");
+      headers["X-Image-Width"] = String(size.width);
+      headers["X-Image-Height"] = String(size.height);
+    } catch (error) {
+      logCaught(
+        "image.stored_header_unreadable",
+        error,
+        { mediaId: row.id },
+        "warn",
+      );
+    }
+    response = new Response(data, { headers });
     await putEdgeCache(cache, key, response, row.id);
   } else {
     let manifest: ImageManifest;
