@@ -30,7 +30,8 @@ npx tsx scripts/migrate-media-960.ts --config <目标 wrangler.jsonc> --dry-run 
 npx tsx scripts/migrate-media-960.ts --config <目标 wrangler.jsonc> --apply     # 真实执行
 ```
 
-- 必须先部署认识 `media/<id>.webp` 的新 Worker，再 `--apply`。
+- 必须先部署认识 `media/<id>.webp` 的新 Worker，再 `--apply`；在访问低峰执行：D1 改指新对象到删除旧对象之间，正在走旧衍生路径的在途请求可能短暂 503（前端回退到 `/api/files` 自愈）。
+- 默认备份目录是部署机上的 `/workspace/mm-deploy/`，其他环境请用 `--backup-dir` 指定。
 - `--apply` 先 `wrangler d1 export` 整库到备份目录（默认 `/workspace/mm-deploy/media-backup-<日期>/`），再逐张：下载原图并核对大小与 sha256 → 本机转换 → 上传新键并回读校验 → 条件 `UPDATE … WHERE object_key=旧键` → 删除原图和旧衍生。D1 更新失败或 0 行时撤回新对象，原图不动。
 - 原图、转换结果、每张图的 sha256/旧衍生键清单和 `report-*.json` 都留在备份目录；可用 `--only <id>` 先试一张。重复运行幂等（已转换行跳过）。
 - R2 列举使用 Cloudflare REST 只读接口（wrangler CLI 没有 list），对象读写删除使用 `wrangler r2 object`。

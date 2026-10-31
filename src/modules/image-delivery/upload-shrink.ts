@@ -30,13 +30,46 @@ export function needsBrowserShrink(
   );
 }
 
-/** 预缩小后的目标尺寸：宽度不超过落库宽度，等比，从不放大。 */
+/**
+ * 预缩小后的目标尺寸：等比、从不放大，同时满足落库宽度与服务端的单边/像素上限
+ * （极长图只限宽度仍可能超过 8192 高或 400 万像素）。
+ */
 export function browserShrinkSize(width: number, height: number) {
-  const scale = Math.min(1, IMAGE_STORE_MAX_WIDTH / width);
+  const scale = Math.min(
+    1,
+    IMAGE_STORE_MAX_WIDTH / width,
+    IMAGE_MAX_SIDE / height,
+    Math.sqrt(IMAGE_MAX_PIXELS / (width * height)),
+  );
   return {
-    width: Math.max(1, Math.round(width * scale)),
-    height: Math.max(1, Math.round(height * scale)),
+    width: Math.max(1, Math.floor(width * scale)),
+    height: Math.max(1, Math.floor(height * scale)),
   };
+}
+
+/**
+ * 动画 PNG（acTL 出现在 IDAT 之前）或动画 WebP（VP8X 动画位）：不在浏览器缩小，
+ * 否则画布只会取首帧。服务端会识别动画并原样保存。
+ */
+export function isAnimatedRaster(head: Uint8Array, mime: string) {
+  const tag = (offset: number) =>
+    String.fromCharCode(...head.subarray(offset, offset + 4));
+  if (mime === "image/webp")
+    return tag(12) === "VP8X" && head.length > 20 && !!(head[20] & 0x02);
+  if (mime !== "image/png") return false;
+  for (let offset = 8; offset + 8 <= head.length;) {
+    const length =
+      ((head[offset] << 24) |
+        (head[offset + 1] << 16) |
+        (head[offset + 2] << 8) |
+        head[offset + 3]) >>>
+      0;
+    const type = tag(offset + 4);
+    if (type === "acTL") return true;
+    if (type === "IDAT" || type === "IEND") return false;
+    offset += 12 + length;
+  }
+  return false;
 }
 
 /** 是否可能需要预缩小（同步判断）；为 false 时调用方不必 await，保持上传同步启动。 */
@@ -48,12 +81,14 @@ export function mayNeedShrink(file: File) {
 
 /**
  * 返回可以直接上传的文件。缩小失败时记录日志并返回原文件，由服务端给出明确拒绝原因，
- * 不吞掉错误也不伪造成功。动画 PNG/WebP 若超限会被取首帧，这是已记录的取舍。
+ * 不吞掉错误也不伪造成功。动画 PNG/WebP 不缩小，原样交给服务端保留动画。
  */
 export async function shrinkForUpload(file: File): Promise<File> {
   if (!mayNeedShrink(file)) return file;
   let bitmap: ImageBitmap | undefined;
   try {
+    const head = new Uint8Array(await file.slice(0, 64 * 1024).arrayBuffer());
+    if (isAnimatedRaster(head, file.type)) return file;
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
     if (!needsBrowserShrink(bitmap.width, bitmap.height, file.size))
       return file;

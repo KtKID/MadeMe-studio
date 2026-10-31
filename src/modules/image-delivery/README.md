@@ -8,9 +8,9 @@
 
 - 静态 PNG、JPEG、静态 WebP：按 EXIF 方向转正，等比缩到最大 960 宽（从不放大），WebP q80（alpha 质量 100，透明保留）编码后写入 `media/<id>.webp`。D1 行的 `mime=image/webp`、`size` 为新字节数、`name` 改为 `.webp` 扩展名。常量 `IMAGE_STORE_RECIPE=s1`、`IMAGE_STORE_MAX_WIDTH=960`、`IMAGE_STORE_QUALITY=80` 只在 `src/modules/config/limits.ts` 维护。
 - 宽度不进设置页：`960.webp` URL、srcset 宽度描述、`s1/` 衍生路径与存量迁移都依赖它；要改必须升级 `IMAGE_STORE_RECIPE` 并另写迁移。
-- GIF、AVIF、动画 PNG/WebP、SVG（本来就不允许上传）、音视频、文档：原样保存在 `media/<id>`，不转码，避免丢帧或破坏矢量/媒体。
+- GIF、AVIF、动画 PNG/WebP、SVG（本来就不允许上传）、音视频、文档：原样保存在 `media/<id>`，不转码，避免丢帧或破坏矢量/媒体。浏览器预缩小同样识别动画 PNG（acTL）/动画 WebP（VP8X 动画位）并跳过，不会只留首帧；动画图超过 Worker 解码上限也照样原样保存（服务端先识别动画再检查尺寸）。
 - 元数据：重新编码只写像素，EXIF/XMP/ICC 全部去除。ICC 只识别、不做色彩转换，输出按 sRGB 解释；广色域（Display P3/Adobe RGB）照片可能轻微偏色。浏览器导出的裁剪 JPEG 通常带 sRGB 配置，去掉不影响颜色。
-- Worker 解码上限：16MiB / 400 万像素 / 单边 8192（实测 12MP JPEG 解码+缩放 RSS≈285MB，超过 128MB 限制）。超限上传返回 `413 IMAGE_TOO_LARGE`（提示先缩小再上传）。界面上传与裁剪另存先经 `upload-shrink.ts` 在浏览器按方向转正并缩到 960 宽（无损 PNG 交给服务端），因此手机原图可以直接从 UI 上传；API/CLI 不做预缩小。
+- Worker 解码上限：16MiB / 400 万像素 / 单边 8192（实测 12MP JPEG 解码+缩放 RSS≈285MB，超过 128MB 限制）。超限上传返回 `413 IMAGE_TOO_LARGE`（提示先缩小再上传）。界面上传与裁剪另存先经 `upload-shrink.ts` 在浏览器按方向转正并缩到同时满足 960 宽、单边 8192、400 万像素的尺寸（无损 PNG 交给服务端），因此手机原图可以直接从 UI 上传；API/CLI 不做预缩小。
 - 失败不静默、不退回保存大原图：尺寸头无效 `422 IMAGE_DIMENSIONS`、解码/编码失败 `422 IMAGE_CONVERT_FAILED`，经统一日志 `media.image_rejected`（warn）/`media.image_convert_failed`（error）记录；成功记 `media.image_stored_webp`（含前后字节数、尺寸、方向、是否有 ICC）。
 
 `/api/files/:id`（含“下载原图”）现在返回的就是落库的 960 WebP。

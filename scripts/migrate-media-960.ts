@@ -84,14 +84,26 @@ const backupDir = resolve(
     `/workspace/mm-deploy/media-backup-${date}${dryRun ? "-dryrun" : ""}`,
 );
 // JSONC：去掉注释后解析，只读取 D1 数据库名与 R2 桶名。
-const wranglerConfig = JSON.parse(
-  readFileSync(config, "utf8")
-    .replace(/^\s*\/\/.*$/gm, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/,(\s*[}\]])/g, "$1"),
-);
-const database: string = wranglerConfig.d1_databases?.[0]?.database_name;
-const bucket: string = wranglerConfig.r2_buckets?.[0]?.bucket_name;
+let wranglerConfig: {
+  d1_databases?: { database_name?: string }[];
+  r2_buckets?: { bucket_name?: string }[];
+};
+try {
+  wranglerConfig = JSON.parse(
+    readFileSync(config, "utf8")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/,(\s*[}\]])/g, "$1"),
+  );
+} catch (error) {
+  // 简易 JSONC 处理：字符串值里含 // 或 /* 会被误删，此时请改用无注释的 JSON 配置。
+  console.error(
+    `无法解析 ${config}：${(error as Error).message}（仅支持行注释/块注释，字符串内不能含 // 或 /*）。`,
+  );
+  process.exit(2);
+}
+const database = wranglerConfig.d1_databases?.[0]?.database_name ?? "";
+const bucket = wranglerConfig.r2_buckets?.[0]?.bucket_name ?? "";
 if (!database || !bucket) {
   console.error("Wrangler 配置中找不到 d1_databases[0] 或 r2_buckets[0]。");
   process.exit(2);
@@ -271,24 +283,22 @@ async function main() {
       }
       const newKey = storedImageKey(row.id);
       r2Put(newKey, convertedFile, "image/webp");
-      const check = r2Get(newKey, `${convertedFile}.verify`);
-      if (sha256(check) !== sha256(variant.data))
-        throw new Error("新对象回读校验失败");
-      const name = webpName(
-        row.name.slice(0, MEDIA_FILENAME_MAX - ".webp".length),
-      );
-      let updated;
+      // 新键上传之后、D1 成功指向它之前的任何失败都撤回新键，原图与 D1 不动。
       try {
-        updated = d1(
+        const check = r2Get(newKey, `${convertedFile}.verify`);
+        if (sha256(check) !== sha256(variant.data))
+          throw new Error("新对象回读校验失败");
+        const name = webpName(
+          row.name.slice(0, MEDIA_FILENAME_MAX - ".webp".length),
+        );
+        const updated = d1(
           `UPDATE media SET object_key=${sql(newKey)}, mime='image/webp', size=${sql(variant.data.length)}, name=${sql(name)} WHERE id=${sql(row.id)} AND object_key=${sql(row.object_key)}`,
         );
+        if (updated.meta?.changes !== 1)
+          throw new Error("D1 行已被修改（条件更新 0 行），已撤回新对象");
       } catch (error) {
         r2Delete(newKey);
         throw error;
-      }
-      if (updated.meta?.changes !== 1) {
-        r2Delete(newKey);
-        throw new Error("D1 行已被修改（条件更新 0 行），已撤回新对象");
       }
       // D1 已指向新对象；此后才删除原图和旧衍生（备份已在本机）。
       r2Delete(row.object_key);
