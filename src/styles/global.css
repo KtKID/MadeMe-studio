@@ -839,10 +839,10 @@ img {
   justify-content: center;
   overflow: hidden;
 }
-.post-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* 缩略图是同一封面的等比缩小，不另行裁切。 */
+.post-thumb.has-cover {
+  container-type: size;
+  background: transparent;
 }
 .post-main > div:last-child {
   min-width: 0;
@@ -969,15 +969,14 @@ img {
 }
 .public-hero {
   position: relative;
-  padding: 73px 0 67px;
-  min-height: 344px;
+  padding: 38px 0 32px;
   overflow: hidden;
 }
 .public-hero h1 {
-  font-size: clamp(36px, 4.5vw, 57px);
+  font-size: clamp(30px, 3.6vw, 44px);
   letter-spacing: -0.06em;
   line-height: 1.4;
-  margin-bottom: 22px;
+  margin-bottom: 12px;
 }
 .public-hero h1 em {
   font-style: normal;
@@ -991,14 +990,16 @@ img {
   z-index: 2;
 }
 .public-hero .eyebrow {
-  margin-bottom: 23px;
+  margin-bottom: 12px;
 }
 .hero-decoration {
   position: absolute;
   right: 30px;
   width: 300px;
   height: 260px;
-  top: 65px;
+  top: -32px;
+  transform: scale(0.65);
+  transform-origin: right center;
   color: var(--accent);
   opacity: 0.85;
 }
@@ -1094,6 +1095,19 @@ img {
 }
 .article-card:hover .article-card-visual > img {
   transform: scale(1.04);
+}
+/* 真实封面按文章自己的比例与展示设置渲染：高度可不同，文字区排版不变。 */
+.public-feed[data-layout] .article-card-visual.has-cover {
+  aspect-ratio: auto;
+  background: transparent;
+  overflow: visible;
+  border-radius: 0;
+}
+.article-card-visual.has-cover .cover-frame {
+  border-radius: 9px;
+}
+.public-feed[data-layout="garden"] .article-card-visual.has-cover .cover-frame {
+  border-radius: 0;
 }
 .abstract-cover {
   width: 100%;
@@ -1406,18 +1420,14 @@ kbd {
 }
 .editor-cover {
   margin: -35px 0 35px;
-  height: 230px;
   position: relative;
 }
-.editor-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.editor-cover .button {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
+.editor-cover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
 }
 .editor-inspector {
   flex: 0 0 270px;
@@ -1545,7 +1555,7 @@ kbd {
   flex: 1;
   min-width: 180px;
 }
-.media-tools > select {
+.media-tools > .media-filter {
   width: 130px;
   font-size: 11px;
   padding: 9px;
@@ -2069,11 +2079,8 @@ kbd {
 .reading-cover {
   margin: 0 0 40px;
 }
-.reading-cover img {
-  width: 100%;
+.reading-cover .cover-frame {
   border-radius: 9px;
-  max-height: 500px;
-  object-fit: cover;
 }
 .reading-prose {
   font-size: 16px;
@@ -2328,6 +2335,7 @@ kbd {
     margin-right: 38px;
   }
   .add-cover,
+  .editor-cover-actions,
   .writing-shortcuts,
   .editor-bottom-hint {
     margin-left: 38px;
@@ -2611,11 +2619,10 @@ kbd {
     padding: 6px 9px;
   }
   .public-hero {
-    padding: 50px 0 37px;
-    min-height: 300px;
+    padding: 28px 0 24px;
   }
   .public-hero h1 {
-    font-size: 38px;
+    font-size: 30px;
     position: relative;
     z-index: 2;
   }
@@ -2626,7 +2633,7 @@ kbd {
   }
   .hero-decoration {
     right: -100px;
-    top: 70px;
+    top: -32px;
     transform: scale(0.6);
     opacity: 0.4;
   }
@@ -2714,6 +2721,7 @@ kbd {
     gap: 7px;
   }
   .add-cover,
+  .editor-cover-actions,
   .writing-shortcuts,
   .editor-bottom-hint {
     margin-left: 27px;
@@ -2734,7 +2742,6 @@ kbd {
   }
   .editor-cover {
     margin-top: -26px;
-    height: 160px;
   }
   .editor-bottom-hint {
     font-size: 8px;
@@ -2764,7 +2771,7 @@ kbd {
     width: 100%;
     justify-content: flex-end;
   }
-  .media-tools > select {
+  .media-tools > .media-filter {
     width: 100px;
   }
   .media-grid {
@@ -2936,19 +2943,6 @@ kbd {
   color: var(--muted);
   font-size: 9px;
 }
-.public-feed[data-layout="paper"] .article-card.featured {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  align-items: center;
-  gap: 30px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 28px;
-  margin-bottom: 8px;
-}
-.public-feed[data-layout="paper"] .article-card.featured h2 {
-  font-size: 27px;
-}
 .public-feed[data-layout="ink"] .article-grid {
   display: flex;
   flex-direction: column;
@@ -3018,13 +3012,6 @@ kbd {
   top: 50%;
 }
 @media (max-width: 680px) {
-  .public-feed[data-layout="paper"] .article-card.featured {
-    display: block;
-    padding-bottom: 10px;
-  }
-  .public-feed[data-layout="paper"] .article-card.featured h2 {
-    font-size: 23px;
-  }
   .public-feed[data-layout="ink"] .article-card {
     grid-template-columns: 90px 1fr;
     gap: 17px;

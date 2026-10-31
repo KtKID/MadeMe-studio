@@ -299,8 +299,10 @@ it("本地保存弹窗与fallback使用共享Modal及按钮样式", async () => 
   const { baseElement } = render(<SaveButton getSnapshot={snapshot} />);
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
-  for (const button of baseElement.querySelectorAll("button"))
+  // 共享下拉触发器是 combobox，不是操作按钮，样式由 Dropdown 统一管理。
+  for (const button of baseElement.querySelectorAll("button:not([role=combobox])"))
     expect(button.matches(".button,.icon-button")).toBe(true);
+  expect(baseElement.querySelector("select")).toBeNull();
   expect(baseElement.querySelector("dialog")).toBeNull();
   expect(baseElement.querySelector(".modal .modal-actions")).not.toBeNull();
   expect(screen.getByText("保存").classList.contains("primary")).toBe(true);
@@ -1081,9 +1083,8 @@ it("Markdown选项切换预设保留，busy禁止切换和重复保存，关闭�
     name: "仅下载 Markdown",
   }) as HTMLInputElement;
   fireEvent.click(checkbox);
-  fireEvent.change(screen.getByLabelText("保存预设"), {
-    target: { value: "库B" },
-  });
+  fireEvent.click(screen.getByRole("combobox", { name: "保存预设" }));
+  fireEvent.click(screen.getByRole("option", { name: "库B" }));
   expect(checkbox.checked).toBe(true);
   let finish!: (value: unknown) => void;
   h.save.mockImplementationOnce(

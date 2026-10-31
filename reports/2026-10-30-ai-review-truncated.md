@@ -17,10 +17,23 @@ PR #2 手动触发 `AI PR Review (MiniMax)` 后工作流失败，PR 下没有审
 - `finish_reason === "length"` 或回答为空时，在 PR 下更新同一条评论说明“审核没有完成”及原因，再让工作流失败，日志里带 `finish_reason` 和 usage。
 - 评论“有则更新、无则新建”抽成 `upsertComment()`。
 
+## 第二次失败：响应头超时
+- 现象：改成 high 后重跑，约 5 分钟后报 `UND_ERR_HEADERS_TIMEOUT`，PR 下仍没有评论。
+- 根因：非流式请求要等模型想完才返回响应头；Node 内置 fetch（undici）默认最多等 5 分钟响应头，与 `AbortSignal` 的 15 分钟无关。网络错误也没有在 PR 下留言。
+- 修复：改为 `stream: true`（SSE），逐块拼接 `delta.content`，记录 `finish_reason` 与 usage；HTTP 错误、流内报错、网络异常、截断、空回答都走 `failWithComment()`，先在 PR 下留言再让工作流失败。
+
 ## 验证
 - 本地 `node --check` 通过；直接调用 MiniMax 接口，`max_tokens: 262144` + `reasoning_effort` 返回 200。
+- 本地 curl 验证 MiniMax-M3 流式返回格式（`delta.content`，最后一块带 `finish_reason`）。
 - 推送后对 PR #2 手动重跑，结果见交付记录。
 
 ## 避免再踩坑
 - 带思考的模型，输出上限要按“思考 + 回答”估，不要沿用无思考模型的数值。
+- 长时间思考的模型请求一律用流式，避免各层“等响应头”的默认超时。
 - 调用外部模型必须检查 `finish_reason`，截断要当失败处理，并在用户能看到的地方说明。
+
+## 后续：审核模型换成 GLM（2026-10-30，按用户要求）
+- 结果：流式修复后 MiniMax-M3 对 PR #2 审核成功（约 4.5 分钟，评论已发布）。之后用户要求换成智谱 GLM 订阅。
+- 改动：脚本改成与服务商无关的 `AI_REVIEW_*` 配置；默认接口 `https://open.bigmodel.cn/api/coding/paas/v4`（订阅专用），模型 `glm-5.3-flash`，key 用仓库 secret `GLM_API_KEY`；`thinking: {type: "enabled"}` 只在 `AI_REVIEW_THINKING` 有值时发送。流内 `error` 字段也走 `failWithComment()`。评论标记改为 `<!-- ai-review -->`，兼容更新旧的 `ai-review:minimax` 评论。
+- 踩坑：GLM 的 `max_tokens` 上限是 131072（256K 会返回 1210 参数非法），所以默认改为 128K。换服务商时先用 `/models` 和一次小请求确认模型名与参数范围。
+- MiniMax 的 secret `MINIMAX_API_KEY` 保留，改回只需设置仓库 Variables 并把 workflow 里的 secret 名换回。

@@ -1,0 +1,173 @@
+/* 封面展示：首页卡片、文章页、编辑器、缩略图共用。最大 1024×1024，补边为白色。 */
+.cover-frame {
+  --cover-fill: #ffffff;
+  --cover-max: 1024px;
+  position: relative;
+  display: block;
+  overflow: hidden;
+  margin-inline: auto;
+  background: var(--cover-fill);
+}
+.cover-frame > img {
+  display: block;
+  user-select: none;
+}
+/* 预设比例：固定宽高比框，宽度与高度都不超过 1024px。 */
+.cover-frame:not([data-aspect="original"]) {
+  aspect-ratio: var(--cover-ratio);
+  width: min(
+    100%,
+    var(--cover-max),
+    calc(var(--cover-max) * var(--cover-ratio))
+  );
+}
+.cover-frame:not([data-aspect="original"]) > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* 原图比例：不裁切、不补边，按原图等比缩小。 */
+.cover-frame[data-aspect="original"] {
+  width: fit-content;
+  max-width: min(100%, var(--cover-max));
+  background: transparent;
+}
+.cover-frame[data-aspect="original"] > img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--cover-max);
+}
+/* 缩略图：父容器需 container-type: size；整体等比缩小，不另行裁切。 */
+.cover-frame--thumb:not([data-aspect="original"]) {
+  width: min(100cqw, calc(100cqh * var(--cover-ratio)));
+}
+.cover-frame--thumb[data-aspect="original"] {
+  max-width: 100cqw;
+  max-height: 100cqh;
+}
+.cover-frame--thumb[data-aspect="original"] > img {
+  max-width: 100cqw;
+  max-height: 100cqh;
+}
+
+/* 调整器：沿用表单、按钮与主题变量。 */
+.cover-adjuster {
+  display: grid;
+  gap: 14px;
+}
+.cover-adjuster-row {
+  display: grid;
+  gap: 7px;
+}
+.cover-adjuster-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.cover-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cover-segmented button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 11px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+.cover-segmented button.active {
+  background: var(--tint);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.cover-segmented button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.cover-adjuster-hint {
+  margin: 0;
+  font-size: 12px;
+}
+.cover-crop-overview {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 6px;
+  cursor: grab;
+  touch-action: none;
+  background: var(--soft);
+}
+.cover-crop-overview:active {
+  cursor: grabbing;
+}
+.cover-crop-overview > img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  pointer-events: none;
+  user-select: none;
+}
+.cover-kept-region {
+  position: absolute;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 9999px #141b15a6;
+  pointer-events: none;
+}
+.cover-adjuster-sliders {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+.cover-adjuster-preview {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--soft);
+}
+.cover-adjuster-preview .cover-frame {
+  max-width: min(100%, 420px);
+  border-radius: 6px;
+}
+.cover-adjuster-preview .cover-frame:not([data-aspect="original"]) {
+  width: min(100%, 420px, calc(260px * var(--cover-ratio)));
+}
+.cover-adjuster-preview .cover-frame[data-aspect="original"] > img {
+  max-height: 260px;
+}
+@media (max-width: 680px) {
+  .cover-adjuster-sliders {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 发布面板“封面”区。 */
+.publish-cover {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-width: 0;
+}
+.publish-cover > legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.publish-cover-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.publish-cover-empty p {
+  margin: 0;
+}

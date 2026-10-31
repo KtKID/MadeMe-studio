@@ -16,7 +16,9 @@
 
 ## 安全回执与结构约束
 
-`editorBlockSchema` 校验受支持 BlockNote 块类型、内联文字/链接及表格行列结构；畸形 JSON 在写入前被拒绝。`postMutationResponseSchema` 是完整文章与严格 `{id, version}` 回执的联合：write-only Token 不能通过写响应读取已有私密内容。
+`editorBlockSchema` 校验受支持 BlockNote 块类型、内联文字/链接及表格行列结构；畸形 JSON 在写入前被拒绝。`postMutationResponseSchema` 是完整文章与严格 `{id, version}` 回执的联合：write-only Token 不能通过写响应读取已有私密内容。完整文章分支使用 `postReadSchema`（未知字段剥离、块与封面设置容忍增量字段），新增文章字段不会再让客户端解析失败；服务端输入仍由 strict 的 create/patch/publish schema 校验。
+
+读取版本：Token 客户端用 `Accept: application/json; mademe-post-schema=2`（`POST_SCHEMA_ACCEPT`）声明可读完整字段；未声明的旧客户端（已发出的 0.1.0 集成包用 strict 解析）只拿到冻结的 `LEGACY_POST_KEYS`（`legacyPost`）。站内作者会话不受影响。以后新增字段无需再升版本：新客户端已能容忍，旧客户端始终拿旧格式。
 
 各端点响应（文章、设置、媒体、模型、令牌、修订、错误、确认）统一导出 Zod schema。`acceptedMediaMimeTypes` 是界面 accept 与上传验证的共用清单。
 

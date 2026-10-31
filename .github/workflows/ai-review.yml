@@ -1,4 +1,4 @@
-name: AI PR Review (MiniMax)
+name: AI PR Review
 
 on:
   pull_request:
@@ -41,11 +41,13 @@ jobs:
           node-version: 22
       - name: Run AI review
         env:
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
-          MINIMAX_BASE_URL: ${{ vars.MINIMAX_BASE_URL || 'https://api.minimax.cn/v1' }}
-          MINIMAX_MODEL: ${{ vars.MINIMAX_MODEL || 'MiniMax-M3' }}
-          MINIMAX_MAX_TOKENS: ${{ vars.MINIMAX_MAX_TOKENS || '262144' }}
-          MINIMAX_REASONING_EFFORT: ${{ vars.MINIMAX_REASONING_EFFORT || 'high' }}
+          # 换模型只需改仓库 Variables，或改这里的默认值；key 放在 Secrets
+          AI_REVIEW_API_KEY: ${{ secrets.GLM_API_KEY }}
+          AI_REVIEW_BASE_URL: ${{ vars.AI_REVIEW_BASE_URL || 'https://open.bigmodel.cn/api/coding/paas/v4' }}
+          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL || 'glm-5.3-flash' }}
+          AI_REVIEW_MAX_TOKENS: ${{ vars.AI_REVIEW_MAX_TOKENS || '131072' }}
+          AI_REVIEW_REASONING_EFFORT: ${{ vars.AI_REVIEW_REASONING_EFFORT || 'high' }}
+          AI_REVIEW_THINKING: ${{ vars.AI_REVIEW_THINKING || 'enabled' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}

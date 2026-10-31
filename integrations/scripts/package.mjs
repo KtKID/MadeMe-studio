@@ -1,7 +1,7 @@
 /** 仅打包已提交集成源码与集成文档；不读取私人数据，不安装依赖，不发网络请求。 */
 import { readFile, writeFile, mkdir, mkdtemp, cp, symlink, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -20,6 +20,16 @@ const source = resolve(stage, 'source');
 const hash = data => createHash('sha256').update(data).digest('hex');
 const sourceFiles = run('git', ['ls-tree', '-r', '--name-only', commit, 'integrations']).trim().split('\n').filter(p => !['integrations/INSTALL.md', 'integrations/scripts/package.mjs'].includes(p));
 sourceFiles.push('src/shared/contracts.ts');
+// 共享协议的本地依赖（publication-status、cover、config 等）随源码一起打包：按已提交版本递归收集相对 .ts 导入。
+for (let i = 0; i < sourceFiles.length; i++) {
+  const path = sourceFiles[i];
+  if (!/\.(ts|mjs)$/.test(path)) continue;
+  const text = execFileSync('git', ['show', `${commit}:${path}`], { cwd: root, encoding: 'utf8' });
+  for (const [, spec] of text.matchAll(/(?:from|import)\s*['"](\.{1,2}\/[^'"]+\.ts)['"]/g)) {
+    const dep = relative(root, resolve(root, dirname(path), spec));
+    if (!sourceFiles.includes(dep)) sourceFiles.push(dep);
+  }
+}
 const records = [];
 for (const path of sourceFiles) {
   // 业务实现固定在已提交版本；仅交付说明可以读取本次编辑后的工作副本。

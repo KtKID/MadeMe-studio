@@ -5,6 +5,7 @@
 - `guest-smoke.spec.ts`：`@guest`，首页可读、工作台入口、窄屏无横向溢出。
 - `author-flow.spec.ts`：`@author`，真实 BlockNote 编辑、草稿/发布快照隔离、软删除恢复、版本冲突。
 - `editor-regressions.spec.ts`：`@author`，延迟保存继续输入、单段 Markdown 导入取消、作者首页不泄漏草稿、原地发布回读刷新、明确撤回发布。
+- `home-featured-grid.spec.ts`：`@author`，默认刊物三篇主次、桌面四列按行排序、平板/手机、系统明暗、Android 触屏模拟、缺封面、少量文章/搜索空态、长标题和无 JavaScript 阅读。`npm run build && CHROMIUM_PATH=<已安装 Chromium 路径> npm run test:e2e:home` 在独立临时 Worker/D1/R2 运行并清理；可用 `HOME_SCREENSHOT_DIR` 保存真实页面截图。仅验证 Chromium/Android 模拟，不能替代实体手机和所有浏览器验收。
 
 作者用例必须使用隔离环境的显式测试身份；`/api/bootstrap` 未确认作者权限时直接失败，不使用 `test.skip` 把未跑场景算通过。测试创建带 E2E 标记的内容并尽力清理，不导入私人笔记。
 
@@ -29,3 +30,13 @@ BASE_URL=http://127.0.0.1:<隔离实例端口> npm run test:e2e -- tests/e2e/obs
 目录选择器在此组测试中仅模拟“不支持”或“用户取消”，下载与页面交互是真实浏览器行为；这些断言**不等于真实 File System Access 授权、本机目录写入或 Obsidian 应用打开验收**。完整图片事务与冲突保护由 `tests/obsidian-save.test.ts` 的确定性目录替身验证；原生目录授权仍需支持浏览器中的人工验收。若 Chromium 因沙箱 socket 权限无法启动，记录 blocked，不能绕过限制或报告通过。
 
 `npm run build && npm run test:e2e:obsidian` 可自动建立一次性作者 Worker/D1/R2，并运行这三项用例、最后清理。使用已安装的 Playwright 浏览器；若需系统 Chromium，可显式提供 `CHROMIUM_PATH`。不自动安装浏览器，不绕过系统权限。此命令不操作私人目录。
+
+## 封面比例与展示设置
+
+`cover.spec.ts`（`@author`）用 Canvas 生成 1600×900、900×1600、1000×1000 三张带四边色带（上红/下蓝/左品红/右绿）、四角黑块和文字的 PNG，覆盖原图、1:1、4:3、16:9 × 完整显示/铺满裁切（含 2 倍缩放），在 1440 与 390 宽度下逐一检查首页卡片、文章页、编辑器与工作台缩略图：比例、最大 1024×1024、完整显示四边都在且有白色补边、铺满裁切按位置只保留指定边缘。另有调整→取消→应用→保存→重载→发布面板改比例→发布→再改草稿（线上不变）→重新发布的完整流程。
+
+```sh
+npm run build && DEV_PORT=<空闲端口> CHROMIUM_PATH=<chromium> COVER_SHOTS_DIR=<截图目录> npm run test:e2e:cover
+```
+
+使用一次性作者 Worker/D1/R2，结束后清理。测试图为模拟数据，**不调用、也不验收真实 AI 生图**。截图默认写到 `test-results/cover-shots`（已被 git 忽略）。
