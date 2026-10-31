@@ -839,10 +839,10 @@ img {
   justify-content: center;
   overflow: hidden;
 }
-.post-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* 缩略图是同一封面的等比缩小，不另行裁切。 */
+.post-thumb.has-cover {
+  container-type: size;
+  background: transparent;
 }
 .post-main > div:last-child {
   min-width: 0;
@@ -1095,6 +1095,19 @@ img {
 }
 .article-card:hover .article-card-visual > img {
   transform: scale(1.04);
+}
+/* 真实封面按文章自己的比例与展示设置渲染：高度可不同，文字区排版不变。 */
+.public-feed[data-layout] .article-card-visual.has-cover {
+  aspect-ratio: auto;
+  background: transparent;
+  overflow: visible;
+  border-radius: 0;
+}
+.article-card-visual.has-cover .cover-frame {
+  border-radius: 9px;
+}
+.public-feed[data-layout="garden"] .article-card-visual.has-cover .cover-frame {
+  border-radius: 0;
 }
 .abstract-cover {
   width: 100%;
@@ -1407,18 +1420,14 @@ kbd {
 }
 .editor-cover {
   margin: -35px 0 35px;
-  height: 230px;
   position: relative;
 }
-.editor-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.editor-cover .button {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
+.editor-cover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
 }
 .editor-inspector {
   flex: 0 0 270px;
@@ -2070,11 +2079,8 @@ kbd {
 .reading-cover {
   margin: 0 0 40px;
 }
-.reading-cover img {
-  width: 100%;
+.reading-cover .cover-frame {
   border-radius: 9px;
-  max-height: 500px;
-  object-fit: cover;
 }
 .reading-prose {
   font-size: 16px;
@@ -2329,6 +2335,7 @@ kbd {
     margin-right: 38px;
   }
   .add-cover,
+  .editor-cover-actions,
   .writing-shortcuts,
   .editor-bottom-hint {
     margin-left: 38px;
@@ -2714,6 +2721,7 @@ kbd {
     gap: 7px;
   }
   .add-cover,
+  .editor-cover-actions,
   .writing-shortcuts,
   .editor-bottom-hint {
     margin-left: 27px;
@@ -2734,7 +2742,6 @@ kbd {
   }
   .editor-cover {
     margin-top: -26px;
-    height: 160px;
   }
   .editor-bottom-hint {
     font-size: 8px;

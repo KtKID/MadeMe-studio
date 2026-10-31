@@ -158,3 +158,14 @@
     grid-template-columns: 1fr;
   }
 }
+/* 有真实封面时，高度由文章自己的封面比例决定（与 CoverFrame 一致），不套用上面的占位框比例。
+   放在文件末尾且选择器优先级不低于上方各断点规则，确保在所有宽度下生效。 */
+.public-feed .home-post .article-card-visual.has-cover {
+  aspect-ratio: auto;
+  min-height: 0;
+  flex: none;
+  background: transparent;
+}
+.public-feed .home-post .article-card-visual.has-cover .cover-frame {
+  border-radius: 6px;
+}

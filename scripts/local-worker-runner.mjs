@@ -13,7 +13,11 @@ const shutdownTimeoutMs = 5_000;
 const logTailLimit = 16_384;
 
 // 每次测试使用全新临时 D1/R2；只清理本次创建的目录和进程，不触碰开发数据。
-export async function runLocalWorkerSuite({ instances, testFile }) {
+export async function runLocalWorkerSuite({
+  instances,
+  testFile,
+  suiteTimeout = suiteTimeoutMs,
+}) {
   await access(new URL("../dist/server/wrangler.json", import.meta.url)).catch(
     () => {
       throw new Error("缺少构建产物，请先执行 npm run build。");
@@ -169,7 +173,7 @@ export async function runLocalWorkerSuite({ instances, testFile }) {
         `${name} 启动`,
       );
     }
-    await bounded(start([testFile], "suite"), suiteTimeoutMs, "测试");
+    await bounded(start([testFile], "suite"), suiteTimeout, "测试");
   } finally {
     stopping = true;
     for (const { child } of children) signalChild(child, "SIGTERM");

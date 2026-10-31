@@ -30,3 +30,13 @@ BASE_URL=http://127.0.0.1:<隔离实例端口> npm run test:e2e -- tests/e2e/obs
 目录选择器在此组测试中仅模拟“不支持”或“用户取消”，下载与页面交互是真实浏览器行为；这些断言**不等于真实 File System Access 授权、本机目录写入或 Obsidian 应用打开验收**。完整图片事务与冲突保护由 `tests/obsidian-save.test.ts` 的确定性目录替身验证；原生目录授权仍需支持浏览器中的人工验收。若 Chromium 因沙箱 socket 权限无法启动，记录 blocked，不能绕过限制或报告通过。
 
 `npm run build && npm run test:e2e:obsidian` 可自动建立一次性作者 Worker/D1/R2，并运行这三项用例、最后清理。使用已安装的 Playwright 浏览器；若需系统 Chromium，可显式提供 `CHROMIUM_PATH`。不自动安装浏览器，不绕过系统权限。此命令不操作私人目录。
+
+## 封面比例与展示设置
+
+`cover.spec.ts`（`@author`）用 Canvas 生成 1600×900、900×1600、1000×1000 三张带四边色带（上红/下蓝/左品红/右绿）、四角黑块和文字的 PNG，覆盖原图、1:1、4:3、16:9 × 完整显示/铺满裁切（含 2 倍缩放），在 1440 与 390 宽度下逐一检查首页卡片、文章页、编辑器与工作台缩略图：比例、最大 1024×1024、完整显示四边都在且有白色补边、铺满裁切按位置只保留指定边缘。另有调整→取消→应用→保存→重载→发布面板改比例→发布→再改草稿（线上不变）→重新发布的完整流程。
+
+```sh
+npm run build && DEV_PORT=<空闲端口> CHROMIUM_PATH=<chromium> COVER_SHOTS_DIR=<截图目录> npm run test:e2e:cover
+```
+
+使用一次性作者 Worker/D1/R2，结束后清理。测试图为模拟数据，**不调用、也不验收真实 AI 生图**。截图默认写到 `test-results/cover-shots`（已被 git 忽略）。

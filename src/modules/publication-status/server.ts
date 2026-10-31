@@ -6,6 +6,7 @@ import {
 } from "../article-types/contracts";
 import { resolveArticleType } from "../article-types/matching";
 import type { PublicationStatus } from "./contracts";
+import { normalizeCoverSettings } from "../cover/contracts";
 
 /** 对象键排序不改变数组顺序；只消除编辑器已知的无显示差异默认值。 */
 function stable(value: unknown): unknown {
@@ -100,6 +101,10 @@ function publishedContent(post: Post, types: ArticleType[]) {
         : { name: post.category },
     tags: post.tags,
     coverImage: post.coverImage,
+    // 缺省与默认值等价；没有封面图时设置不影响读者看到的内容。
+    coverSettings: post.coverImage
+      ? normalizeCoverSettings(post.coverSettings)
+      : null,
     visibility: post.visibility,
     pinned: post.pinned,
   });

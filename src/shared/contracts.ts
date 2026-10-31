@@ -5,6 +5,10 @@ import {
   articleTypeListSchema,
   DEFAULT_ARTICLE_TYPES,
 } from "../modules/article-types/contracts.ts";
+import {
+  coverSettingsReadSchema,
+  coverSettingsSchema,
+} from "../modules/cover/contracts.ts";
 // 显式写 .ts 文件路径：integrations/ 下的 Node 工具直接用 Node 类型剥离加载本文件，
 // 不支持目录导入或省略扩展名。
 import {
@@ -201,6 +205,8 @@ export const editablePostSchema = z.object({
     .array(z.string().trim().min(1).max(TEXT_LIMITS.tag))
     .max(TEXT_LIMITS.tags),
   coverImage: localOrHttps,
+  /** 缺省时按 DEFAULT_COVER_SETTINGS 展示；只存展示参数，不改原图。 */
+  coverSettings: coverSettingsSchema.optional(),
   visibility: visibilitySchema,
   pinned: z.boolean(),
 });
@@ -225,6 +231,7 @@ export const postSummarySchema = postSchema.pick({
   categoryId: true,
   tags: true,
   coverImage: true,
+  coverSettings: true,
   visibility: true,
   pinned: true,
   publishedAt: true,
@@ -237,9 +244,65 @@ export const postReceiptSchema = postSchema
   .pick({ id: true, version: true })
   .strict();
 export type PostReceipt = z.infer<typeof postReceiptSchema>;
-export const postMutationResponseSchema = z
-  .object({ post: z.union([postSchema.strict(), postReceiptSchema]) })
-  .strict();
+
+/**
+ * 文章响应的读取版本。外部集成按“媒体类型参数”声明：
+ * `Accept: application/json; mademe-post-schema=2`。Accept 是 CORS 安全头，
+ * 新客户端连旧服务端也不会被预检拦截；旧服务端忽略该参数。
+ * - 1（未声明）：已发出的 0.1.0 集成包使用 strict 解析，只能接受 LEGACY_POST_KEYS。
+ * - 2：客户端使用容忍未知字段的 postReadSchema，可以接收全部字段与以后的增量字段。
+ */
+export const POST_SCHEMA_VERSION = 2;
+export const POST_SCHEMA_ACCEPT = `application/json; mademe-post-schema=${POST_SCHEMA_VERSION}`;
+export function requestedPostSchema(accept: string | null | undefined) {
+  const match = /(?:^|[;,\s])mademe-post-schema=(\d{1,3})(?=$|[;,\s])/i.exec(
+    accept ?? "",
+  );
+  return match ? Number(match[1]) : 1;
+}
+/** 0.1.0 集成包里 postSchema 的全部字段；冻结，之后新增的文章字段不得加入这里。 */
+export const LEGACY_POST_KEYS = Object.freeze([
+  "id",
+  "version",
+  "title",
+  "slug",
+  "excerpt",
+  "blocks",
+  "category",
+  "tags",
+  "coverImage",
+  "visibility",
+  "pinned",
+  "publishedAt",
+  "updatedAt",
+  "deletedAt",
+] as const);
+export type LegacyPost = Pick<Post, (typeof LEGACY_POST_KEYS)[number]>;
+/** 给未声明读取版本的旧 Token 客户端：只保留 0.1.0 字段，避免其 strict 解析失败。 */
+export function legacyPost(post: Post): LegacyPost {
+  return Object.fromEntries(
+    LEGACY_POST_KEYS.filter((key) => key in post).map((key) => [
+      key,
+      post[key],
+    ]),
+  ) as LegacyPost;
+}
+/**
+ * 客户端读取用的文章协议：已知字段照常校验，未知字段剥离（不 strict），
+ * 块内容与封面设置同样容忍增量字段。服务端输入仍由 strict 的
+ * create/patch/publish schema 校验，这里只用于读取响应。
+ */
+export const postReadSchema = postSchema.extend({
+  blocks: z.array(z.unknown()).max(2000),
+  coverSettings: coverSettingsReadSchema.optional(),
+});
+/**
+ * 写接口响应：完整文章（容忍新增字段）或严格的 `{id, version}` 回执。
+ * 回执保持 strict，混入正文或部分字段的“回执”仍被拒绝。
+ */
+export const postMutationResponseSchema = z.object({
+  post: z.union([postReadSchema, postReceiptSchema]),
+});
 export type PostMutationResponse = z.infer<typeof postMutationResponseSchema>;
 export const createPostSchema = editablePostSchema
   .partial()

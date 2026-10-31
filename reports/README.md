@@ -71,3 +71,4 @@
 - [2026-10-30：设置页服务商下拉改用同主题控件](2026-10-30-provider-dropdown.md)：AI 模型卡片“服务商”复用 `TypeDropdown`，值与保存逻辑不变；新增真实 DOM 用例。
 - [2026-10-30：全站原生 select 替换为共享同主题下拉](2026-10-30-shared-dropdown.md)：`TypeDropdown` 泛化为 `src/components/shared/Dropdown.tsx`（支持禁用选项），替换设置、编辑器、媒体库、Obsidian 的全部原生 select；值与行为不变。
 - [2026-10-30：共享下拉审核修复](2026-10-30-dropdown-review-fixes.md)：重选当前值不再触发 `onChange`（避免清空 AI 建议、重置提示词）；选项禁用状态变化时校正活动项；新增回归用例。
+- [2026-10-31：首页刊物布局与封面比例合并整合](2026-10-31-home-grid-cover-merge.md)：合并 main 后 `HomeFeaturedPosts` 改用 `CoverFrame` 与 `coverSettings`，有封面时高度按文章比例；封面 e2e 字号种类上限 2→3；重点区高度对齐需人工确认。

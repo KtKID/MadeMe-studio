@@ -3,6 +3,7 @@ import type { Post } from "../../shared/contracts";
 import type { ArticleType } from "../../modules/article-types/contracts";
 import { articleTypeName } from "../../modules/article-types/matching";
 import { date } from "../shared/ui";
+import CoverFrame from "../../modules/cover/CoverFrame";
 import "./home-featured-posts.css";
 
 // 这是刊物的版面容量；选取沿用 PublicFeed 的置顶/发布时间排序。
@@ -27,13 +28,15 @@ function HomePost({
         href={`/p/${post.slug}`}
         aria-label={`阅读 ${post.title}`}
       >
-        <div className="article-card-visual">
+        {/* 真实封面沿用文章自己的封面比例与展示设置（CoverFrame），无封面时用抽象占位。 */}
+        <div
+          className={`article-card-visual${post.coverImage ? " has-cover" : ""}`}
+        >
           {post.coverImage ? (
-            <img
+            <CoverFrame
               src={post.coverImage}
-              alt=""
+              settings={post.coverSettings}
               loading={variant === "grid" ? "lazy" : "eager"}
-              decoding="async"
             />
           ) : (
             <div

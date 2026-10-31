@@ -9,6 +9,8 @@ import { handleAuth } from "./auth/password";
 import {
   createPostSchema,
   postReceiptSchema,
+  legacyPost,
+  requestedPostSchema,
   type Post,
   patchPostSchema,
   publishInputSchema,
@@ -147,7 +149,11 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
             requireScope(identity, env, "posts:read");
             response = json({
               posts: rows.map((r) =>
-                draftWithPublicationStatus(r, articleTypes),
+                postForClient(
+                  draftWithPublicationStatus(r, articleTypes),
+                  identity,
+                  request,
+                ),
               ),
             });
           } else response = json({ posts: publicPosts(rows) });
@@ -162,7 +168,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
             ),
           );
           return cors(
-            json({ post: mutationPost(post, identity) }, 201),
+            json({ post: mutationPost(post, identity, request) }, 201),
             request,
             identity,
           );
@@ -176,7 +182,13 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
           if (identity.owner || identity.tokenId) {
             requireScope(identity, env, "posts:read");
             return cors(
-              json({ post: draftWithPublicationStatus(row, articleTypes) }),
+              json({
+                post: postForClient(
+                  draftWithPublicationStatus(row, articleTypes),
+                  identity,
+                  request,
+                ),
+              }),
               request,
               identity,
             );
@@ -199,6 +211,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
                   ),
                 ),
                 identity,
+                request,
               ),
             }),
             request,
@@ -213,6 +226,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
               post: mutationPost(
                 await posts.remove(id, input.version),
                 identity,
+                request,
               ),
             }),
             request,
@@ -235,7 +249,11 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
           );
         return cors(
           json({
-            post: mutationPost(await posts.publish(id, input), identity),
+            post: mutationPost(
+              await posts.publish(id, input),
+              identity,
+              request,
+            ),
           }),
           request,
           identity,
@@ -249,6 +267,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
             post: mutationPost(
               await posts.unpublish(id, input.version),
               identity,
+              request,
             ),
           }),
           request,
@@ -267,6 +286,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
             post: mutationPost(
               await posts.restore(id, input.version),
               identity,
+              request,
             ),
           }),
           request,
@@ -290,6 +310,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
             post: mutationPost(
               await posts.restoreRevision(id, revision, input.version),
               identity,
+              request,
             ),
           });
         }
@@ -474,8 +495,19 @@ function cors(response: Response, request: Request, identity: Identity) {
   return response;
 }
 
-function mutationPost(post: Post, identity: Identity) {
+function mutationPost(post: Post, identity: Identity, request: Request) {
   return identity.owner || identity.scopes.includes("posts:read")
-    ? post
+    ? postForClient(post, identity, request)
     : postReceiptSchema.parse({ id: post.id, version: post.version });
+}
+/**
+ * 向后兼容：外部 Token 客户端未在 Accept 中声明 mademe-post-schema≥2 时，
+ * 只返回 0.1.0 集成包认识的字段（其 strict 解析遇到任何新字段都会失败）。
+ * 站内作者会话不受影响。只裁剪响应，不改存储。
+ */
+function postForClient(post: Post, identity: Identity, request: Request) {
+  if (!identity.tokenId) return post;
+  return requestedPostSchema(request.headers.get("accept")) >= 2
+    ? post
+    : legacyPost(post);
 }

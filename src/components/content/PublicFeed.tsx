@@ -1,5 +1,6 @@
 import TypeDropdown from "../../modules/article-types/TypeDropdown";
 import "../../modules/article-types/styles.css";
+import CoverFrame from "../../modules/cover/CoverFrame";
 import { useState } from "react";
 import { ArrowUpRight, Pin, Feather, SlidersHorizontal } from "lucide-react";
 import { type Post, SearchBox, date, Empty } from "../shared/ui";
@@ -75,12 +76,16 @@ export default function PublicFeed({
                 className={`article-card ${index === 0 ? "featured" : ""}`}
               >
                 <a
-                  className="article-card-visual"
+                  className={`article-card-visual${post.coverImage ? " has-cover" : ""}`}
                   href={`/p/${post.slug}`}
                   aria-label={`阅读 ${post.title}`}
                 >
                   {post.coverImage ? (
-                    <img src={post.coverImage} alt="" loading="lazy" />
+                    <CoverFrame
+                      src={post.coverImage}
+                      settings={post.coverSettings}
+                      loading="lazy"
+                    />
                   ) : (
                     <div className={`abstract-cover cover-${index % 4}`}>
                       <span className="cover-circle" />

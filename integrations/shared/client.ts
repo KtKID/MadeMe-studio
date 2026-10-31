@@ -1,4 +1,4 @@
-import { createPostSchema, postMutationResponseSchema, publishInputSchema, type PostReceipt } from '../../src/shared/contracts.ts';
+import { POST_SCHEMA_ACCEPT, createPostSchema, postMutationResponseSchema, publishInputSchema, type PostReceipt } from '../../src/shared/contracts.ts';
 
 /** 三种按需发布入口复用同一个请求协议，不另造 BlockNote JSON。 */
 import { DEFAULT_CONFIG } from '../../src/modules/config/defaults.ts';
@@ -110,7 +110,8 @@ async function requestPost({ site, token, path, body, fetchImpl = globalThis.fet
   let response: Response | undefined;
   try {
     response = await fetchImpl(`${origin}${path}`, {
-      method: 'POST', headers: { Authorization: authorization, 'Content-Type': 'application/json', Accept: 'application/json' },
+      method: 'POST', // Accept 声明可读取的响应版本（CORS 安全头）；旧服务端忽略参数，新服务端据此返回完整字段。
+      headers: { Authorization: authorization, 'Content-Type': 'application/json', Accept: POST_SCHEMA_ACCEPT },
       body: JSON.stringify(body), credentials: 'omit', redirect: 'error', cache: 'no-store',
       referrerPolicy: 'no-referrer', signal: controller.signal,
     });

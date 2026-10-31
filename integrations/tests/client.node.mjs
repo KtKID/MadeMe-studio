@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPostSchema, publishInputSchema } from '../../src/shared/contracts.ts';
+import { POST_SCHEMA_ACCEPT, createPostSchema, publishInputSchema } from '../../src/shared/contracts.ts';
 import { MAX_MARKDOWN_BYTES, clipMarkdown, createDraft, draftInput, hostPermissionPattern, normalizeMarkdown, normalizeSiteUrl, normalizeToken, publishPost, sourceUrl } from '../shared/client.ts';
 
 const token = `mm_${'a'.repeat(64)}`;
@@ -133,3 +133,14 @@ test('回执必须通过共同协议；不接受畸形或混入正文的最小�
   }
 });
 
+
+test('声明可读取的响应版本，并容忍服务端新增字段（如 coverSettings）', async () => {
+  let seen;
+  const full = result('public').post;
+  const answer = await publishPost({ ...base, id: 'post-1', version: 2, visibility: 'public', fetchImpl: async (_url, init) => {
+    seen = init;
+    return new Response(JSON.stringify({ post: { ...full, hasUnpublishedChanges: false, publishedVisibility: 'public', coverSettings: { aspect: '1:1', fit: 'cover', focusX: 50, focusY: 0, zoom: 1, futureKey: 1 }, futureField: 'x' } }));
+  } });
+  assert.equal(seen.headers.Accept, POST_SCHEMA_ACCEPT);
+  assert.deepEqual(answer, { id: 'post-1', version: 2, visibility: 'public', studioUrl: 'https://writer.example/studio' });
+});
