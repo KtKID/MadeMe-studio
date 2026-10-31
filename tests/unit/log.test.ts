@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   log,
@@ -210,7 +211,8 @@ describe("catch 路径必须写日志", () => {
   });
   it("媒体元数据失败时回滚失败被记录，且仍抛出原始错误", async () => {
     const logs = captureLogs();
-    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    // 必须是可解码图片：转码成功后才会走到 D1 写入与回滚。
+    const png = new Uint8Array(readFileSync("tests/fixtures/valid-image.png"));
     const env = {
       DB: {
         prepare: () => ({

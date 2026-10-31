@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, expect, it, vi } from "vitest";
 import { providerSchema, defaultSettings } from "../../src/shared/contracts";
 import {
@@ -93,7 +94,9 @@ it("默认生图跳过缺账户的 Cloudflare 并使用独立 OpenAI 图片密�
     Response.json({
       data: [
         {
-          b64_json: btoa(String.fromCharCode(137, 80, 78, 71, 13, 10, 26, 10)),
+          b64_json: readFileSync("tests/fixtures/valid-image.png").toString(
+            "base64",
+          ),
         },
       ],
     }),

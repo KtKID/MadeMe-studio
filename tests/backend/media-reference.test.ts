@@ -106,9 +106,11 @@ describe("媒体引用查询回归：独立于首页列表截断", () => {
     const listSpy = vi.spyOn(D1PostRepository.prototype, "list");
     const response = await read(media.url);
     expect(response.status).toBe(200);
+    // 返回的是落库的 WebP（不保留原 PNG），与 R2 中的对象逐字节一致。
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(
-      new Uint8Array(bytes),
+      env.BUCKET.objects.get(`media/${media.id}.webp`),
     );
+    expect(response.headers.get("Content-Type")).toBe("image/webp");
     expect(listSpy).not.toHaveBeenCalled();
   });
   it("16条私密候选之后仍能找到公开复用，删除后不得向匿名泄漏", async () => {

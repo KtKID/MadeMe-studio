@@ -10,6 +10,8 @@ it("只为本站原图生成固定版本展示URL，外部地址不代理", () =
     src: "/api/images/public/v1/abc/960.webp",
     srcSet:
       "/api/images/public/v1/abc/480.webp 480w, /api/images/public/v1/abc/960.webp 960w",
+    // 展示衍生失败时由 Base.astro 的全局 onError 回退到落库图本身。
+    "data-fallback-src": "/api/files/abc",
   });
   expect(imageSources("/api/files/abc", false).src).toContain("/private/");
   expect(imageSources("https://example.com/a.png", true)).toEqual({
@@ -33,8 +35,20 @@ it("PNG实际尺寸在解码分配前检查，异常格式不伪装为衍生成�
   expect(inspectRaster(bytes, "image/png")).toEqual({
     width: 1536,
     height: 1024,
+    orientation: 1,
+    icc: false,
   });
   view.setUint32(16, 100000);
   expect(() => inspectRaster(bytes, "image/png")).toThrow();
   expect(() => inspectRaster(new Uint8Array(3), "image/jpeg")).toThrow();
+});
+it("浏览器预缩小只针对超出 Worker 解码上限的图片，缩到落库宽度且不放大", async () => {
+  const { needsBrowserShrink, browserShrinkSize } =
+    await import("../src/modules/image-delivery/upload-shrink");
+  expect(needsBrowserShrink(1536, 1024, 3_000_000)).toBe(false);
+  expect(needsBrowserShrink(4032, 3024, 3_000_000)).toBe(true);
+  expect(needsBrowserShrink(9000, 100, 1000)).toBe(true);
+  expect(needsBrowserShrink(800, 600, 17 * 1024 * 1024)).toBe(true);
+  expect(browserShrinkSize(4032, 3024)).toEqual({ width: 960, height: 720 });
+  expect(browserShrinkSize(500, 9000)).toEqual({ width: 500, height: 9000 });
 });

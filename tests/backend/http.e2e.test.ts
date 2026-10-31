@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { once } from "node:events";
 import { afterEach, beforeEach, describe, it, expect } from "vitest";
@@ -240,9 +241,12 @@ describe("HTTP E2E：作者写作与公开读取", () => {
     const form = new FormData();
     form.append(
       "file",
-      new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], {
-        type: "image/png",
-      }),
+      new Blob(
+        [new Uint8Array(readFileSync("tests/fixtures/valid-image.png"))],
+        {
+          type: "image/png",
+        },
+      ),
       "image.png",
     );
     form.append("postId", post.id);
@@ -254,6 +258,9 @@ describe("HTTP E2E：作者写作与公开读取", () => {
     expect(uploaded.status).toBe(201);
     const media = (await (uploaded as TestResponse).json()).media;
     expect(env.BUCKET.objects.size).toBe(1);
+    // 只存 960 宽 WebP，不保留原 PNG。
+    expect(media.mime).toBe("image/webp");
+    expect(env.BUCKET.objects.has(`media/${media.id}.webp`)).toBe(true);
     expect((await call(`files/${media.id}`)).status).toBe(404);
     expect((await call(`files/${media.id}`, { owner: true })).status).toBe(200);
     post = (
