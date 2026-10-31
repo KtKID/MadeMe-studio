@@ -138,11 +138,22 @@ function d1(command: string) {
     "--command",
     command,
   ]);
-  const parsed = JSON.parse(output) as {
+  // wrangler 偶尔会在 stdout 混入提示行：截取首个 "[" 到末个 "]"，解析失败则明确中止。
+  const start = output.indexOf("["),
+    end = output.lastIndexOf("]");
+  let parsed: {
     results: Record<string, unknown>[];
     meta?: { changes?: number };
     success: boolean;
   }[];
+  try {
+    if (start < 0 || end < start) throw new Error("无 JSON 数组");
+    parsed = JSON.parse(output.slice(start, end + 1));
+  } catch (error) {
+    throw new Error(
+      `D1 输出无法解析（${(error as Error).message}），已中止：${command}`,
+    );
+  }
   if (!parsed[0]?.success) throw new Error(`D1 执行失败：${command}`);
   return parsed[0];
 }

@@ -5,6 +5,8 @@ import { fixtureEnv } from "./support";
 import { captureLogs } from "./log-capture";
 import { saveMedia, webpName } from "../../src/server/media/service";
 import {
+  encodeForStorage,
+  encodeVariants,
   exifOrientation,
   inspectRaster,
 } from "../../src/server/media/image-encoder";
@@ -184,4 +186,16 @@ it("文件名改为 .webp", () => {
   expect(webpName("a.PNG")).toBe("a.webp");
   expect(webpName("photo.final.jpeg")).toBe("photo.final.webp");
   expect(webpName("noext")).toBe("noext.webp");
+});
+
+it("落库 WebP 可被真实衍生管线解码并生成 480 档（不 mock）", async () => {
+  const stored = await encodeForStorage(fixture("wide-1200.png"), "image/png");
+  expect(stored.kind).toBe("converted");
+  if (stored.kind !== "converted") return;
+  expect(stored.width).toBe(960);
+  const [variant] = await encodeVariants(stored.data, "image/webp", [480]);
+  expect(variant.width).toBe(480);
+  const decoded = decode(variant.data);
+  expect(decoded.width).toBe(480);
+  expect(decoded.height).toBe(Math.round((stored.height * 480) / 960));
 });
