@@ -39,6 +39,14 @@ test("@author 刊物：首页三篇主次、四列顺序、窄屏、明暗及边
   };
   try {
     await page.goto("/");
+    await expect(page.locator(".public-hero, .hero-decoration")).toHaveCount(0);
+    await expect(
+      page.getByRole("navigation", { name: "站点导航" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "文章类型" }),
+    ).toBeVisible();
+    await expect(page.getByRole("searchbox")).toBeVisible();
     await expect(page.getByText("好故事，正在酝酿")).toBeVisible();
     await noOverflow(page);
     // Canvas 生成可解码的测试封面，上传到本次临时 R2；不依赖外部图片服务。
@@ -147,6 +155,28 @@ test("@author 刊物：首页三篇主次、四列顺序、窄屏、明暗及边
     expect(boxes[0].x).toBeLessThan(boxes[1].x);
     expect(Math.abs(boxes[1].x - boxes[2].x)).toBeLessThan(1);
     expect(boxes[2].y).toBeGreaterThan(boxes[1].y);
+    // 三篇桌面布局对齐图片底边与日期，不能只验证文章外框的坐标。
+    const edges = await featured.locator("article").evaluateAll((cards) =>
+      cards.map((card) => {
+        const image = card
+          .querySelector(".article-card-visual")!
+          .getBoundingClientRect();
+        const meta = card
+          .querySelector(".article-meta")!
+          .getBoundingClientRect();
+        return {
+          width: image.width,
+          height: image.height,
+          top: image.top,
+          bottom: image.bottom,
+          metaTop: meta.top,
+        };
+      }),
+    );
+    expect(edges[0].width / edges[0].height).toBeCloseTo(3 / 2, 2);
+    expect(Math.abs(edges[0].top - edges[1].top)).toBeLessThan(1);
+    expect(Math.abs(edges[0].bottom - edges[2].bottom)).toBeLessThan(1);
+    expect(Math.abs(edges[0].metaTop - edges[2].metaTop)).toBeLessThan(1);
     const grid = await page
       .locator(".home-post-grid article")
       .evaluateAll((cards) =>
@@ -250,6 +280,72 @@ test("@author 刊物：首页三篇主次、四列顺序、窄屏、明暗及边
       if (!count)
         await expect(page.getByText("没有找到相关文字")).toBeVisible();
       await noOverflow(page);
+    }
+    // 不支持 subgrid 的环境按正常纵向列表回退，图片仍可读、标题完整。
+    const fallbackContext = await browser.newContext({ baseURL });
+    try {
+      await fallbackContext.addInitScript(() => {
+        const supports = CSS.supports.bind(CSS);
+        CSS.supports = (property: string, value?: string) =>
+          property === "grid-template-rows" && value === "subgrid"
+            ? false
+            : value === undefined
+              ? supports(property)
+              : supports(property, value);
+      });
+      const fallbackPage = await fallbackContext.newPage();
+      await fallbackPage.setViewportSize({ width: 1440, height: 1000 });
+      await fallbackPage.goto("/");
+      await expect(fallbackPage.locator(".home-featured--stacked")).toHaveCount(
+        1,
+      );
+      await noOverflow(fallbackPage);
+      const frames = await fallbackPage
+        .locator(".home-featured .article-card-visual")
+        .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()));
+      expect(frames.every((frame) => frame.height > 40)).toBe(true);
+    } finally {
+      await fallbackContext.close();
+    }
+    // 同时验证无 JS 的 CSS 回退：让浏览器实际选择 @supports not 分支。
+    const cssFallbackContext = await browser.newContext({
+      baseURL,
+      javaScriptEnabled: false,
+    });
+    try {
+      let fallbackRulesSeen = false;
+      await cssFallbackContext.route(/\.css(?:\?|$)/, async (route) => {
+        const response = await route.fetch();
+        const original = await response.text();
+        const condition = /\(grid-template-rows:\s*subgrid\)/g;
+        if (condition.test(original)) fallbackRulesSeen = true;
+        const body = original.replace(
+          condition,
+          "(grid-template-rows: unsupported-value)",
+        );
+        await route.fulfill({ response, body });
+      });
+      const fallbackPage = await cssFallbackContext.newPage();
+      await fallbackPage.setViewportSize({ width: 1440, height: 1000 });
+      await fallbackPage.goto("/");
+      expect(fallbackRulesSeen).toBe(true);
+      await expect
+        .poll(() =>
+          fallbackPage
+            .locator(".home-featured-grid")
+            .evaluate(
+              (el) =>
+                getComputedStyle(el).gridTemplateColumns.split(" ").length,
+            ),
+        )
+        .toBe(1);
+      await noOverflow(fallbackPage);
+      const frames = await fallbackPage
+        .locator(".home-featured .article-card-visual")
+        .evaluateAll((els) => els.map((el) => el.getBoundingClientRect()));
+      expect(frames.every((frame) => frame.height > 40)).toBe(true);
+    } finally {
+      await cssFallbackContext.close();
     }
     // 长中文/连续英文在桌面及窄屏都完整换行，不截掉标题或撑宽页面。
     const last = posts.at(-1)!;

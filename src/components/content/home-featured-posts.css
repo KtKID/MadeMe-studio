@@ -1,5 +1,9 @@
-/* 刊物版面只使用现有明暗/皮肤 tokens；不影响其它可选首页布局。 */
+/* 首页位置比例独立于文章设置，图片等比裁切，不拉伸。 */
 .home-featured {
+  --featured-column-ratio: 1.8;
+  --featured-max-crop-ratio: 3;
+}
+.home-featured-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
   gap: 22px 28px;
@@ -13,20 +17,38 @@
   height: 100%;
   min-width: 0;
 }
-.public-feed .home-post .article-card-visual {
-  border-radius: 6px;
+.public-feed .home-post .article-card-visual,
+.public-feed[data-layout] .home-post .article-card-visual.has-cover {
   aspect-ratio: 16 / 9;
-  flex-shrink: 0;
+  min-height: 0;
+  flex: none;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--soft);
 }
-.public-feed .home-post--lead .article-card-visual {
-  flex: 1 0 auto;
-  min-height: 280px;
+.public-feed .home-post--lead .article-card-visual,
+.public-feed[data-layout] .home-post--lead .article-card-visual.has-cover {
+  aspect-ratio: 3 / 2;
 }
-.public-feed .home-post--secondary .article-card-visual {
-  aspect-ratio: 2.8;
+.home-cover {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.home-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 .public-feed .home-post .article-card-body {
   padding: 13px 0 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 .public-feed .home-post .article-meta {
   font-size: 11px;
@@ -48,7 +70,6 @@
   font-size: 12px;
   line-height: 1.8;
   margin: 8px 0 0;
-  -webkit-line-clamp: 2;
 }
 .home-post-link:hover h2 {
   color: var(--accent-hover);
@@ -85,66 +106,67 @@
 .public-feed .home-post--grid h2 {
   font-size: 16px;
 }
-.home-featured[data-count="1"] {
+.home-featured[data-count="1"] .home-featured-grid {
   grid-template-columns: 1fr;
+  max-width: 760px;
 }
-.public-feed .home-featured[data-count="1"] .article-card-visual {
-  aspect-ratio: 2.6;
-}
-.home-featured[data-count="2"] {
-  align-items: start;
-}
+.home-featured[data-count="1"] .home-post--lead,
 .home-featured[data-count="2"] .home-post--lead {
   grid-row: auto;
 }
-.public-feed .home-featured[data-count="2"] .article-card-visual {
-  aspect-ratio: 16 / 9;
-  min-height: 0;
+.home-featured[data-count="2"] .home-featured-grid {
+  align-items: start;
+}
+/* 中间文字实际占满图片空间时，降级为正常纵向排布。 */
+.home-featured--stacked .home-featured-grid {
+  grid-template-columns: 1fr;
+}
+.home-featured--stacked .home-post--lead {
+  grid-row: auto;
+}
+.home-featured--stacked .home-post-link {
+  height: auto;
+}
+.home-featured--stacked .home-post--secondary .home-post-link {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+  gap: 18px;
+  align-items: start;
+}
+.home-featured--stacked .home-post--secondary .article-card-body {
+  padding: 0;
 }
 @media (max-width: 960px) {
-  .home-featured {
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-    gap: 20px;
-  }
-  .home-post-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 680px) {
-  .home-featured,
-  .home-featured[data-count="1"] {
+  .home-featured-grid {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 22px;
   }
   .home-featured .home-post--lead {
     grid-row: auto;
   }
-  .public-feed .home-post--lead .article-card-visual,
-  .public-feed .home-featured[data-count="1"] .article-card-visual {
-    aspect-ratio: 16 / 10;
-    min-height: 0;
-    flex: none;
+  .home-featured .home-post-link {
+    height: auto;
   }
+  .home-featured .home-post--secondary .home-post-link {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    gap: 18px;
+    align-items: start;
+  }
+  .home-featured .home-post--secondary .article-card-body {
+    padding: 0;
+  }
+  .home-post-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 23px 16px;
+  }
+}
+@media (max-width: 680px) {
   .public-feed .home-post--lead h2 {
     font-size: 24px;
   }
-  .public-feed .home-post--secondary .home-post-link {
-    display: grid;
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
-    align-items: start;
-    gap: 14px;
-  }
-  .public-feed .home-post--secondary .article-card-visual {
-    aspect-ratio: 4 / 3;
-  }
-  .public-feed .home-post--secondary .article-card-body {
-    padding: 0;
-  }
   .public-feed .home-post--secondary h2 {
     font-size: 17px;
-  }
-  .home-post-grid {
-    gap: 23px 16px;
   }
   .public-feed .home-post--grid h2 {
     font-size: 15px;
@@ -152,20 +174,147 @@
   .home-more {
     margin-top: 26px;
   }
+  .home-featured .home-post--secondary .home-post-link {
+    gap: 14px;
+  }
 }
 @media (max-width: 360px) {
   .home-post-grid {
     grid-template-columns: 1fr;
   }
 }
-/* 有真实封面时，高度由文章自己的封面比例决定（与 CoverFrame 一致），不套用上面的占位框比例。
-   放在文件末尾且选择器优先级不低于上方各断点规则，确保在所有宽度下生效。 */
-.public-feed .home-post .article-card-visual.has-cover {
-  aspect-ratio: auto;
-  min-height: 0;
-  flex: none;
-  background: transparent;
+
+/* 三篇桌面共享五条轨道：图片上半 / 中间文案 / 图片下半 / 日期 / 标题区。摘要跟随左标题自然排列。 */
+@supports (grid-template-rows: subgrid) {
+  @media (min-width: 961px) {
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      .home-featured-grid {
+      grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr) auto auto;
+      row-gap: 0;
+      align-items: start;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked) .home-post {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: subgrid;
+      align-self: stretch;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      .home-post-link {
+      display: grid;
+      grid-row: 1 / -1;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: subgrid;
+      height: auto;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"] {
+      grid-area: 1 / 1 / 6 / 2;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="1"] {
+      grid-area: 1 / 2 / 3 / 3;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"] {
+      grid-area: 3 / 2 / 6 / 3;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"]
+      .article-card-visual {
+      grid-row: 1 / 4;
+      align-self: start;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="1"]
+      .article-card-visual,
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"]
+      .article-card-visual {
+      grid-row: 1;
+      aspect-ratio: auto;
+      height: 100%;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"]
+      .article-card-body,
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"]
+      .article-card-body {
+      display: contents;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"]
+      .article-meta {
+      grid-row: 4;
+      padding-top: 13px;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"]
+      .home-post-copy {
+      grid-row: 5;
+      align-self: first baseline;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"]
+      .article-meta {
+      grid-row: 2;
+      padding-top: 13px;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"]
+      .home-post-copy {
+      grid-row: 3;
+      align-self: first baseline;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="1"]
+      .article-card-body {
+      grid-row: 2;
+      display: block;
+      padding: 13px 0 22px;
+    }
+  }
 }
-.public-feed .home-post .article-card-visual.has-cover .cover-frame {
-  border-radius: 6px;
+/* 独立测量实际换行高度，不依赖当前是否已降级，避免状态来回跳动。 */
+.home-featured-measure {
+  position: fixed !important;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  display: block !important;
+}
+.home-featured-measure .home-post-link {
+  display: block !important;
+  height: auto;
+}
+.home-featured-measure .article-card-visual {
+  display: none !important;
+}
+.home-featured-measure .article-card-body {
+  display: block !important;
+  padding: 13px 0 22px !important;
+}
+
+/* 无 JS 时也有 CSS 回退，不让不支持 subgrid 的浏览器套用桌面轨道映射。 */
+@supports not (grid-template-rows: subgrid) {
+  .home-featured-grid {
+    grid-template-columns: 1fr;
+  }
+  .home-featured .home-post--lead {
+    grid-row: auto;
+  }
+  .home-featured .home-post-link {
+    height: auto;
+  }
+  .home-featured .home-post--secondary .home-post-link {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    gap: 18px;
+    align-items: start;
+  }
+  .home-featured .home-post--secondary .article-card-body {
+    padding: 0;
+  }
 }

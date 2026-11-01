@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import CoverFrame from "../../src/modules/cover/CoverFrame";
@@ -64,8 +64,65 @@ describe("封面展示组件（SSR 可用于文章页）", () => {
   });
 });
 
-describe("首页卡片、工作台缩略图共用封面设置", () => {
-  it("首页卡片按每篇设置渲染，旧文章用默认值", () => {
+describe("首页位置画框与文章/工作台封面设置", () => {
+  it("字体迟到时，搜索已改变版面不再执行旧测量", async () => {
+    let resolveFonts!: () => void;
+    const fonts = Object.getOwnPropertyDescriptor(document, "fonts");
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: {
+        ready: new Promise<void>((resolve) => {
+          resolveFonts = resolve;
+        }),
+      },
+    });
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect = disconnect;
+      },
+    );
+    const width = vi
+      .spyOn(Element.prototype, "clientWidth", "get")
+      .mockReturnValue(1140);
+    const styles = vi.spyOn(globalThis, "getComputedStyle");
+    try {
+      const view = render(
+        <PublicFeed
+          posts={[post("one"), post("two"), post("three")]}
+          authenticated={false}
+        />,
+      );
+      // jsdom 未加载布局 CSS：缺失的比例变量应保守降级，不能生成 NaNpx。
+      expect(
+        view.container.querySelector(".home-featured--stacked"),
+      ).not.toBeNull();
+      view.rerender(<PublicFeed posts={[post("one")]} authenticated={false} />);
+      const beforeFonts = styles.mock.calls.length;
+      await act(async () => {
+        resolveFonts();
+      });
+      expect(disconnect).toHaveBeenCalled();
+      expect(styles.mock.calls).toHaveLength(beforeFonts);
+      expect(
+        view.container.querySelector(".home-featured--stacked"),
+      ).toBeNull();
+      expect(
+        view.container.querySelectorAll(".home-featured-measure"),
+      ).toHaveLength(0);
+      expect(view.container.querySelectorAll(".home-post")).toHaveLength(1);
+    } finally {
+      cleanup();
+      width.mockRestore();
+      styles.mockRestore();
+      vi.unstubAllGlobals();
+      if (fonts) Object.defineProperty(document, "fonts", fonts);
+      else Reflect.deleteProperty(document, "fonts");
+    }
+  });
+  it("刊物首页独立画框，保留每篇焦点和缩放，不改原设置", () => {
     const { container } = render(
       <PublicFeed
         posts={[post("one", wide), post("legacy")]}
@@ -73,14 +130,43 @@ describe("首页卡片、工作台缩略图共用封面设置", () => {
       />,
     );
     const frames = [
-      ...container.querySelectorAll<HTMLElement>(".article-card .cover-frame"),
+      ...container.querySelectorAll<HTMLElement>(".article-card .home-cover"),
     ];
-    expect(frames.map((f) => f.dataset.aspect)).toEqual(["16:9", "original"]);
+    expect(frames).toHaveLength(2);
+    expect(frames[0].querySelector("img")!.style.objectPosition).toBe(
+      "10% 90%",
+    );
+    expect(frames[0].querySelector("img")!.style.transform).toBe("scale(2)");
+    expect(frames[1].querySelector("img")!.style.objectFit).toBe("cover");
+    expect(frames[1].querySelector("img")!.style.objectPosition).toBe(
+      "50% 50%",
+    );
+    expect(wide).toEqual({
+      aspect: "16:9",
+      fit: "cover",
+      focusX: 10,
+      focusY: 90,
+      zoom: 2,
+    });
     expect(
       container
         .querySelector(".article-card-visual")!
         .classList.contains("has-cover"),
     ).toBe(true);
+  });
+  it("其他首页主题仍沿用文章自己的封面设置", () => {
+    const { container } = render(
+      <PublicFeed
+        posts={[post("one", wide), post("legacy")]}
+        authenticated={false}
+        theme="ink"
+      />,
+    );
+    expect(
+      [...container.querySelectorAll<HTMLElement>(".cover-frame")].map(
+        (f) => f.dataset.aspect,
+      ),
+    ).toEqual(["16:9", "original"]);
   });
   it("工作台缩略图使用同一设置，不另行裁切", () => {
     const { container } = render(
