@@ -330,7 +330,7 @@ for (const viewport of [
   { name: "1440", width: 1440, height: 1400 },
   { name: "390", width: 390, height: 844 },
 ]) {
-  test(`@author 封面：首页、文章页、编辑器一致（${viewport.name}）`, async ({
+  test(`@author 封面：首页位置裁切，文章页与编辑器保留设置（${viewport.name}）`, async ({
     page,
   }) => {
     test.setTimeout(240_000);
@@ -345,14 +345,54 @@ for (const viewport of [
       const card = page.locator(".article-card", {
         has: page.getByRole("heading", { name: title, exact: true }),
       });
-      const frame = card.locator(".cover-frame");
+      const frame = card.locator(".home-cover");
       const { box, fractions } = await analyze(
         page,
         frame,
         `${viewport.name}-home-${c.name}`,
       );
-      checkGeometry(`首页 ${c.name}`, c, box);
-      expectPresence(`首页 ${c.name}`, fractions, c.present, c.absent);
+      const ratio = box.width / box.height;
+      expect(box.width).toBeGreaterThan(20);
+      expect(box.height).toBeGreaterThan(20);
+      const role = await card.getAttribute("data-featured-index");
+      if (role === "0") expect(ratio).toBeCloseTo(3 / 2, 2);
+      else if (role === null || viewport.width <= 960)
+        expect(ratio).toBeCloseTo(16 / 9, 2);
+      else expect(ratio).toBeLessThanOrEqual(3);
+      // 首页只复用焦点与缩放；按实际画框反算可见源区域，再验证真实像素色带。
+      const settings = c.settings ?? s("original", "contain");
+      const style = await frame.locator("img").evaluate((img) => ({
+        fit: (img as HTMLElement).style.objectFit,
+        position: (img as HTMLElement).style.objectPosition,
+        transform: (img as HTMLElement).style.transform,
+      }));
+      expect(style.fit).toBe("cover");
+      expect(style.position).toBe(`${settings.focusX}% ${settings.focusY}%`);
+      expect(style.transform).toBe(
+        settings.zoom === 1 ? "" : `scale(${settings.zoom})`,
+      );
+      const [w, h] = c.size;
+      const sw = Math.min(w, h * ratio) / settings.zoom;
+      const sh = sw / ratio;
+      const x = ((w - sw) * settings.focusX) / 100;
+      const y = ((h - sh) * settings.focusY) / 100;
+      const band = Math.min(w, h) * 0.06;
+      const edges = {
+        red: y < band / 2,
+        blue: y + sh > h - band / 2,
+        magenta: x < band / 2,
+        green: x + sw > w - band / 2,
+      };
+      const visible = EDGES.filter(
+        (color) => edges[color as keyof typeof edges],
+      );
+      const hidden = EDGES.filter(
+        (color) => !edges[color as keyof typeof edges],
+      );
+      expectPresence(`首页 ${c.name}`, fractions, visible, [
+        ...hidden,
+        "white",
+      ]);
       bodies.add(
         await card
           .locator(".article-card-body h2")
@@ -517,13 +557,15 @@ test("@author 封面：调整→取消→应用→保存→重载→发布面板
     ["blue", "white"],
   );
   await page.goto("/");
-  await expect(
-    page
-      .locator(".article-card", {
-        has: page.getByRole("heading", { name: title, exact: true }),
-      })
-      .locator(".cover-frame"),
-  ).toHaveAttribute("data-aspect", "16:9");
+  const homeFrame = page
+    .locator(".article-card", {
+      has: page.getByRole("heading", { name: title, exact: true }),
+    })
+    .locator(".home-cover");
+  await expect(homeFrame).toHaveAttribute("data-fit", "cover");
+  await loaded(homeFrame);
+  const homeBox = (await homeFrame.boundingBox())!;
+  expect(homeBox.width / homeBox.height).toBeCloseTo(3 / 2, 2);
 
   await page.goto(`/studio/edit?id=${post.id}`);
   await page.getByRole("button", { name: "调整封面" }).click();

@@ -1,4 +1,4 @@
-/* 本地方案：首页位置比例独立于文章设置，图片裁切但不拉伸。 */
+/* 首页位置比例独立于文章设置，图片等比裁切，不拉伸。 */
 .home-featured {
   --featured-column-ratio: 1.8;
   --featured-max-crop-ratio: 3;

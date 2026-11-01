@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import CoverFrame from "../../src/modules/cover/CoverFrame";
@@ -65,6 +65,52 @@ describe("封面展示组件（SSR 可用于文章页）", () => {
 });
 
 describe("首页位置画框与文章/工作台封面设置", () => {
+  it("字体迟到时，搜索已改变版面不再执行旧测量", async () => {
+    let resolveFonts!: () => void;
+    const fonts = Object.getOwnPropertyDescriptor(document, "fonts");
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: {
+        ready: new Promise<void>((resolve) => {
+          resolveFonts = resolve;
+        }),
+      },
+    });
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect = disconnect;
+      },
+    );
+    const width = vi
+      .spyOn(Element.prototype, "clientWidth", "get")
+      .mockReturnValue(1140);
+    try {
+      const view = render(
+        <PublicFeed
+          posts={[post("one"), post("two"), post("three")]}
+          authenticated={false}
+        />,
+      );
+      view.rerender(<PublicFeed posts={[post("one")]} authenticated={false} />);
+      await act(async () => {
+        resolveFonts();
+      });
+      expect(disconnect).toHaveBeenCalled();
+      expect(
+        view.container.querySelectorAll(".home-featured-measure"),
+      ).toHaveLength(0);
+      expect(view.container.querySelectorAll(".home-post")).toHaveLength(1);
+    } finally {
+      cleanup();
+      width.mockRestore();
+      vi.unstubAllGlobals();
+      if (fonts) Object.defineProperty(document, "fonts", fonts);
+      else Reflect.deleteProperty(document, "fonts");
+    }
+  });
   it("刊物首页独立画框，保留每篇焦点和缩放，不改原设置", () => {
     const { container } = render(
       <PublicFeed

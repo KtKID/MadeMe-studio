@@ -96,14 +96,16 @@ export default function HomeFeaturedPosts({
   const [needsStack, setNeedsStack] = useState(false);
   useEffect(() => {
     const root = section.current;
-    if (
-      !root ||
-      featured.length !== FEATURED_POST_COUNT ||
-      typeof ResizeObserver === "undefined"
-    )
+    if (!root) return;
+    if (featured.length !== FEATURED_POST_COUNT) {
+      setNeedsStack(false);
       return;
+    }
+    if (typeof ResizeObserver === "undefined") return;
+    let disposed = false;
     let previousWidth = -1;
     const measure = () => {
+      if (disposed || !root.isConnected) return;
       const width = root.clientWidth;
       if (width <= 0) return;
       const grid = root.querySelector<HTMLElement>(".home-featured-grid")!;
@@ -142,7 +144,10 @@ export default function HomeFeaturedPosts({
     void document.fonts?.ready.then(() => {
       if (root.isConnected) measure();
     });
-    return () => observer.disconnect();
+    return () => {
+      disposed = true;
+      observer.disconnect();
+    };
   }, [featured.map((post) => `${post.id}:${post.title}`).join("|")]);
   return (
     <>
