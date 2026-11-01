@@ -38,23 +38,6 @@ const publicPosts = data.posts.filter(
       </nav>
     </header>
     <main id="main">
-      <section class="public-hero">
-        <div class="eyebrow">
-          <span class="status-dot"></span> A PERSONAL JOURNAL
-        </div>
-        <h1>
-          记录所想。
-          <em>分享所见。</em>
-        </h1>
-        <p>{settings.tagline}</p>
-        <div class="hero-decoration" aria-hidden="true">
-          <span class="orbit orbit-one"></span>
-          <span class="orbit orbit-two"></span>
-          <span class="orbit orbit-three"></span>
-          <span class="hero-spark">✳</span>
-          <span class="hero-caption">IDEAS TAKE SHAPE HERE</span>
-        </div>
-      </section>
       <PublicFeed
         posts={publicPosts}
         types={settings.articleTypes}

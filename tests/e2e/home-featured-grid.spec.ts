@@ -39,6 +39,10 @@ test("@author 刊物：首页三篇主次、四列顺序、窄屏、明暗及边
   };
   try {
     await page.goto("/");
+    await expect(page.locator(".public-hero, .hero-decoration")).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "站点导航" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "文章类型" })).toBeVisible();
+    await expect(page.getByRole("searchbox")).toBeVisible();
     await expect(page.getByText("好故事，正在酝酿")).toBeVisible();
     await noOverflow(page);
     // Canvas 生成可解码的测试封面，上传到本次临时 R2；不依赖外部图片服务。
