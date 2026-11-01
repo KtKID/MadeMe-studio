@@ -292,15 +292,12 @@ function DeleteMedia({
       });
       onDeleted(media, result);
     } catch (e) {
-      const posts = (e as ApiError).details as
-        { posts?: MediaReference[] } | undefined;
-      if (
-        e instanceof ApiError &&
-        e.code === "MEDIA_IN_USE" &&
-        !force &&
-        posts?.posts
-      ) {
-        setReferences(posts.posts);
+      const posts =
+        e instanceof ApiError && e.code === "MEDIA_IN_USE" && !force
+          ? (e.details as { posts?: MediaReference[] } | undefined)?.posts
+          : undefined;
+      if (posts) {
+        setReferences(posts);
       } else {
         clientCaught("media.delete_failed", e, { force });
         setError(e instanceof Error ? e.message : "删除失败，请稍后重试。");
@@ -623,7 +620,7 @@ export default function MediaLibrary({
                     className="icon-button danger"
                     title="删除"
                     aria-label="删除"
-                    disabled={busy}
+                    disabled={busy || removing !== null}
                     onClick={() => setRemoving(m)}
                   >
                     <Trash2 size={16} />

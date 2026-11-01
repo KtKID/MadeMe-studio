@@ -252,4 +252,28 @@ describe("编辑器封面：调整入口与持久化", () => {
     await act(async () => {});
     expect(lastBody()).toMatchObject({ coverImage: "", version: 5 });
   });
+  it("服务端只清了已发布封面（草稿已换图）：保留草稿封面，只同步版本号", async () => {
+    setup({ ...post, coverImage: "/api/files/other" });
+    fireEvent.click(screen.getByRole("button", { name: /发布/ }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "更换图片",
+      }),
+    );
+    act(() =>
+      h.library!.onDeleted(
+        { id: "cover", url: "/api/files/cover" },
+        { deleted: true, clearedCovers: [{ postId: "fixture", version: 5 }] },
+      ),
+    );
+    h.api.mockResolvedValueOnce({ post: { ...post, version: 6 } });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await act(async () => {});
+    expect(lastBody()).toMatchObject({
+      coverImage: "/api/files/other",
+      version: 5,
+    });
+  });
 });

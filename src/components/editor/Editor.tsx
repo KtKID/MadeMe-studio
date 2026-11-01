@@ -473,8 +473,13 @@ export default function Editor({
     const cleared = base
       ? result.clearedCovers.find((c) => c.postId === base.id)
       : undefined;
+    // 服务端可能只清了已发布快照的封面（草稿已换成别的图）：只在草稿封面就是该图时清空，否则只同步版本号。
     if (base && cleared)
-      updateCurrent({ ...base, coverImage: "", version: cleared.version });
+      updateCurrent({
+        ...base,
+        ...(base.coverImage === media.url ? { coverImage: "" } : {}),
+        version: cleared.version,
+      });
     if (cover === media.url) {
       setCover("");
       setCoverSettings({ ...DEFAULT_COVER_SETTINGS });

@@ -285,6 +285,13 @@ describe("媒体库删除", () => {
     );
     fireEvent.click(screen.getAllByRole("button", { name: "删除" })[0]);
     const dialog = screen.getByRole("dialog", { name: "删除素材" });
+    // 对话框打开期间其它卡片的删除按钮禁用，避免并发删除互相关闭对话框。
+    expect(
+      screen
+        .getAllByRole("button", { name: "删除" })
+        .filter((b) => !b.closest('[role="dialog"]'))
+        .every((b) => (b as HTMLButtonElement).disabled),
+    ).toBe(true);
     fireEvent.click(within(dialog).getByRole("button", { name: /删除/ }));
     expect(h.api).toHaveBeenCalledWith("/api/media/%E7%94%B2", {
       method: "DELETE",
