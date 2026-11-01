@@ -8,7 +8,7 @@ Astro 服务端渲染及 API 运行于 Cloudflare Worker；D1 绑定名为 `DB`�
 
 ## 既有 Cloudflare 生产 Worker：自动部署准备
 
-本节是 2026-11-01 准备的配置方案，最终采用 **GitHub Actions，不连接 Cloudflare Workers Builds**。补丁通过独立分支和PR审查；此执行器未创建 token、设置 secret 或执行生产发布；专用单 Worker token 已由受支持的控制台任务创建；仓库 Secret 由用户一次性手动保存，是否已保存须由父任务确认。下文的 Sites 说明属于另一个预览目标，不能据此覆盖生产认证。
+本节是 2026-11-01 准备的配置方案，最终采用 **GitHub Actions，不连接 Cloudflare Workers Builds**。补丁通过独立分支和PR审查；此执行器未创建 token、设置 secret 或执行生产发布；用户已重建专用单 Worker token，并明确确认已保存为仓库 Actions Secret `CLOUDFLARE_API_TOKEN_FOR_DEPLOY`；仓库名称列表已独立核验，未读取其值，首次发布结果仍须在 Actions 和 Cloudflare 核实。下文的 Sites 说明属于另一个预览目标，不能据此覆盖生产认证。
 
 ### 目标与保留范围
 
@@ -42,7 +42,7 @@ CI 保留原有 push/PR 检查，增加 `workflow_dispatch` 手动入口；只�
 
 原有 CI 先运行 `npm ci` → `npx vitest run` / `test:integrations` / `check`，成功后 `needs: test` 才进入发布 job；发布 job 重新精确 checkout 和安装依赖，再运行默认本地 build → 隔离 `test:smoke` → 隔离 `test:worker` → 生产 build → `verify:production`。所有步骤都是硬门槛，没有 `continue-on-error`，失败不进入发布。**当前普通 CI 没跑 build/smoke/worker，CI 通过不等于这组发布检查通过**。本轮在未修改 main 复现了旧用例仍查找 `valid-image.png`、期待PNG原样返回的失败；随后仅更新测试以符合已存在的WebP落库契约，新增文件名/MIME/签名/大小断言，以实际WebP作为Range字节基准，完整流程已通过。没有跳过检查或修改媒体业务实现。
 
-专用部署 token 只在最后发布步骤注入 `CLOUDFLARE_API_TOKEN`，不会注入安装、测试或构建阶段；`GITHUB_TOKEN` 同步只用于只读核对 main。父任务确认原来不存在同名 secret，确定使用仓库 Actions Secret `CLOUDFLARE_API_TOKEN`；CI 只将这一项显式传给可复用工作流的 `cloudflare_deploy_token`，不使用 secrets inherit 或其它 token 回退。此执行器未读取/保存 secret，待用户手动保存就绪后再协调首次推送合入。
+专用部署 token 只在最后发布步骤注入 `CLOUDFLARE_API_TOKEN`，不会注入安装、测试或构建阶段；`GITHUB_TOKEN` 同步只用于只读核对 main。用户最终确定仓库 Actions Secret 名称为 `CLOUDFLARE_API_TOKEN_FOR_DEPLOY`，Wrangler 的环境变量名仍为 `CLOUDFLARE_API_TOKEN`；CI 只将这一项显式传给可复用工作流的 `cloudflare_deploy_token`，不使用 secrets inherit 或其它 token 回退。此执行器未读取/保存 secret，不要求用户改名或重建；Secret 名称列表已核验；合并发布仍须通过必要检查及审查。
 
 选择 Node 24 以满足 `engines.node >=24`；依赖由锁文件安装，不能排除构建所需的 devDependencies。`CLOUDFLARE_ENV` 必须在**构建时**设置，Astro/Vite 在这一步选择 Wrangler 环境。不要先按默认环境构建，再仅给部署命令补 `--env production`。
 

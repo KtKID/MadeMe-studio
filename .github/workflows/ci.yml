@@ -40,4 +40,4 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     uses: ./.github/workflows/deploy-production.yml
     secrets:
-      cloudflare_deploy_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      cloudflare_deploy_token: ${{ secrets.CLOUDFLARE_API_TOKEN_FOR_DEPLOY }}

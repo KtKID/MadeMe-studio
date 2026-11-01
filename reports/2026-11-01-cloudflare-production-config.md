@@ -2,7 +2,7 @@
 
 ## 现象与边界
 
-基线 `main` 为 `50d277c568f046ad3e6e7ebe216ec5eaaa9a400f`。生产 Worker 已存在，但仓库 Wrangler 默认 D1 ID 是本地占位符，不能直接接入默认自动部署。此轮补丁通过独立分支和draft PR审查；未合并或部署，未创建/读取/修改任何部署凭据，未运行生产迁移。用户后续选择 GitHub Actions；Cloudflare Builds 不连接。父任务确认控制台已创建仅 author-studio 的 Individual Workers Editor token；同名仓库 Secret 原先不存在，确定名为 CLOUDFLARE_API_TOKEN，用户手动保存是否完成仍待父任务确认。此执行器不接触其值。
+基线 `main` 为 `50d277c568f046ad3e6e7ebe216ec5eaaa9a400f`。生产 Worker 已存在，但仓库 Wrangler 默认 D1 ID 是本地占位符，不能直接接入默认自动部署。此轮补丁通过独立分支和draft PR审查；未合并或部署，未创建/读取/修改任何部署凭据，未运行生产迁移。用户后续选择 GitHub Actions；Cloudflare Builds 不连接。用户最终重建仅 author-studio 的 Individual Workers Editor token，已明确确认保存，最终仓库 Secret 名称为 CLOUDFLARE_API_TOKEN_FOR_DEPLOY；父任务通过GitHub仓库名称列表独立确认名称存在，更新时间2026-11-01 18:31 GMT+8，未读取值。此执行器不接触其值。
 
 Mac 控制台核对的非敏感目标：`author-studio`、既有 `blog.ktkid.ai`、`DB → author-studio (c2758015-872a-454b-8915-68a8a662040c)`、`BUCKET → author-studio-media`、`ASSETS`、`2026-10-01/nodejs_compat`。运行变量和 secret 仅知名称，未收集其值。
 
@@ -45,7 +45,7 @@ dry-run 最初因宿主 Wrangler 全局配置目录不存在失败；仅 dry-run
 
 旧 `Workers Scripts Edit/Write` 是账户级，可限定目标账户但不等于单 Worker 隔离。较新的官方 [Workers 角色说明](https://developers.cloudflare.com/workers/authorization/workers/)支持为指定已存在 Worker 的 token 授予 `Editor`；上传/部署 API 接受 `Individual Workers Editor`。它还明确绑定现有 D1/R2 不需独立资源写权限，版本发布不变更路由时不需 Zone Routes Write。Custom Domains 对 per-Worker roles 的限制、此账户是否提供新角色/自有 token 入口及完整首次发布均未实测，不能承诺已可用。
 
-用户最终批准仅 author-studio 的 Individual Workers Editor 专用 token，当前工作流已接入 GitHub Actions 来源。此执行器不配置或读取 secret；父任务已确定名称 CLOUDFLARE_API_TOKEN，同名原先不存在，用户正在一次性手动保存。不自动回退到其它 token；CI 只显式传这一项给复用工作流，不使用 secrets inherit。首次真实发布尚未执行；若最小权限不足，先报告准确API失败，不扩大授权。
+用户最终批准仅 author-studio 的 Individual Workers Editor 专用 token，当前工作流已接入 GitHub Actions 来源。此执行器不配置或读取 secret；用户最终确定名称 CLOUDFLARE_API_TOKEN_FOR_DEPLOY 并确认已保存；CI 使用这个 secret 映射为 Wrangler 所需的 CLOUDFLARE_API_TOKEN 环境变量。名称列表元数据已由父任务独立确认，不要求用户改名或重建。不自动回退到其它 token；CI 只显式传这一项给复用工作流，不使用 secrets inherit。首次真实发布尚未执行；若最小权限不足，先报告准确API失败，不扩大授权。
 
 避免复发：生产环境在 build 时选择；只使用生成的配置；首次发布前让审核后的补丁先到 main；不从运行时 secret 借用部署权限；不为避免失败而扩大 token 范围。后续真实发布需记录实际 SHA、上传 UUID、deployment ID、终态及非破坏性线上验证，异常先查结果再决定重试。
 
@@ -55,4 +55,8 @@ dry-run 最初因宿主 Wrangler 全局配置目录不存在失败；仅 dry-run
 
 普通 CI 只有 Vitest、集成协议、check；新发布流程在此基础上增加默认 build、smoke、完整 worker、生产 build、dry-run，所有失败均阻止发布。原main的worker用例首先在旧PNG文件名断言失败，后面还沿用原PNG字节/长度作为Range基准。测试改为核对现有WebP契约，并保留全部范围/私有/MOV及其余流程后，完整真实Worker/D1/R2已通过。不是忽略断言或修改产品行为；不以普通CI成功代替发布门槛成功。
 
-使用当前已安装 YAML 解析器检查两份工作流语法/唯一键、needs:test、仅main发布条件、contents read、固定Action完整SHA、禁用凭据持久化、两级main非取消并发组、无continue-on-error、secret只在发布步骤及显式传递、所有检查顺序；通过，记录 /tmp/mademe-actions-workflow-check.log。未安装 actionlint，未在 GitHub 运行新工作流，不能声称 GitHub 执行已通过。官方 action 的完整 SHA 经各自官方 git tag 与 release 页面核对。
+使用当前已安装 YAML 解析器检查两份工作流语法/唯一键、needs:test、仅main发布条件、contents read、固定Action完整SHA、禁用凭据持久化、两级main非取消并发组、无continue-on-error、secret只在发布步骤及显式传递、所有检查顺序；通过，记录 /tmp/mademe-actions-workflow-check.log。未安装 actionlint，初版head dbf64cb的分支push/PR CI已在GitHub通过，deploy均skipped；ready后自然触发的AI审核工作流成功，正文建议修改后合并，细节意见已经独立只读复核，未据此扩展无关修改。此后的secret引用更新须对新head另查实际CI/审核；首次生产发布仍未运行。官方 action 的完整 SHA 经各自官方 git tag 与 release 页面核对。
+
+## Secret 最终名称校正
+
+按用户最终明确的名称，调用方只引用 `secrets.CLOUDFLARE_API_TOKEN_FOR_DEPLOY`，显式传给复用工作流的 `cloudflare_deploy_token`，最终映射到运行环境 `CLOUDFLARE_API_TOKEN`。不读取或输出值，不回退任何旧token。此更新不改业务、绑定、部署门槛或token权限，Secret名称元数据已核验，合并仍须对新head核对CI与审核。
