@@ -34,3 +34,7 @@ Dashboard 使用由 `postSchema.pick` 派生的 `PostSummary`，正文仅在编�
 ## 视频块渲染
 
 BlockNote 视频块的“嵌入”页签接受任意链接，`BlockReader` 通过 `videoSource()` 分流：站内 `/api/files/...`（不看扩展名，.mov 按 `video/quicktime` 返回）与 `.mp4/.webm/.mov/.ogv` 等直链用不带 `type` 的 `<video src>`；匹配 `src/modules/embed` 注册表中 iframe 提供方（YouTube、Bilibili、X）的链接改用 `SafeEmbed`；以 `<` 开头的内容（嵌入代码）不渲染；其他网页降级为“在 <域名> 观看视频”跳转卡片。空 url（上传未完成留下的块）不渲染。`safeUrl()` 对空串、纯空白和非 `/` 开头的相对路径返回 `undefined`，不再生成 `https://local.invalid/` 占位地址。嵌入规则（提供方、id 校验、iframe 属性）全部来自 [src/modules/embed](../../modules/embed/README.md)，见 `tests/embed-rendering.test.tsx`。测试见 `tests/video-rendering.test.tsx`。
+
+## 本地首页方案预览
+
+`HomeFeaturedPosts` 的刊物首页当前本地方案使用 `HomeCover`：主图 3:2，次级与普通列表 16:9；只复用文章焦点和缩放，文章页仍用 `CoverFrame`。标题完整显示；极长标题改为纵向排布，避免强行等高产生大片空白。此方案尚未推送或部署，截图及验证边界见 [预览报告](../../../reports/2026-11-01-home-layout-local-preview.md)。

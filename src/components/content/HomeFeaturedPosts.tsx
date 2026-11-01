@@ -3,7 +3,8 @@ import type { Post } from "../../shared/contracts";
 import type { ArticleType } from "../../modules/article-types/contracts";
 import { articleTypeName } from "../../modules/article-types/matching";
 import { date } from "../shared/ui";
-import CoverFrame from "../../modules/cover/CoverFrame";
+import HomeCover from "./HomeCover";
+import { HOME_FEATURED_LONG_TITLE_THRESHOLD } from "../../modules/config/limits";
 import "./home-featured-posts.css";
 
 // 这是刊物的版面容量；选取沿用 PublicFeed 的置顶/发布时间排序。
@@ -28,12 +29,12 @@ function HomePost({
         href={`/p/${post.slug}`}
         aria-label={`阅读 ${post.title}`}
       >
-        {/* 真实封面沿用文章自己的封面比例与展示设置（CoverFrame），无封面时用抽象占位。 */}
+        {/* 首页按位置定义画框，复用作者焦点；不覆盖文章页的封面比例。 */}
         <div
           className={`article-card-visual${post.coverImage ? " has-cover" : ""}`}
         >
           {post.coverImage ? (
-            <CoverFrame
+            <HomeCover
               src={post.coverImage}
               settings={post.coverSettings}
               publiclyVisible={post.visibility === "public"}
@@ -89,7 +90,7 @@ export default function HomeFeaturedPosts({
   return (
     <>
       <section
-        className="home-featured"
+        className={`home-featured${featured.some((post) => post.title.length > HOME_FEATURED_LONG_TITLE_THRESHOLD) ? " home-featured--long-titles" : ""}`}
         aria-label="重点文章"
         data-count={featured.length}
       >

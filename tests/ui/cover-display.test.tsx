@@ -64,8 +64,8 @@ describe("封面展示组件（SSR 可用于文章页）", () => {
   });
 });
 
-describe("首页卡片、工作台缩略图共用封面设置", () => {
-  it("首页卡片按每篇设置渲染，旧文章用默认值", () => {
+describe("首页位置画框与文章/工作台封面设置", () => {
+  it("刊物首页独立画框，保留每篇焦点和缩放，不改原设置", () => {
     const { container } = render(
       <PublicFeed
         posts={[post("one", wide), post("legacy")]}
@@ -73,14 +73,43 @@ describe("首页卡片、工作台缩略图共用封面设置", () => {
       />,
     );
     const frames = [
-      ...container.querySelectorAll<HTMLElement>(".article-card .cover-frame"),
+      ...container.querySelectorAll<HTMLElement>(".article-card .home-cover"),
     ];
-    expect(frames.map((f) => f.dataset.aspect)).toEqual(["16:9", "original"]);
+    expect(frames).toHaveLength(2);
+    expect(frames[0].querySelector("img")!.style.objectPosition).toBe(
+      "10% 90%",
+    );
+    expect(frames[0].querySelector("img")!.style.transform).toBe("scale(2)");
+    expect(frames[1].querySelector("img")!.style.objectFit).toBe("cover");
+    expect(frames[1].querySelector("img")!.style.objectPosition).toBe(
+      "50% 50%",
+    );
+    expect(wide).toEqual({
+      aspect: "16:9",
+      fit: "cover",
+      focusX: 10,
+      focusY: 90,
+      zoom: 2,
+    });
     expect(
       container
         .querySelector(".article-card-visual")!
         .classList.contains("has-cover"),
     ).toBe(true);
+  });
+  it("其他首页主题仍沿用文章自己的封面设置", () => {
+    const { container } = render(
+      <PublicFeed
+        posts={[post("one", wide), post("legacy")]}
+        authenticated={false}
+        theme="ink"
+      />,
+    );
+    expect(
+      [...container.querySelectorAll<HTMLElement>(".cover-frame")].map(
+        (f) => f.dataset.aspect,
+      ),
+    ).toEqual(["16:9", "original"]);
   });
   it("工作台缩略图使用同一设置，不另行裁切", () => {
     const { container } = render(
