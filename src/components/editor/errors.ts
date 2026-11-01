@@ -51,7 +51,7 @@ export function describeEditorError(action: EditorAction, error: unknown) {
     if (CJK.test(error.message)) return `${name}失败：${error.message}`;
     switch (error.code) {
       case "VERSION_CONFLICT":
-        return `${name}失败：另一个窗口已保存了更新，请先备份本页内容，再载入最新版本。`;
+        return `${name}失败：另一个窗口已保存了更新，本页内容仍在，请检查冲突后选择使用哪一版。`;
       case "POST_DELETED":
         return `${name}失败：这篇文章已被删除（可在写作台的回收站恢复）。`;
       case "SLUG_CONFLICT":

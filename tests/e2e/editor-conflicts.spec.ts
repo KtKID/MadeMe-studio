@@ -138,91 +138,166 @@ test("@author 删除真实封面后旧窗口不得覆盖另一窗口新标题正
   });
   await b.close();
 });
-test("@author 正文二选一：本地副本持久恢复与真实双窗口冲突", async ({
-  page,
-  context,
-  request,
-  baseURL,
-}) => {
-  const post = await seed(request, baseURL),
-    b = await context.newPage();
-  await open(page, post.id);
-  await open(b, post.id);
-  await editBody(page, "A窗口未保存的整篇正文");
-  await editBody(b, "B窗口已保存的整篇正文");
-  await save(b);
-  await expect(b.getByRole("status")).toContainText("草稿已保存");
-  await save(page);
-  const dialog = page.getByRole("dialog", { name: "处理版本冲突" });
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("正文（整篇）");
-  if (process.env.CONFLICT_SCREENSHOT_DIR) {
-    const directory = process.env.CONFLICT_SCREENSHOT_DIR;
-    mkdirSync(directory, { recursive: true });
-    await page.screenshot({ path: join(directory, "desktop.png") });
-    await page.setViewportSize({ width: 412, height: 915 });
-    await expect
-      .poll(() => dialog.evaluate((el) => el.scrollWidth <= el.clientWidth))
-      .toBe(true);
-    await page.screenshot({ path: join(directory, "mobile.png") });
-  }
-  await dialog
-    .getByRole("button", { name: "保留我的副本，再加载最新版" })
-    .click();
-  await expect(dialog).not.toBeVisible();
-  await expect(body(page)).toContainText("B窗口已保存的整篇正文");
-  await page.reload();
-  await expect(body(page)).toBeVisible();
-  await page.getByRole("button", { name: "本地副本", exact: true }).click();
-  await page.getByRole("button", { name: "恢复这份副本到编辑器" }).click();
-  await expect(body(page)).toContainText("A窗口未保存的整篇正文");
-  expect(
-    JSON.stringify(
-      (await (await request.get(`/api/posts/${post.id}`)).json()).post.blocks,
-    ),
-  ).toContain("B窗口已保存的整篇正文");
-  await save(page);
-  await expect(dialog).toBeVisible();
-  await dialog
-    .getByRole("button", { name: "保留我的版本", exact: true })
-    .click();
-  await expect(dialog).not.toBeVisible();
-  const final = (await (await request.get(`/api/posts/${post.id}`)).json())
-    .post;
-  expect(JSON.stringify(final.blocks)).toContain("A窗口未保存的整篇正文");
-  expect(JSON.stringify(final.blocks)).not.toContain("B窗口已保存的整篇正文");
-  await b.close();
-});
-test("@author 选择本地版本时服务器再次变化，重新冲突且保留本地", async ({
-  page,
-  context,
-  request,
-  baseURL,
-}) => {
-  const post = await seed(request, baseURL),
-    b = await context.newPage();
-  await open(page, post.id);
-  await open(b, post.id);
-  await page.getByLabel("文章标题").fill("A本地标题");
-  await b.getByLabel("文章标题").fill("B第一次标题");
-  await save(b);
-  await expect(b.getByRole("status")).toContainText("草稿已保存");
-  await save(page);
-  const dialog = page.getByRole("dialog", { name: "处理版本冲突" });
-  await expect(dialog).toBeVisible();
-  await b.getByLabel("文章标题").fill("B再次标题");
-  await save(b);
-  await expect(b.getByRole("status")).toContainText("草稿已保存");
-  await dialog
-    .getByRole("button", { name: "保留我的版本", exact: true })
-    .click();
-  await expect(dialog).toBeVisible();
-  await expect(page.getByLabel("文章标题")).toHaveValue("A本地标题");
-  await expect
-    .poll(
-      async () =>
+
+for (const [choice, label] of [
+  ["A", "使用我的版本"],
+  ["B", "使用服务器版本"],
+] as const) {
+  test(`@author 选择${choice}：展示两种正文，未选修改放弃且不留副本`, async ({
+    page,
+    context,
+    request,
+    baseURL,
+  }) => {
+    const post = await seed(request, baseURL),
+      b = await context.newPage();
+    await open(page, post.id);
+    await open(b, post.id);
+    await page.evaluate(() =>
+      localStorage.setItem("mademe:editor-recovery:legacy", "保持原样"),
+    );
+    await editBody(page, "A窗口未保存的整篇正文");
+    await editBody(b, "B窗口已保存的整篇正文");
+    await save(b);
+    await expect(b.getByRole("status")).toContainText("草稿已保存");
+    await save(page);
+    const dialog = page.getByRole("dialog", { name: "处理版本冲突" });
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole("region", { name: "A · 本地" }),
+    ).toContainText("A窗口未保存的整篇正文");
+    await expect(
+      dialog.getByRole("region", { name: "B · 服务器" }),
+    ).toContainText("B窗口已保存的整篇正文");
+    if (choice === "A" && process.env.CONFLICT_SCREENSHOT_DIR) {
+      const directory = process.env.CONFLICT_SCREENSHOT_DIR;
+      mkdirSync(directory, { recursive: true });
+      await page.screenshot({ path: join(directory, "desktop-ab.png") });
+      await page.setViewportSize({ width: 412, height: 915 });
+      await expect
+        .poll(() => dialog.evaluate((el) => el.scrollWidth <= el.clientWidth))
+        .toBe(true);
+      await page.screenshot({ path: join(directory, "mobile-ab.png") });
+    }
+    await dialog.getByRole("button", { name: label, exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    const selected =
+      choice === "A" ? "A窗口未保存的整篇正文" : "B窗口已保存的整篇正文";
+    await expect(body(page)).toContainText(selected);
+    const final = (await (await request.get(`/api/posts/${post.id}`)).json())
+      .post;
+    expect(JSON.stringify(final.blocks)).toContain(selected);
+    expect(JSON.stringify(final.blocks)).not.toContain(
+      choice === "A" ? "B窗口已保存的整篇正文" : "A窗口未保存的整篇正文",
+    );
+    expect(
+      await page.evaluate(() =>
+        Object.keys(localStorage).filter((k) =>
+          k.startsWith("mademe:editor-recovery:"),
+        ),
+      ),
+    ).toEqual(["mademe:editor-recovery:legacy"]);
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("mademe:editor-recovery:legacy"),
+      ),
+    ).toBe("保持原样");
+    await page.reload();
+    await expect(body(page)).toContainText(selected);
+    await expect(
+      page.getByRole("button", { name: "本地副本", exact: true }),
+    ).toHaveCount(0);
+    await b.close();
+  });
+  test(`@author ${choice}确认请求期间服务器再次更新，重新展示且不覆盖`, async ({
+    page,
+    context,
+    request,
+    baseURL,
+  }) => {
+    const post = await seed(request, baseURL),
+      b = await context.newPage();
+    await open(page, post.id);
+    await open(b, post.id);
+    await page.getByLabel("文章标题").fill("A本地标题");
+    await b.getByLabel("文章标题").fill("B第一次标题");
+    await save(b);
+    await expect(b.getByRole("status")).toContainText("草稿已保存");
+    await save(page);
+    const dialog = page.getByRole("dialog", { name: "处理版本冲突" });
+    await expect(dialog).toBeVisible();
+    let release!: () => void, arrive!: () => void;
+    const waiting = new Promise<void>((r) => (release = r)),
+      arrived = new Promise<void>((r) => (arrive = r));
+    let held = false;
+    await page.route(`**/api/posts/${post.id}`, async (route) => {
+      if (
+        !held &&
+        route.request().method() === (choice === "A" ? "PATCH" : "GET")
+      ) {
+        held = true;
+        arrive();
+        await waiting;
+      }
+      await route.continue();
+    });
+    try {
+      await dialog.getByRole("button", { name: label, exact: true }).click();
+      await arrived;
+      await b.getByLabel("文章标题").fill("B再次更新的标题");
+      await save(b);
+      await expect(b.getByRole("status")).toContainText("草稿已保存");
+      release();
+      await expect(
+        dialog.getByRole("region", { name: "B · 服务器" }),
+      ).toContainText("B再次更新的标题");
+      await expect(dialog).toBeVisible();
+      await expect(page.getByLabel("文章标题")).toHaveValue("A本地标题");
+      expect(
         (await (await request.get(`/api/posts/${post.id}`)).json()).post.title,
-    )
-    .toBe("B再次标题");
-  await b.close();
-});
+      ).toBe("B再次更新的标题");
+    } finally {
+      release?.();
+      await b.close();
+    }
+  });
+  test(`@author ${choice}选择网络失败，不丢输入或显示成功`, async ({
+    page,
+    context,
+    request,
+    baseURL,
+  }) => {
+    const post = await seed(request, baseURL),
+      b = await context.newPage();
+    await open(page, post.id);
+    await open(b, post.id);
+    await editBody(page, "本地网络失败不可丢");
+    await editBody(b, "服务器已保存正文");
+    await save(b);
+    await expect(b.getByRole("status")).toContainText("草稿已保存");
+    await save(page);
+    const dialog = page.getByRole("dialog", { name: "处理版本冲突" });
+    await expect(dialog).toBeVisible();
+    let aborted = false;
+    await page.route(`**/api/posts/${post.id}`, async (route) => {
+      if (
+        !aborted &&
+        route.request().method() === (choice === "A" ? "PATCH" : "GET")
+      ) {
+        aborted = true;
+        await route.abort("failed");
+      } else await route.continue();
+    });
+    await dialog.getByRole("button", { name: label, exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText("网络");
+    await expect(
+      dialog.getByRole("region", { name: "A · 本地" }),
+    ).toContainText("本地网络失败不可丢");
+    expect(
+      JSON.stringify(
+        (await (await request.get(`/api/posts/${post.id}`)).json()).post.blocks,
+      ),
+    ).toContain("服务器已保存正文");
+    await b.close();
+  });
+}

@@ -93,16 +93,13 @@ import { resolveMode } from "../shared/appearance";
 import { EditClock, hasDocumentContent } from "./editor-state";
 import {
   mergePost,
+  sameValue,
   chooseLocalConflicts,
   editablePatch,
   conflictLabels,
   type PostMerge,
 } from "./post-merge";
-import {
-  saveRecovery,
-  listRecoveries,
-  type LocalRecovery,
-} from "./local-recovery";
+import ConflictVersions from "./ConflictVersions";
 import { AIRequestState } from "./ai-request-state";
 import { applyEditorReplacement } from "./editor-replacement";
 import {
@@ -247,21 +244,8 @@ export default function Editor({
   const [error, setError] = useState("");
   const [conflict, setConflict] = useState(false);
   const [conflictReview, setConflictReview] = useState<
-    (PostMerge & { remote: Post }) | null
+    (PostMerge & { remote: Post; local: Post }) | null
   >(null);
-  const [recovery, setRecovery] = useState<LocalRecovery | null>(null);
-  const [recoveryOpen, setRecoveryOpen] = useState(false);
-  const [recoveryCopies, setRecoveryCopies] = useState<LocalRecovery[]>([]);
-  useEffect(() => {
-    if (!post?.id || !authenticated) return;
-    try {
-      const copies = listRecoveries(localStorage, post.id);
-      setRecoveryCopies(copies);
-      setRecovery(copies[0] ?? null);
-    } catch (e) {
-      clientCaught("editor.recovery_unavailable", e);
-    }
-  }, [post?.id, authenticated]);
   const [panel, setPanel] = useState<
     "meta" | "media" | "ai" | "revisions" | null
   >(null);
@@ -586,7 +570,7 @@ export default function Editor({
         return inspectConflict(base, false);
       }
     }
-    setConflictReview({ ...merged, remote });
+    setConflictReview({ ...merged, remote, local });
     setPublishOpen(false);
     setCoverPickerOpen(false);
     setPanel(null);
@@ -618,13 +602,11 @@ export default function Editor({
       sequence = editClock.current.snapshot();
     // 用户的这次选择仅授权覆盖已展示的远端版本；之后的服务器更新仍必须409。
     const nextMerge = mergePost(base, local, review.remote);
-    const selected = chooseLocalConflicts(nextMerge, local);
+    const selected = chooseLocalConflicts(nextMerge, review.local);
     try {
-      if (
-        nextMerge.conflicts.some((field) => !review.conflicts.includes(field))
-      ) {
-        setConflictReview({ ...nextMerge, remote: review.remote });
-        setError("本地输入又有变化，冲突字段已更新，请重新选择。");
+      if (!sameValue(editablePatch(local), editablePatch(review.local))) {
+        setConflictReview({ ...nextMerge, remote: review.remote, local });
+        setError("本地输入又有变化，请对照新状态重新选择。");
         return;
       }
       const problems = findContentProblems(selected.blocks);
@@ -650,7 +632,7 @@ export default function Editor({
       setConflict(false);
       setConflictReview(null);
       setMessage(
-        "已保留本地冲突字段并保存，服务器独立修改也已保留。尚未发布。",
+        "已使用我的版本并保存；服务器不冲突的修改已合并，未选中的冲突修改已放弃。尚未发布。",
       );
     } catch (e) {
       if (isVersionConflict(e)) {
@@ -665,60 +647,54 @@ export default function Editor({
       setBusy("");
     }
   }
-  function backup(base: Post) {
-    const copy = saveRecovery(localStorage, base, localSnapshot(base));
-    setRecovery(copy);
-    setRecoveryCopies((copies) => [copy, ...copies]);
-    return copy;
-  }
-  async function loadLatest() {
-    const base = currentRef.current;
-    if (!base || lock.current) return;
+  async function useServerVersion() {
+    const base = currentRef.current,
+      review = conflictReview;
+    if (!base || !review || lock.current || !authenticated) return;
     lock.current = true;
     setBusy("reload");
     setError("");
-    const sequence = editClock.current.snapshot();
+    const sequence = editClock.current.snapshot(),
+      local = localSnapshot(base);
     try {
+      if (!sameValue(editablePatch(local), editablePatch(review.local))) {
+        setConflictReview({
+          ...mergePost(base, local, review.remote),
+          remote: review.remote,
+          local,
+        });
+        setError("本地输入又有变化，请对照新状态重新选择。");
+        return;
+      }
       const { post: remote } = await api<{ post: Post }>(
         `/api/posts/${base.id}`,
       );
       if (editClock.current.snapshot() !== sequence) {
-        setError("载入期间又有输入，已保留；请重新选择。");
+        const latestLocal = localSnapshot(base);
+        setConflictReview({
+          ...mergePost(base, latestLocal, remote),
+          remote,
+          local: latestLocal,
+        });
+        setError("载入期间又有输入，已保留；请对照新状态重新选择。");
         return;
       }
-      backup(base); // 同步写入并读回验证；失败绝不替换当前输入。
+      if (remote.version !== review.remote.version) {
+        setConflictReview({ ...mergePost(base, local, remote), remote, local });
+        setError("服务器已有更新，请对照新状态重新选择。");
+        return;
+      }
       applyFields(remote);
       updateCurrent(remote);
       markClean();
       setConflict(false);
       setConflictReview(null);
-      setMessage(
-        "本地副本已保存，已加载服务器最新版。找回：本文章编辑器顶部“本地副本”。",
-      );
+      setMessage("已使用服务器版本，未保存的本地输入已放弃。未另存副本。");
     } catch (e) {
       fail("reload", e);
     } finally {
       lock.current = false;
       setBusy("");
-    }
-  }
-  function restoreLocalCopy() {
-    const copy = recovery,
-      base = currentRef.current;
-    if (!copy || !base || lock.current) return;
-    try {
-      if (editClock.current.dirty) backup(base);
-      applyFields(copy.local);
-      updateCurrent(copy.base);
-      markDirty();
-      setConflict(false);
-      setConflictReview(null);
-      setRecoveryOpen(false);
-      setMessage(
-        "本地副本已恢复到编辑器，尚未保存；保存时仍会检查服务器版本。",
-      );
-    } catch (e) {
-      fail("reload", e);
     }
   }
   function removeCover() {
@@ -1157,15 +1133,6 @@ export default function Editor({
           </span>
         </div>
         <div className="editor-toolbar-actions">
-          {recovery && (
-            <button
-              className="button small"
-              disabled={!!busy}
-              onClick={() => setRecoveryOpen(true)}
-            >
-              本地副本
-            </button>
-          )}
           <button
             className="icon-button"
             title="文章设置"
@@ -1221,68 +1188,43 @@ export default function Editor({
       {conflictReview && (
         <Modal
           title="处理版本冲突"
+          wide
           onClose={() => {
             if (!lock.current) setConflictReview(null);
           }}
         >
-          <p>本地输入仍在。正文按整篇选择，不拼接段落。</p>
           <p>
             {conflictReview.conflicts.length
               ? `双方修改了：${conflictReview.conflicts.map((k) => conflictLabels[k]).join("、")}。`
               : "服务器再次更新，请确认后继续。"}
+            正文按整篇选择，不拼接。
           </p>
-          <p>
-            保留我的版本：上述冲突字段采用本地内容，服务器独立修改也会保留。
-          </p>
-          <p>加载最新版：先保存完整本地副本，再用服务器最新版替换所有字段。</p>
-          <p className="muted">
-            副本只存在当前浏览器、当前网站。可从本文章编辑器顶部“本地副本”找回；清理网站数据会删除副本。
+          <ConflictVersions
+            local={conflictReview.local}
+            remote={conflictReview.remote}
+          />
+          <p className="muted conflict-choice-tip">
+            选择成功后，未选中的冲突修改将被放弃，不另存副本。A
+            会保留服务器不冲突的修改；B
+            会载入完整服务器版本，放弃本地未保存输入。文章不会被删除。
           </p>
           {error && <Notice kind="error">{error}</Notice>}
           <div className="modal-actions">
-            <button className="button" disabled={!!busy} onClick={loadLatest}>
-              保留我的副本，再加载最新版
+            <button
+              className="button"
+              disabled={!!busy}
+              onClick={useServerVersion}
+            >
+              使用服务器版本
             </button>
             <button
               className="button primary"
               disabled={!!busy}
               onClick={keepMine}
             >
-              保留我的版本
+              使用我的版本
             </button>
           </div>
-        </Modal>
-      )}
-      {recoveryOpen && recovery && (
-        <Modal title="本地副本" onClose={() => setRecoveryOpen(false)}>
-          <p>
-            已保存副本：{recovery.local.title} · {date(recovery.savedAt)}
-          </p>
-          <Dropdown
-            id="editor-recovery-copy"
-            label="选择本地副本"
-            value={recovery.id}
-            options={recoveryCopies.map((copy) => ({
-              value: copy.id,
-              label: `${date(copy.savedAt)} · ${copy.local.title}`,
-            }))}
-            onChange={(id) =>
-              setRecovery(
-                recoveryCopies.find((copy) => copy.id === id) ?? recovery,
-              )
-            }
-          />
-          <p>
-            恢复后先放回编辑器，不会直接写入服务器；当前未保存修改也会先备份。副本仅在当前浏览器保存，清理网站数据后不可找回。
-          </p>
-          {error && <Notice kind="error">{error}</Notice>}
-          <button
-            className="button primary"
-            disabled={!!busy}
-            onClick={restoreLocalCopy}
-          >
-            恢复这份副本到编辑器
-          </button>
         </Modal>
       )}
       <div className="editor-workspace">

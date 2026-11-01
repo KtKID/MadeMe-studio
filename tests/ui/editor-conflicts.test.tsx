@@ -76,7 +76,6 @@ vi.mock("../../src/modules/article-types/client", async (original) => ({
   }),
 }));
 import { ApiError } from "../../src/components/shared/ui";
-import { latestRecovery } from "../../src/components/editor/local-recovery";
 import Editor from "../../src/components/editor/Editor";
 const post: Post = {
   id: "fixture",
@@ -158,7 +157,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.restoreAllMocks());
-describe("冲突二选一与安全恢复", () => {
+describe("A/B 冲突二选一", () => {
   it("独立字段自动合并，PATCH使用实际最新版本与远端正文", async () => {
     setup();
     fireEvent.change(inputTitle(), { target: { value: "本地标题" } });
@@ -202,7 +201,7 @@ describe("冲突二选一与安全恢复", () => {
     dialog = await screen.findByRole("dialog", { name: "处理版本冲突" });
     expect(inputTitle().value).toBe("本地标题");
   });
-  it("保留我的版本仅解决冲突字段，保留服务器独立标题，正文不拼接", async () => {
+  it("使用我的版本仅解决冲突字段，保留服务器独立标题，正文不拼接", async () => {
     setup();
     const remote = await showConflict({
       ...post,
@@ -213,7 +212,7 @@ describe("冲突二选一与安全恢复", () => {
     h.api.mockImplementationOnce(async (_u, o) => ({
       post: { ...remote, ...JSON.parse(o.body), version: 3 },
     }));
-    fireEvent.click(screen.getByRole("button", { name: "保留我的版本" }));
+    fireEvent.click(screen.getByRole("button", { name: "使用我的版本" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(bodyOf(patchCalls()[1])).toMatchObject({
       version: 2,
@@ -221,28 +220,34 @@ describe("冲突二选一与安全恢复", () => {
       blocks: [{ type: "paragraph", content: "本地正文" }],
     });
   });
-  it("加载前持久备份，卸载重开后可恢复，恢复不直接写服务器", async () => {
+  it("展示A/B内容，选B后不留副本、不修改既存浏览器数据，也不调用文章删除", async () => {
+    localStorage.setItem(
+      "mademe:editor-recovery:fixture:legacy",
+      "保留既存数据",
+    );
+    const write = vi.spyOn(Storage.prototype, "setItem"),
+      remove = vi.spyOn(Storage.prototype, "removeItem"),
+      clear = vi.spyOn(Storage.prototype, "clear");
     setup();
     const remote = await showConflict();
+    expect(
+      screen.getByRole("region", { name: "A · 本地" }).textContent,
+    ).toContain("本地正文");
+    expect(
+      screen.getByRole("region", { name: "B · 服务器" }).textContent,
+    ).toContain("服务器正文");
     h.api.mockResolvedValueOnce({ post: remote });
-    fireEvent.click(
-      screen.getByRole("button", { name: "保留我的副本，再加载最新版" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "使用服务器版本" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(h.editor.document).toEqual(remote.blocks);
-    expect(latestRecovery(localStorage, post.id)?.local.blocks).toEqual([
-      { type: "paragraph", content: "本地正文" },
-    ]);
-    cleanup();
-    setup(remote);
-    fireEvent.click(await screen.findByRole("button", { name: "本地副本" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "恢复这份副本到编辑器" }),
+    expect(write).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+    expect(localStorage.getItem("mademe:editor-recovery:fixture:legacy")).toBe(
+      "保留既存数据",
     );
-    expect(h.editor.document).toEqual([
-      { type: "paragraph", content: "本地正文" },
-    ]);
-    expect(patchCalls()).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "本地副本" })).toBeNull();
+    expect(h.api.mock.calls.some((c) => c[1]?.method === "DELETE")).toBe(false);
   });
   it("弹窗打开后新产生的字段冲突须重新展示，不能无声采用本地", async () => {
     setup();
@@ -253,30 +258,72 @@ describe("冲突二选一与安全恢复", () => {
       blocks: [{ type: "paragraph", content: "服务器正文" }],
     });
     fireEvent.change(inputTitle(), { target: { value: "等待中的本地标题" } });
-    fireEvent.click(screen.getByRole("button", { name: "保留我的版本" }));
+    fireEvent.click(screen.getByRole("button", { name: "使用我的版本" }));
     await act(async () => {});
     expect(patchCalls()).toHaveLength(1);
     expect(
       screen.getByRole("dialog", { name: "处理版本冲突" }).textContent,
     ).toContain("标题");
   });
-  it("副本存储失败，不加载、不丢本地输入", async () => {
+  it("选B确认时服务器再次更新，刷新两种状态并重新选择，不丢输入", async () => {
     setup();
-    const remote = await showConflict();
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("quota");
+    await showConflict();
+    h.api.mockResolvedValueOnce({
+      post: {
+        ...post,
+        version: 3,
+        blocks: [{ type: "paragraph", content: "又更新的服务器正文" }],
+      },
     });
-    h.api.mockResolvedValueOnce({ post: remote });
-    fireEvent.click(
-      screen.getByRole("button", { name: "保留我的副本，再加载最新版" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "使用服务器版本" }));
     await act(async () => {});
+    expect(h.editor.document[0].content).toBe("本地正文");
+    expect(
+      screen.getByRole("region", { name: "B · 服务器" }).textContent,
+    ).toContain("又更新的服务器正文");
     expect(screen.getByRole("dialog", { name: "处理版本冲突" })).toBeTruthy();
-    expect(h.editor.document).toEqual([
-      { type: "paragraph", content: "本地正文" },
-    ]);
-    expect(latestRecovery(localStorage, post.id)).toBeNull();
+    expect(patchCalls()).toHaveLength(1);
   });
+  it.each(["使用我的版本", "使用服务器版本"])(
+    "%s网络失败保持输入与弹窗，不显示保存成功",
+    async (label) => {
+      setup();
+      await showConflict();
+      h.api.mockRejectedValueOnce(new TypeError("network failed"));
+      fireEvent.click(screen.getByRole("button", { name: label }));
+      await act(async () => {});
+      expect(h.editor.document[0].content).toBe("本地正文");
+      expect(screen.getByRole("dialog", { name: "处理版本冲突" })).toBeTruthy();
+      expect(screen.queryByText(/已采用|已加载服务器版本/)).toBeNull();
+    },
+  );
+  it.each(["使用我的版本", "使用服务器版本"])(
+    "%s重复点击只发一个请求，期间新输入保留",
+    async (label) => {
+      setup();
+      const remote = await showConflict();
+      let resolve!: (v: any) => void;
+      h.api.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+      const before = h.api.mock.calls.length;
+      const button = screen.getByRole("button", { name: label });
+      act(() => {
+        fireEvent.click(button);
+        fireEvent.click(button);
+      });
+      expect(h.api.mock.calls.length).toBe(before + 1);
+      fireEvent.change(inputTitle(), {
+        target: { value: "确认等待时的新输入" },
+      });
+      await act(async () =>
+        resolve({
+          post: { ...remote, version: label === "使用我的版本" ? 3 : 2 },
+        }),
+      );
+      expect(inputTitle().value).toBe("确认等待时的新输入");
+      expect(h.editor.document[0].content).toBe("本地正文");
+      expect(screen.queryByText(/已采用|已加载服务器版本/)).toBeNull();
+    },
+  );
   it("用户确认后服务器再次改变，仍409并重新选择，不自动覆盖", async () => {
     setup();
     await showConflict();
@@ -287,26 +334,23 @@ describe("冲突二选一与安全恢复", () => {
       blocks: [{ type: "paragraph", content: "又更新正文" }],
     };
     h.api.mockRejectedValueOnce(stale()).mockResolvedValueOnce({ post: newer });
-    fireEvent.click(screen.getByRole("button", { name: "保留我的版本" }));
+    fireEvent.click(screen.getByRole("button", { name: "使用我的版本" }));
     await act(async () => {});
     expect(bodyOf(patchCalls()[1]).version).toBe(2);
     expect(patchCalls()).toHaveLength(2);
     expect(screen.getByRole("dialog", { name: "处理版本冲突" })).toBeTruthy();
     expect(h.editor.document[0].content).toBe("本地正文");
   });
-  it("载入服务器期间又输入，保留输入且不误报备份成功", async () => {
+  it("载入服务器期间又输入，保留输入且不误报成功", async () => {
     setup();
     const remote = await showConflict();
     let resolve!: (v: any) => void;
     h.api.mockReturnValueOnce(new Promise((r) => (resolve = r)));
-    fireEvent.click(
-      screen.getByRole("button", { name: "保留我的副本，再加载最新版" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "使用服务器版本" }));
     fireEvent.change(inputTitle(), { target: { value: "等待中新输入" } });
     await act(async () => resolve({ post: remote }));
     expect(inputTitle().value).toBe("等待中新输入");
     expect(h.editor.document[0].content).toBe("本地正文");
-    expect(latestRecovery(localStorage, post.id)).toBeNull();
   });
   it("合并提交期间继续编辑，不给新输入套上已合并版本", async () => {
     setup();
