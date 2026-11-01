@@ -1,10 +1,10 @@
 import { Pin } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { Post } from "../../shared/contracts";
 import type { ArticleType } from "../../modules/article-types/contracts";
 import { articleTypeName } from "../../modules/article-types/matching";
 import { date } from "../shared/ui";
 import HomeCover from "./HomeCover";
-import { HOME_FEATURED_LONG_TITLE_THRESHOLD } from "../../modules/config/limits";
 import "./home-featured-posts.css";
 
 // 这是刊物的版面容量；选取沿用 PublicFeed 的置顶/发布时间排序。
@@ -23,7 +23,10 @@ function HomePost({
 }) {
   const typeName = articleTypeName(post, types) || "随笔";
   return (
-    <article className={`article-card home-post home-post--${variant}`}>
+    <article
+      className={`article-card home-post home-post--${variant}`}
+      data-featured-index={variant === "grid" ? undefined : index}
+    >
       <a
         className="home-post-link"
         href={`/p/${post.slug}`}
@@ -69,8 +72,10 @@ function HomePost({
               <span>{date(post.publishedAt)}</span>
             </div>
           )}
-          <h2>{post.title}</h2>
-          {variant === "lead" && post.excerpt && <p>{post.excerpt}</p>}
+          <div className="home-post-copy">
+            <h2>{post.title}</h2>
+            {variant === "lead" && post.excerpt && <p>{post.excerpt}</p>}
+          </div>
         </div>
       </a>
     </article>
@@ -87,22 +92,77 @@ export default function HomeFeaturedPosts({
 }) {
   const featured = posts.slice(0, FEATURED_POST_COUNT);
   const remaining = posts.slice(FEATURED_POST_COUNT);
+  const section = useRef<HTMLElement>(null);
+  const [needsStack, setNeedsStack] = useState(false);
+  useEffect(() => {
+    const root = section.current;
+    if (
+      !root ||
+      featured.length !== FEATURED_POST_COUNT ||
+      typeof ResizeObserver === "undefined"
+    )
+      return;
+    let previousWidth = -1;
+    const measure = () => {
+      const width = root.clientWidth;
+      if (width <= 0) return;
+      const grid = root.querySelector<HTMLElement>(".home-featured-grid")!;
+      const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+      // 读取 CSS 的列比例和最低展示比例；不用标题字符数猜测实际换行。
+      const css = getComputedStyle(root);
+      const ratio = parseFloat(css.getPropertyValue("--featured-column-ratio"));
+      const minAspect = parseFloat(
+        css.getPropertyValue("--featured-max-crop-ratio"),
+      );
+      const sideWidth = (width - gap) / (1 + ratio);
+      const leadHeight = (sideWidth * ratio) / (3 / 2);
+      const source = root.querySelector<HTMLElement>(
+        '[data-featured-index="1"]',
+      )!;
+      const clone = source.cloneNode(true) as HTMLElement;
+      clone.classList.add("home-featured-measure");
+      clone.setAttribute("aria-hidden", "true");
+      clone.inert = true;
+      clone.style.width = `${sideWidth}px`;
+      root.appendChild(clone);
+      const middleHeight = clone
+        .querySelector<HTMLElement>(".article-card-body")!
+        .getBoundingClientRect().height;
+      clone.remove();
+      setNeedsStack((leadHeight - middleHeight) / 2 < sideWidth / minAspect);
+    };
+    const observer = new ResizeObserver(() => {
+      if (root.clientWidth !== previousWidth) {
+        previousWidth = root.clientWidth;
+        measure();
+      }
+    });
+    observer.observe(root);
+    measure();
+    void document.fonts?.ready.then(() => {
+      if (root.isConnected) measure();
+    });
+    return () => observer.disconnect();
+  }, [featured.map((post) => `${post.id}:${post.title}`).join("|")]);
   return (
     <>
       <section
-        className={`home-featured${featured.some((post) => post.title.length > HOME_FEATURED_LONG_TITLE_THRESHOLD) ? " home-featured--long-titles" : ""}`}
+        ref={section}
+        className={`home-featured${needsStack ? " home-featured--stacked" : ""}`}
         aria-label="重点文章"
         data-count={featured.length}
       >
-        {featured.map((post, index) => (
-          <HomePost
-            key={post.id}
-            post={post}
-            types={types}
-            index={index}
-            variant={index === 0 ? "lead" : "secondary"}
-          />
-        ))}
+        <div className="home-featured-grid">
+          {featured.map((post, index) => (
+            <HomePost
+              key={post.id}
+              post={post}
+              types={types}
+              index={index}
+              variant={index === 0 ? "lead" : "secondary"}
+            />
+          ))}
+        </div>
       </section>
       {remaining.length > 0 && (
         <section className="home-more" aria-label="更多文章">

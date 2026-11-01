@@ -40,8 +40,12 @@ test("@author 刊物：首页三篇主次、四列顺序、窄屏、明暗及边
   try {
     await page.goto("/");
     await expect(page.locator(".public-hero, .hero-decoration")).toHaveCount(0);
-    await expect(page.getByRole("navigation", { name: "站点导航" })).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "文章类型" })).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "站点导航" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "文章类型" }),
+    ).toBeVisible();
     await expect(page.getByRole("searchbox")).toBeVisible();
     await expect(page.getByText("好故事，正在酝酿")).toBeVisible();
     await noOverflow(page);
@@ -151,6 +155,28 @@ test("@author 刊物：首页三篇主次、四列顺序、窄屏、明暗及边
     expect(boxes[0].x).toBeLessThan(boxes[1].x);
     expect(Math.abs(boxes[1].x - boxes[2].x)).toBeLessThan(1);
     expect(boxes[2].y).toBeGreaterThan(boxes[1].y);
+    // 三篇桌面布局对齐图片底边与日期，不能只验证文章外框的坐标。
+    const edges = await featured.locator("article").evaluateAll((cards) =>
+      cards.map((card) => {
+        const image = card
+          .querySelector(".article-card-visual")!
+          .getBoundingClientRect();
+        const meta = card
+          .querySelector(".article-meta")!
+          .getBoundingClientRect();
+        return {
+          width: image.width,
+          height: image.height,
+          top: image.top,
+          bottom: image.bottom,
+          metaTop: meta.top,
+        };
+      }),
+    );
+    expect(edges[0].width / edges[0].height).toBeCloseTo(3 / 2, 2);
+    expect(Math.abs(edges[0].top - edges[1].top)).toBeLessThan(1);
+    expect(Math.abs(edges[0].bottom - edges[2].bottom)).toBeLessThan(1);
+    expect(Math.abs(edges[0].metaTop - edges[2].metaTop)).toBeLessThan(1);
     const grid = await page
       .locator(".home-post-grid article")
       .evaluateAll((cards) =>

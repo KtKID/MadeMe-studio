@@ -145,8 +145,6 @@ export const SESSION_SECRET_MIN_LENGTH = 32;
 
 /** 展示图配方：改编码器/质量/尺寸时必须升级版本，不覆盖原媒体对象。 */
 export const IMAGE_RECIPE = "v1";
-/** 首页预览：极长标题改为纵向排列，避免双列等高产生大片空白。 */
-export const HOME_FEATURED_LONG_TITLE_THRESHOLD = 72;
 export const IMAGE_WIDTHS = [480, 960] as const;
 export const IMAGE_QUALITY = 80;
 // Workers 128MiB 内存：从读取原图字节起串行处理，在解码前限制分配。

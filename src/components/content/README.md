@@ -37,4 +37,4 @@ BlockNote 视频块的“嵌入”页签接受任意链接，`BlockReader` 通�
 
 ## 本地首页方案预览
 
-`HomeFeaturedPosts` 的刊物首页当前本地方案使用 `HomeCover`：主图 3:2，次级与普通列表 16:9；只复用文章焦点和缩放，文章页仍用 `CoverFrame`。标题完整显示；极长标题改为纵向排布，避免强行等高产生大片空白。此方案尚未推送或部署，截图及验证边界见 [预览报告](../../../reports/2026-11-01-home-layout-local-preview.md)。
+`HomeFeaturedPosts` 的当前本地方案使用 `HomeCover`：主图 3:2，桌面右侧两图均分扣除中间文案后的高度，对齐左图底边；下方日期同排、标题第一行基线对齐，左摘要自然跟随。普通列表和窄屏次级图使用 16:9。只复用文章焦点和缩放，文章页仍用 `CoverFrame`。标题完整显示，960px 以下或实际图片空间不足时纵向排布；没有字符阈值。此方案尚未推送或部署，截图和验证边界见[新版预览报告](../../../reports/2026-11-01-home-image-edge-preview.md)，[上一版](../../../reports/2026-11-01-home-layout-local-preview.md)仅保留历史。
