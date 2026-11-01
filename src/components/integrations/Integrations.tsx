@@ -332,7 +332,7 @@ export default function Integrations({
                 ["posts:read", "读取文章"],
                 ["posts:write", "创建与修改草稿"],
                 ["posts:publish", "发布文章（高权限）"],
-                ["media:write", "上传媒体"],
+                ["media:write", "上传和删除媒体"],
               ] as [TokenScope, string][]
             ).map(([scope, label]) => (
               <label key={scope}>

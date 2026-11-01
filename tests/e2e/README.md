@@ -42,3 +42,5 @@ npm run build && DEV_PORT=<空闲端口> CHROMIUM_PATH=<chromium> COVER_SHOTS_DI
 ```
 
 使用一次性作者 Worker/D1/R2，结束后清理。测试图为模拟数据，**不调用、也不验收真实 AI 生图**。截图默认写到 `test-results/cover-shots`（已被 git 忽略）。
+
+- `editor-conflicts.spec.ts`：真实双页面BlockNote与本地Worker/D1/R2，验证强制删除真实测试封面后旧窗口不会覆盖另一窗口，A本地/B服务器状态、正文整篇二选一且不额外存副本、确认请求期间服务器再次更新仍冲突及两种选择网络失败。先 build，运行 `CHROMIUM_PATH=<已安装Chromium> npm run test:e2e:conflicts`；可用 `CONFLICT_SCREENSHOT_DIR` 保存合成测试文章的桌面/手机截图。重复点击、新增输入、迟到回调与同字段竞态由UI单测补充，不冒称浏览器均已覆盖。

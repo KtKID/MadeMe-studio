@@ -127,3 +127,39 @@ test("@author 展示衍生失败时回退到落库图（data-fallback-src）", a
     )
     .toBe(true);
 });
+
+test("@author 媒体：删除按钮确认后移除卡片，文件随之不可访问", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/studio/media");
+  await expect(page.locator("[data-studio-ready=true]")).toBeVisible();
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 48;
+    canvas.getContext("2d")!.fillRect(0, 0, 64, 48);
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  const name = `E2E-delete-${Date.now()}.png`;
+  await page.locator('input[type="file"]').setInputFiles({
+    name,
+    mimeType: "image/png",
+    buffer: Buffer.from(png, "base64"),
+  });
+  const card = page
+    .locator(".media-card")
+    .filter({ hasText: name.replace(".png", ".webp") });
+  await expect(card).toBeVisible();
+  const entry = (await (await request.get("/api/media")).json()).media.find(
+    (item: { name: string }) => item.name === name.replace(".png", ".webp"),
+  );
+  await card.getByRole("button", { name: "删除" }).click();
+  const dialog = page.getByRole("dialog", { name: "删除素材" });
+  await dialog.getByRole("button", { name: "取消" }).click();
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "删除" }).click();
+  await dialog.getByRole("button", { name: "删除", exact: true }).click();
+  await expect(card).toHaveCount(0);
+  expect((await request.get(entry.url)).status()).toBe(404);
+});

@@ -52,3 +52,12 @@ describe("明确响应端点", () => {
     ).toThrow();
   });
 });
+
+it("DELETE /api/media/:id 带 ?force=1 时仍按删除响应 schema 校验", () => {
+  const ok = { deleted: true, clearedCovers: [{ postId: "p", version: 2 }] };
+  expect(parseApiResponse(ok, "/api/media/abc?force=1", "DELETE")).toEqual(ok);
+  expect(parseApiResponse(ok, "/api/media/abc", "DELETE")).toEqual(ok);
+  expect(() =>
+    parseApiResponse({ deleted: true }, "/api/media/abc?force=1", "DELETE"),
+  ).toThrow();
+});

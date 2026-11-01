@@ -211,3 +211,8 @@ export const OBSIDIAN_LOCAL_DEFAULTS = {
 /** 文章类型目录容量与乐观并发的有界重试。 */
 export const ARTICLE_TYPE_LIMIT = 100;
 export const ARTICLE_TYPE_CAS_ATTEMPTS = 4;
+
+/** 删除媒体时，清封面遇到版本冲突的最多重试次数（文章正被并发保存）。 */
+export const MEDIA_DELETE_COVER_RETRIES = 3;
+/** 删除媒体时 R2 list 衍生对象每页条数（R2 上限 1000）。 */
+export const MEDIA_DELETE_LIST_PAGE = 1000;

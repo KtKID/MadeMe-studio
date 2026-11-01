@@ -42,7 +42,12 @@ import {
   downloadText,
   date,
 } from "../shared/ui";
-import type { EditorBlock, AIAction, Revision } from "../../shared/contracts";
+import type {
+  EditorBlock,
+  AIAction,
+  Revision,
+  DeleteMediaResult,
+} from "../../shared/contracts";
 import { mediaUploadProblem } from "../../shared/contracts";
 import {
   DEFAULT_CONFIG,
@@ -86,6 +91,15 @@ import {
 import Dropdown from "../shared/Dropdown";
 import { resolveMode } from "../shared/appearance";
 import { EditClock, hasDocumentContent } from "./editor-state";
+import {
+  mergePost,
+  sameValue,
+  chooseLocalConflicts,
+  editablePatch,
+  conflictLabels,
+  type PostMerge,
+} from "./post-merge";
+import ConflictVersions from "./ConflictVersions";
 import { AIRequestState } from "./ai-request-state";
 import { applyEditorReplacement } from "./editor-replacement";
 import {
@@ -229,6 +243,9 @@ export default function Editor({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [conflict, setConflict] = useState(false);
+  const [conflictReview, setConflictReview] = useState<
+    (PostMerge & { remote: Post; local: Post }) | null
+  >(null);
   const [panel, setPanel] = useState<
     "meta" | "media" | "ai" | "revisions" | null
   >(null);
@@ -309,6 +326,15 @@ export default function Editor({
       }
     },
   });
+  const initialBodyCaptured = useRef(false);
+  if (!initialBodyCaptured.current) {
+    initialBodyCaptured.current = true;
+    if (currentRef.current)
+      currentRef.current = {
+        ...currentRef.current,
+        blocks: structuredClone(editor.document) as unknown as EditorBlock[],
+      };
+  }
   useEffect(() => {
     installEmbedAutoHeight();
     refreshVideoAdvice();
@@ -420,10 +446,7 @@ export default function Editor({
   /** 只有版本冲突才显示“载入最新版本”；链接标识冲突、文章已删除也是 409，但不是版本问题。 */
   function isVersionConflict(e: unknown) {
     return (
-      e instanceof ApiError &&
-      e.status === 409 &&
-      e.code !== "SLUG_CONFLICT" &&
-      e.code !== "POST_DELETED"
+      e instanceof ApiError && e.status === 409 && e.code === "VERSION_CONFLICT"
     );
   }
   /** 统一展示失败：中文原因 + 操作名；ApiError 已由 api() 记录，其余异常在这里记录。 */
@@ -461,6 +484,218 @@ export default function Editor({
     if (url !== cover) setCoverSettings((s) => resetCoverFraming(s));
     setCover(url);
     markDirty();
+  }
+  // 异步回调必须读取最新表单，不能使用请求发出时的React闭包。
+  const fieldsRef = useRef(fields);
+  fieldsRef.current = fields;
+  function localSnapshot(base: Post): Post {
+    return structuredClone({ ...base, ...fieldsRef.current() });
+  }
+  function applyFields(p: Post) {
+    editor.replaceBlocks(
+      editor.document,
+      p.blocks as unknown as PartialBlock<typeof schema.blockSchema>[],
+    );
+    setTitle(p.title);
+    setExcerpt(p.excerpt);
+    setTags(p.tags.join(", "));
+    setCategory(p.category);
+    setCategoryId(p.categoryId);
+    setCover(p.coverImage);
+    setCoverSettings(normalizeCoverSettings(p.coverSettings));
+    setSlug(p.slug);
+  }
+  /** 只允许已核实的同一基准做单步推进；旧服务端无previousVersion也不猜测。 */
+  function mediaDeleted(media: Media, result: DeleteMediaResult) {
+    const base = currentRef.current;
+    const cleared =
+      base && result.clearedCovers.find((c) => c.postId === base.id);
+    if (base && cleared) {
+      if (
+        !lock.current &&
+        cleared.previousVersion === base.version &&
+        cleared.version === base.version + 1
+      ) {
+        updateCurrent({
+          ...base,
+          ...(base.coverImage === media.url ? { coverImage: "" } : {}),
+          version: cleared.version,
+        });
+      } else {
+        setConflict(true);
+        setMessage(
+          "素材已删除；文章版本已有变化，本页输入仍在，请检查版本冲突后保存。",
+        );
+      }
+    }
+    if (fieldsRef.current().coverImage === media.url) {
+      setCover("");
+      setCoverSettings({ ...DEFAULT_COVER_SETTINGS });
+      markDirty();
+    }
+  }
+  async function inspectConflict(base: Post, allowMerge: boolean) {
+    const { post: remote } = await api<{ post: Post }>(`/api/posts/${base.id}`);
+    const local = localSnapshot(base),
+      merged = mergePost(base, local, remote);
+    setConflict(true);
+    if (allowMerge && !merged.conflicts.length) {
+      const sequence = editClock.current.snapshot();
+      try {
+        const { post: saved } = await api<{ post: Post }>(
+          `/api/posts/${base.id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              ...editablePatch(merged.post),
+              version: remote.version,
+            }),
+          },
+        );
+        if (editClock.current.snapshot() !== sequence) {
+          // 服务器合并已保存，但后续本地输入未经过三方比较：保留旧基准，下次重新检查。
+          setError("合并保存期间又有输入，已保留；请重新检查版本冲突后保存。");
+          return undefined;
+        }
+        applyFields(saved);
+        updateCurrent(saved);
+        markClean();
+        setConflict(false);
+        setConflictReview(null);
+        setMessage("已安全合并不同字段的修改并保存；已发布内容保持不变。");
+        return { post: saved, sequence: editClock.current.snapshot() };
+      } catch (e) {
+        if (!isVersionConflict(e)) throw e;
+        // 一次自动重试仍冲突：重新读取并要求明确选择，不沿用先前授权覆盖。
+        return inspectConflict(base, false);
+      }
+    }
+    setConflictReview({ ...merged, remote, local });
+    setPublishOpen(false);
+    setCoverPickerOpen(false);
+    setPanel(null);
+    setError("");
+    return undefined;
+  }
+  async function reviewConflict() {
+    const base = currentRef.current;
+    if (!base || lock.current) return;
+    lock.current = true;
+    setBusy("conflict");
+    try {
+      await inspectConflict(base, false);
+    } catch (e) {
+      fail("reload", e);
+    } finally {
+      lock.current = false;
+      setBusy("");
+    }
+  }
+  async function keepMine() {
+    const base = currentRef.current,
+      review = conflictReview;
+    if (!base || !review || lock.current) return;
+    lock.current = true;
+    setBusy("conflict");
+    setError("");
+    const local = localSnapshot(base),
+      sequence = editClock.current.snapshot();
+    // 用户的这次选择仅授权覆盖已展示的远端版本；之后的服务器更新仍必须409。
+    const nextMerge = mergePost(base, local, review.remote);
+    const selected = chooseLocalConflicts(nextMerge, review.local);
+    try {
+      if (!sameValue(editablePatch(local), editablePatch(review.local))) {
+        setConflictReview({ ...nextMerge, remote: review.remote, local });
+        setError("本地输入又有变化，请对照新状态重新选择。");
+        return;
+      }
+      const problems = findContentProblems(selected.blocks);
+      if (problems.length) throw new Error(summarizeProblems(problems));
+      const { post: saved } = await api<{ post: Post }>(
+        `/api/posts/${base.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            ...editablePatch(selected),
+            version: review.remote.version,
+          }),
+        },
+      );
+      if (editClock.current.snapshot() !== sequence) {
+        setConflictReview(null);
+        setError("保存期间又有输入，已保留；请重新检查版本冲突后保存。");
+        return;
+      }
+      applyFields(saved);
+      updateCurrent(saved);
+      markClean();
+      setConflict(false);
+      setConflictReview(null);
+      setMessage(
+        "已使用我的版本并保存；服务器不冲突的修改已合并，未选中的冲突修改已放弃。尚未发布。",
+      );
+    } catch (e) {
+      if (isVersionConflict(e)) {
+        try {
+          await inspectConflict(base, false);
+        } catch (error) {
+          fail("reload", error);
+        }
+      } else fail("save", e);
+    } finally {
+      lock.current = false;
+      setBusy("");
+    }
+  }
+  async function useServerVersion() {
+    const base = currentRef.current,
+      review = conflictReview;
+    if (!base || !review || lock.current || !authenticated) return;
+    lock.current = true;
+    setBusy("reload");
+    setError("");
+    const sequence = editClock.current.snapshot(),
+      local = localSnapshot(base);
+    try {
+      if (!sameValue(editablePatch(local), editablePatch(review.local))) {
+        setConflictReview({
+          ...mergePost(base, local, review.remote),
+          remote: review.remote,
+          local,
+        });
+        setError("本地输入又有变化，请对照新状态重新选择。");
+        return;
+      }
+      const { post: remote } = await api<{ post: Post }>(
+        `/api/posts/${base.id}`,
+      );
+      if (editClock.current.snapshot() !== sequence) {
+        const latestLocal = localSnapshot(base);
+        setConflictReview({
+          ...mergePost(base, latestLocal, remote),
+          remote,
+          local: latestLocal,
+        });
+        setError("载入期间又有输入，已保留；请对照新状态重新选择。");
+        return;
+      }
+      if (remote.version !== review.remote.version) {
+        setConflictReview({ ...mergePost(base, local, remote), remote, local });
+        setError("服务器已有更新，请对照新状态重新选择。");
+        return;
+      }
+      applyFields(remote);
+      updateCurrent(remote);
+      markClean();
+      setConflict(false);
+      setConflictReview(null);
+      setMessage("已使用服务器版本，未保存的本地输入已放弃。未另存副本。");
+    } catch (e) {
+      fail("reload", e);
+    } finally {
+      lock.current = false;
+      setBusy("");
+    }
   }
   function removeCover() {
     setCover("");
@@ -538,8 +773,17 @@ export default function Editor({
       succeeded = true;
       return { post: result.post, sequence };
     } catch (e) {
-      if (isVersionConflict(e)) setConflict(true);
-      fail(action, e);
+      if (isVersionConflict(e) && base) {
+        try {
+          const merged = await inspectConflict(base, true);
+          if (merged) {
+            succeeded = true;
+            return merged;
+          }
+        } catch (error) {
+          fail(action, error);
+        }
+      } else fail(action, e);
     } finally {
       if (!keepLock || !succeeded) {
         setBusy("");
@@ -582,52 +826,6 @@ export default function Editor({
     } catch (e) {
       if (isVersionConflict(e)) setConflict(true);
       fail("publish", e);
-    } finally {
-      lock.current = false;
-      setBusy("");
-    }
-  }
-  async function reload() {
-    if (
-      lock.current ||
-      !current ||
-      !confirm(
-        "加载服务器最新版本将替换本页未保存修改。建议先导出 Markdown 备份，确定继续？",
-      )
-    )
-      return;
-    lock.current = true;
-    setBusy("reload");
-    const sequence = editClock.current.snapshot();
-    try {
-      const { post: p } = await api<{ post: Post }>(`/api/posts/${current.id}`);
-      const applied = applyEditorReplacement(
-        editClock.current,
-        sequence,
-        () => {
-          editor.replaceBlocks(
-            editor.document,
-            p.blocks as unknown as PartialBlock<typeof schema.blockSchema>[],
-          );
-          updateCurrent(p);
-          setTitle(p.title);
-          setExcerpt(p.excerpt);
-          setTags(p.tags.join(", "));
-          setCategory(p.category);
-          setCategoryId(p.categoryId);
-          setCover(p.coverImage);
-          setCoverSettings(normalizeCoverSettings(p.coverSettings));
-          setSlug(p.slug);
-          markClean();
-          setConflict(false);
-          setError("");
-          setMessage("已载入服务器最新版本。");
-        },
-      );
-      if (!applied)
-        setError("载入期间你又修改了文章，已保留本地输入；请备份后重新载入。");
-    } catch (e) {
-      fail("reload", e);
     } finally {
       lock.current = false;
       setBusy("");
@@ -977,16 +1175,57 @@ export default function Editor({
       {conflict && (
         <Notice kind="error">
           <strong>检测到版本冲突。</strong>
-          另一个窗口已保存了更新，本页内容仍在。请先备份，再载入最新版本进行合并。
-          <div className="button-group">
-            <button className="button small" onClick={exportMarkdown}>
-              导出本页 Markdown
+          本页输入仍在，检查后再选择；关闭弹窗也会保留输入。
+          <button
+            className="button small"
+            disabled={!!busy}
+            onClick={reviewConflict}
+          >
+            检查版本冲突
+          </button>
+        </Notice>
+      )}
+      {conflictReview && (
+        <Modal
+          title="处理版本冲突"
+          wide
+          onClose={() => {
+            if (!lock.current) setConflictReview(null);
+          }}
+        >
+          <p>
+            {conflictReview.conflicts.length
+              ? `双方修改了：${conflictReview.conflicts.map((k) => conflictLabels[k]).join("、")}。`
+              : "服务器再次更新，请确认后继续。"}
+            正文按整篇选择，不拼接。
+          </p>
+          <ConflictVersions
+            local={conflictReview.local}
+            remote={conflictReview.remote}
+          />
+          <p className="muted conflict-choice-tip">
+            选择成功后，未选中的冲突修改将被放弃，不另存副本。A
+            会保留服务器不冲突的修改；B
+            会载入完整服务器版本，放弃本地未保存输入。文章不会被删除。
+          </p>
+          {error && <Notice kind="error">{error}</Notice>}
+          <div className="modal-actions">
+            <button
+              className="button"
+              disabled={!!busy}
+              onClick={useServerVersion}
+            >
+              使用服务器版本
             </button>
-            <button className="button small" onClick={reload}>
-              载入最新版本
+            <button
+              className="button primary"
+              disabled={!!busy}
+              onClick={keepMine}
+            >
+              使用我的版本
             </button>
           </div>
-        </Notice>
+        </Modal>
       )}
       <div className="editor-workspace">
         <div className="editor-document">
@@ -1224,6 +1463,7 @@ export default function Editor({
             imageConfigured={imageConfigured}
             providers={settings.providers}
             onInsert={insertMedia}
+            onDeleted={mediaDeleted}
             onCover={(m) => {
               chooseCover(m.url);
               setPanel(null);
@@ -1533,6 +1773,7 @@ export default function Editor({
             postId={current?.id}
             imageConfigured={imageConfigured}
             providers={settings.providers}
+            onDeleted={mediaDeleted}
             onCover={(m) => {
               chooseCover(m.url);
               setCoverPickerOpen(false);

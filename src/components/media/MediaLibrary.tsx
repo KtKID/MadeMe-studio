@@ -3,14 +3,19 @@ import { imageSources } from "../../modules/image-delivery/contracts";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { CropRenderGuard, cropGeometry } from "./crop-state";
-import { mediaUploadProblem, type Provider } from "../../shared/contracts";
+import {
+  mediaUploadProblem,
+  type DeleteMediaResult,
+  type MediaReference,
+  type Provider,
+} from "../../shared/contracts";
 import {
   DEFAULT_CONFIG,
   TEXT_LIMITS,
   enabledMediaMimes,
   type RuntimeConfig,
 } from "../../modules/config";
-import { clientLog } from "../../modules/log/client";
+import { clientCaught, clientLog } from "../../modules/log/client";
 import {
   mayNeedShrink,
   shrinkForUpload,
@@ -25,9 +30,11 @@ import {
   Check,
   File,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import {
   api,
+  ApiError,
   type Media,
   Notice,
   Busy,
@@ -253,9 +260,113 @@ function CropImage({
     </Modal>
   );
 }
+/**
+ * 删除确认：先普通确认；服务端返回 409 MEDIA_IN_USE 时列出引用文章，需再次明确点击“仍然删除”（force=1）。
+ * 强制删除只清封面（草稿与已发布快照），正文引用保持不变。
+ */
+function DeleteMedia({
+  media,
+  onClose,
+  onDeleted,
+}: {
+  media: Media;
+  onClose: () => void;
+  onDeleted: (media: Media, result: DeleteMediaResult) => void;
+}) {
+  const [references, setReferences] = useState<MediaReference[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function remove() {
+    if (busy) return;
+    const force = references !== null;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<DeleteMediaResult>(
+        `/api/media/${encodeURIComponent(media.id)}${force ? "?force=1" : ""}`,
+        { method: "DELETE" },
+      );
+      clientLog("info", "media.deleted", {
+        force,
+        clearedCovers: result.clearedCovers.length,
+      });
+      onDeleted(media, result);
+    } catch (e) {
+      const posts =
+        e instanceof ApiError && e.code === "MEDIA_IN_USE" && !force
+          ? (e.details as { posts?: MediaReference[] } | undefined)?.posts
+          : undefined;
+      if (posts) {
+        setReferences(posts);
+      } else {
+        clientCaught("media.delete_failed", e, { force });
+        setError(e instanceof Error ? e.message : "删除失败，请稍后重试。");
+      }
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal
+      title={references ? "这份素材正在被使用" : "删除素材"}
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+    >
+      {references ? (
+        <>
+          <Notice kind="error">
+            以下文章引用了「{media.name}
+            」。仍然删除会清空这些文章的封面（草稿与已发布版本）；正文里的引用不会改动，删除后会显示为失效图片。
+          </Notice>
+          <ul className="media-references">
+            {references.map((r) => (
+              <li key={r.postId}>
+                <strong>{r.title}</strong>
+                <span>
+                  {[
+                    r.cover && "封面",
+                    r.body && "正文",
+                    r.published ? "已发布" : "草稿",
+                    r.trashed && "回收站",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p>确定删除「{media.name}」吗？文件及其缩略图会一并删除，无法恢复。</p>
+      )}
+      {error && <Notice kind="error">{error}</Notice>}
+      <div className="modal-actions">
+        <button className="button" disabled={busy} onClick={onClose}>
+          取消
+        </button>
+        <button
+          className="button danger-text"
+          disabled={busy}
+          aria-busy={busy}
+          onClick={remove}
+        >
+          {busy ? (
+            <Busy text="删除中…" />
+          ) : (
+            <>
+              <Trash2 size={15} />
+              {references ? "仍然删除" : "删除"}
+            </>
+          )}
+        </button>
+      </div>
+    </Modal>
+  );
+}
 export default function MediaLibrary({
   onInsert,
   onCover,
+  onDeleted,
   postId,
   imageConfigured = false,
   providers = [],
@@ -267,6 +378,8 @@ export default function MediaLibrary({
   config?: RuntimeConfig;
   onInsert?: (media: Media) => void;
   onCover?: (media: Media) => void;
+  /** 删除成功后通知宿主（编辑器据此清空当前封面并同步版本号）。 */
+  onDeleted?: (media: Media, result: DeleteMediaResult) => void;
   postId?: string;
   imageConfigured?: boolean;
   providers?: Provider[];
@@ -278,6 +391,7 @@ export default function MediaLibrary({
     if (!active) {
       setGenerate(false);
       setCrop(null);
+      setRemoving(null);
     }
   }, [active]);
   const [media, setMedia] = useState<Media[]>(initialMedia ?? []);
@@ -293,6 +407,7 @@ export default function MediaLibrary({
   const [providerId, setProviderId] = useState("");
   const [generate, setGenerate] = useState(false);
   const [crop, setCrop] = useState<Media | null>(null);
+  const [removing, setRemoving] = useState<Media | null>(null);
   useNavigationReady("/studio/media", !loading, !!error);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -501,6 +616,15 @@ export default function MediaLibrary({
                   >
                     <Download size={16} />
                   </a>
+                  <button
+                    className="icon-button danger"
+                    title="删除"
+                    aria-label="删除"
+                    disabled={busy || removing !== null}
+                    onClick={() => setRemoving(m)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
             </article>
@@ -516,7 +640,7 @@ export default function MediaLibrary({
             </button>
           }
         >
-          支持图片、音频、视频与附件。原图会保留，裁剪结果另存为新文件。
+          支持图片、音频、视频与附件。裁剪结果另存为新文件。
         </Empty>
       )}
       <p className="form-hint">
@@ -530,6 +654,17 @@ export default function MediaLibrary({
           onSaved={(m) => setMedia((prev) => [m, ...prev])}
           postId={postId}
           options={config.media}
+        />
+      )}
+      {removing && (
+        <DeleteMedia
+          media={removing}
+          onClose={() => setRemoving(null)}
+          onDeleted={(m, result) => {
+            setMedia((prev) => prev.filter((item) => item.id !== m.id));
+            setRemoving(null);
+            onDeleted?.(m, result);
+          }}
         />
       )}{" "}
       {generate && (
