@@ -950,6 +950,19 @@ img {
 .public-shell > .public-footer {
   flex-shrink: 0;
 }
+/* 保留可访问标题而不恢复首页介绍区；仍留在辅助技术的标题结构中。 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 .public-header {
   height: 110px;
   display: flex;
@@ -966,74 +979,6 @@ img {
   gap: 28px;
   font-size: 12px;
   color: var(--muted);
-}
-.public-hero {
-  position: relative;
-  padding: 38px 0 32px;
-  overflow: hidden;
-}
-.public-hero h1 {
-  font-size: clamp(30px, 3.6vw, 44px);
-  letter-spacing: -0.06em;
-  line-height: 1.4;
-  margin-bottom: 12px;
-}
-.public-hero h1 em {
-  font-style: normal;
-  color: var(--accent-hover);
-}
-.public-hero p {
-  max-width: 600px;
-  color: var(--muted);
-  font-size: 13px;
-  position: relative;
-  z-index: 2;
-}
-.public-hero .eyebrow {
-  margin-bottom: 12px;
-}
-.hero-decoration {
-  position: absolute;
-  right: 30px;
-  width: 300px;
-  height: 260px;
-  top: -32px;
-  transform: scale(0.65);
-  transform-origin: right center;
-  color: var(--accent);
-  opacity: 0.85;
-}
-.orbit {
-  position: absolute;
-  border: 1px solid var(--tint-strong);
-  border-radius: 50%;
-  width: 250px;
-  height: 160px;
-  top: 40px;
-  left: 20px;
-  transform: rotate(-35deg);
-}
-.orbit-two {
-  transform: rotate(25deg);
-}
-.orbit-three {
-  transform: rotate(85deg);
-}
-.hero-spark {
-  font-size: 112px;
-  position: absolute;
-  left: 82px;
-  top: 18px;
-  font-family: var(--font);
-  font-weight: 300;
-}
-.hero-caption {
-  font-size: 7px;
-  letter-spacing: 0.2em;
-  color: var(--muted);
-  position: absolute;
-  bottom: 11px;
-  left: 72px;
 }
 .public-feed {
   padding-bottom: 70px;
@@ -2412,14 +2357,6 @@ kbd {
   .article-card h2 {
     font-size: 17px;
   }
-  .hero-decoration {
-    right: -20px;
-    opacity: 0.65;
-    transform: scale(0.85);
-  }
-  .hero-caption {
-    display: none;
-  }
 }
 @media (max-width: 680px) {
   body {
@@ -2617,25 +2554,6 @@ kbd {
   .public-header nav .button {
     font-size: 9px;
     padding: 6px 9px;
-  }
-  .public-hero {
-    padding: 28px 0 24px;
-  }
-  .public-hero h1 {
-    font-size: 30px;
-    position: relative;
-    z-index: 2;
-  }
-  .public-hero p {
-    font-size: 11px;
-    max-width: 78%;
-    line-height: 1.8;
-  }
-  .hero-decoration {
-    right: -100px;
-    top: -32px;
-    transform: scale(0.6);
-    opacity: 0.4;
   }
   .feed-toolbar {
     flex-wrap: wrap;
