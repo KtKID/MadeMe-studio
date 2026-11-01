@@ -3289,3 +3289,20 @@ kbd {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+.media-references {
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.media-references li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.media-references span {
+  color: var(--muted);
+  white-space: nowrap;
+}

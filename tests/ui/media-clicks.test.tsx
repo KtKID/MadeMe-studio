@@ -272,3 +272,88 @@ it("图像服务商与裁剪比例使用共享下拉；未配置项禁用，Esca
   fireEvent.click(screen.getByRole("option", { name: "原始比例" }));
   expect(ratio.textContent).toBe("原始比例");
 });
+describe("媒体库删除", () => {
+  it("确认后删除：忙碌态禁用按钮，成功后从列表移除并通知宿主", async () => {
+    let resolve!: (v: unknown) => void;
+    h.api.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    const deleted = vi.fn();
+    render(
+      <MediaLibrary
+        initialMedia={[media("甲"), media("乙")]}
+        onDeleted={deleted}
+      />,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "删除" })[0]);
+    const dialog = screen.getByRole("dialog", { name: "删除素材" });
+    fireEvent.click(within(dialog).getByRole("button", { name: /删除/ }));
+    expect(h.api).toHaveBeenCalledWith("/api/media/%E7%94%B2", {
+      method: "DELETE",
+    });
+    expect(within(dialog).getByRole("button", { name: "取消" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    await act(async () => resolve({ deleted: true, clearedCovers: [] }));
+    await waitFor(() => expect(screen.queryByText("甲.png")).toBeNull());
+    expect(screen.getByText("乙.png")).toBeTruthy();
+    expect(deleted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "甲" }),
+      { deleted: true, clearedCovers: [] },
+    );
+  });
+
+  it("被引用：列出文章并要求再次确认，第二次带 force=1", async () => {
+    const { ApiError } = await import("../../src/components/shared/ui");
+    h.api
+      .mockRejectedValueOnce(
+        new ApiError(409, "MEDIA_IN_USE", "在用", {
+          posts: [
+            {
+              postId: "p1",
+              title: "春天",
+              cover: true,
+              body: false,
+              published: true,
+              trashed: false,
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce({
+        deleted: true,
+        clearedCovers: [{ postId: "p1", version: 4 }],
+      });
+    render(<MediaLibrary initialMedia={[media("甲")]} />);
+    fireEvent.click(screen.getByRole("button", { name: "删除" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /删除/ }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "这份素材正在被使用",
+    });
+    expect(within(dialog).getByText("春天")).toBeTruthy();
+    expect(within(dialog).getByText("封面 · 已发布")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: /仍然删除/ }));
+    await waitFor(() => expect(screen.queryByText("甲.png")).toBeNull());
+    expect(h.api).toHaveBeenLastCalledWith("/api/media/%E7%94%B2?force=1", {
+      method: "DELETE",
+    });
+  });
+
+  it("失败：错误显示在对话框并写日志，列表不变", async () => {
+    const { ApiError } = await import("../../src/components/shared/ui");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    h.api.mockRejectedValueOnce(new ApiError(500, "X", "存储暂时不可用"));
+    render(<MediaLibrary initialMedia={[media("甲")]} />);
+    fireEvent.click(screen.getByRole("button", { name: "删除" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /删除/ }),
+    );
+    expect(await screen.findByText("存储暂时不可用")).toBeTruthy();
+    expect(screen.getByText("甲.png")).toBeTruthy();
+    expect(JSON.stringify([...warn.mock.calls, ...error.mock.calls])).toContain(
+      "media.delete_failed",
+    );
+  });
+});

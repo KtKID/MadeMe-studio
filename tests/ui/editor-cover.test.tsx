@@ -12,6 +12,7 @@ import { defaultSettings, type Post } from "../../src/shared/contracts";
 // 只替换 BlockNote 引擎与网络边界；Editor、React state、按钮和 Modal 均是真实组件。
 const h = vi.hoisted(() => ({
   api: vi.fn(),
+  library: null as null | Record<string, (...args: unknown[]) => void>,
   replaceBlocks: vi.fn(),
   editor: {
     document: [{ type: "paragraph", content: "原始正文" }],
@@ -58,7 +59,10 @@ vi.mock("../../src/components/shared/ui", async (original) => ({
   api: h.api,
 }));
 vi.mock("../../src/components/media/MediaLibrary", () => ({
-  default: () => <div>媒体边界</div>,
+  default: (props: Record<string, (...args: unknown[]) => void>) => {
+    h.library = props;
+    return <div>媒体边界</div>;
+  },
 }));
 // 类型服务边界独立测试；旧编辑器保存竞态用例不消费类型 GET 请求队列。
 vi.mock("../../src/modules/article-types/client", async (original) => ({
@@ -225,5 +229,27 @@ describe("编辑器封面：调整入口与持久化", () => {
     expect(
       within(section).getByRole("button", { name: "选择封面图片" }),
     ).toBeTruthy();
+  });
+  it("媒体库删除了当前封面：清空封面并同步服务端版本号，下次保存不冲突", async () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: /发布/ }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "更换图片",
+      }),
+    );
+    expect(h.library?.onDeleted).toBeTypeOf("function");
+    act(() =>
+      h.library!.onDeleted(
+        { id: "cover", url: "/api/files/cover" },
+        { deleted: true, clearedCovers: [{ postId: "fixture", version: 5 }] },
+      ),
+    );
+    h.api.mockResolvedValueOnce({ post: { ...post, version: 6 } });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await act(async () => {});
+    expect(lastBody()).toMatchObject({ coverImage: "", version: 5 });
   });
 });

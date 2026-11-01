@@ -40,6 +40,7 @@ import { loadPageData } from "./page-data";
 import { json, readJSON, boundedBody, errorResponse } from "./http";
 import { requestLogContext } from "../modules/log/server";
 import { listMedia, saveMedia, serveMedia } from "./media/service";
+import { deleteMedia } from "./media/delete";
 import { serveImageVariant } from "./media/image-delivery";
 import {
   IMAGE_RECIPE,
@@ -384,6 +385,20 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
       ["GET", "HEAD"].includes(method)
     )
       return await serveMedia(request, env, identity, path[1]);
+    if (path[0] === "media" && path.length === 2 && method === "DELETE") {
+      requireScope(identity, env, "media:write");
+      return cors(
+        json(
+          await deleteMedia(
+            env,
+            path[1],
+            url.searchParams.get("force") === "1",
+          ),
+        ),
+        request,
+        identity,
+      );
+    }
     if (path[0] === "media" && path.length === 1) {
       if (method === "GET") {
         requireOwner(identity, env);

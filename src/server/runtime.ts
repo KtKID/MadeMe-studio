@@ -31,6 +31,12 @@ export interface R2Bucket {
     options?: { range?: { offset: number; length: number } },
   ): Promise<R2ObjectBody | null>;
   delete(key: string): Promise<void>;
+  /** 按前缀列举（删除媒体时清理衍生目录用）；truncated 为真时用 cursor 继续。 */
+  list(options: { prefix: string; limit?: number; cursor?: string }): Promise<{
+    objects: { key: string }[];
+    truncated: boolean;
+    cursor?: string;
+  }>;
 }
 export interface RuntimeEnv {
   DB?: D1Database;

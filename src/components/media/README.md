@@ -21,3 +21,15 @@
 上传、图像生成、裁剪导出使用同步单飞锁，阻止同一个 render 内重复事件产生重复 POST。请求函数自身校验图像配置与提示词；失败释放锁并保留可重试输入。初始媒体 GET 迟到时合并而非覆盖等待期间的新上传。生成/裁剪已提交时取消按钮禁用，避免把不能撤销的服务端写入误称为已取消。
 
 `tests/ui/media-clicks.test.tsx` 在 jsdom 中真实渲染 MediaLibrary 并发送 DOM 点击/change，覆盖筛选、插入、封面、下载属性、未配置生成、上传取消/重复/失败重试、裁剪未就绪取消、初始 GET 竞态与生成失败重试。网络为隔离 mock；真实 Canvas 绘制、媒体解码和供应商仍需独立浏览器/账户验收。
+
+## 删除素材
+
+每张卡片操作行末尾有删除图标按钮（`Trash2`，`title`/`aria-label` 为“删除”，`icon-button danger` 悬停变红）。点击后打开 `Modal` 确认：
+
+1. 第一次确认调用 `DELETE /api/media/:id`。
+2. 服务端返回 409 `MEDIA_IN_USE` 时，对话框改为“这份素材正在被使用”，列出引用文章（封面/正文、草稿/已发布、回收站），说明“仍然删除会清空这些文章的封面，正文引用不改动”；需要再点一次“仍然删除”才发送 `?force=1`。
+3. 请求期间按钮禁用并显示“删除中…”；失败把错误显示在对话框内，并通过 `clientCaught("media.delete_failed")` 写统一日志；成功后从列表移除并调用宿主的 `onDeleted(media, result)`。
+
+编辑器的 `onDeleted`：当前封面就是被删图片时清空封面；`result.clearedCovers` 里包含本文时把本地版本号同步为服务端新版本，避免下次保存出现版本冲突。
+
+测试：`tests/ui/media-clicks.test.tsx`（确认/忙碌/移除、被引用二次确认 force、失败显示+日志）、`tests/ui/editor-cover.test.tsx`（封面清空与版本同步）、`tests/e2e/media.spec.ts`（真实 Worker：取消不删、确认删除后卡片消失且文件 404）。

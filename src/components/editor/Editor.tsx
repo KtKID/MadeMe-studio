@@ -42,7 +42,12 @@ import {
   downloadText,
   date,
 } from "../shared/ui";
-import type { EditorBlock, AIAction, Revision } from "../../shared/contracts";
+import type {
+  EditorBlock,
+  AIAction,
+  Revision,
+  DeleteMediaResult,
+} from "../../shared/contracts";
 import { mediaUploadProblem } from "../../shared/contracts";
 import {
   DEFAULT_CONFIG,
@@ -461,6 +466,21 @@ export default function Editor({
     if (url !== cover) setCoverSettings((s) => resetCoverFraming(s));
     setCover(url);
     markDirty();
+  }
+  /** 媒体库删除了图片：当前封面是它就清空；服务端已清空本文封面时同步版本号，避免下次保存冲突。 */
+  function mediaDeleted(media: Media, result: DeleteMediaResult) {
+    const base = currentRef.current;
+    const cleared = base
+      ? result.clearedCovers.find((c) => c.postId === base.id)
+      : undefined;
+    if (base && cleared)
+      updateCurrent({ ...base, coverImage: "", version: cleared.version });
+    if (cover === media.url) {
+      setCover("");
+      setCoverSettings({ ...DEFAULT_COVER_SETTINGS });
+      // 服务端已清空且本地无其它改动时不必标脏；否则标脏让未保存的封面选择也随下次保存清除。
+      if (!cleared) markDirty();
+    }
   }
   function removeCover() {
     setCover("");
@@ -1224,6 +1244,7 @@ export default function Editor({
             imageConfigured={imageConfigured}
             providers={settings.providers}
             onInsert={insertMedia}
+            onDeleted={mediaDeleted}
             onCover={(m) => {
               chooseCover(m.url);
               setPanel(null);
@@ -1533,6 +1554,7 @@ export default function Editor({
             postId={current?.id}
             imageConfigured={imageConfigured}
             providers={settings.providers}
+            onDeleted={mediaDeleted}
             onCover={(m) => {
               chooseCover(m.url);
               setCoverPickerOpen(false);

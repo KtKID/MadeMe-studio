@@ -7,6 +7,7 @@ import {
   settingsResponseSchema,
   deploymentResponseSchema,
   mediaResponseSchema,
+  deleteMediaResponseSchema,
   mediaListResponseSchema,
   aiResponseSchema,
   modelsResponseSchema,
@@ -49,6 +50,8 @@ export function parseApiResponse(
     )
   )
     return postResponseSchema.parse(data);
+  if (/^\/api\/media\/[^/]+$/.test(path) && verb === "DELETE")
+    return deleteMediaResponseSchema.parse(data);
   if (path === "/api/media")
     return (
       verb === "GET" ? mediaListResponseSchema : mediaResponseSchema

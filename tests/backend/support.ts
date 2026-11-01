@@ -102,6 +102,20 @@ export class MemoryR2 implements R2Bucket {
   async delete(key: string) {
     this.objects.delete(key);
   }
+  async list(options: { prefix: string; limit?: number; cursor?: string }) {
+    const keys = [...this.objects.keys()]
+      .filter((key) => key.startsWith(options.prefix))
+      .sort();
+    const start = options.cursor ? Number(options.cursor) : 0;
+    const limit = options.limit ?? 1000;
+    const page = keys.slice(start, start + limit);
+    const truncated = start + limit < keys.length;
+    return {
+      objects: page.map((key) => ({ key })),
+      truncated,
+      ...(truncated ? { cursor: String(start + limit) } : {}),
+    };
+  }
 }
 export function fixtureEnv(): RuntimeEnv & { DB: SQLiteD1; BUCKET: MemoryR2 } {
   return {

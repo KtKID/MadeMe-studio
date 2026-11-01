@@ -598,6 +598,28 @@ export const aiResponseSchema = z.object({ text: z.string() }).strict();
 export const modelsResponseSchema = z
   .object({ models: z.array(z.object({ id: z.string() }).strict()) })
   .strict();
+/** 引用某个媒体的文章（删除前提示用）：封面/正文、草稿/已发布快照、是否在回收站。 */
+export const mediaReferenceSchema = z
+  .object({
+    postId: z.string(),
+    title: z.string(),
+    cover: z.boolean(),
+    body: z.boolean(),
+    published: z.boolean(),
+    trashed: z.boolean(),
+  })
+  .strict();
+export type MediaReference = z.infer<typeof mediaReferenceSchema>;
+/** DELETE /api/media/:id 成功响应：clearedCovers 为被清空封面的文章及其新版本号。 */
+export const deleteMediaResponseSchema = z
+  .object({
+    deleted: z.literal(true),
+    clearedCovers: z.array(
+      z.object({ postId: z.string(), version: z.number().int() }).strict(),
+    ),
+  })
+  .strict();
+export type DeleteMediaResult = z.infer<typeof deleteMediaResponseSchema>;
 export const tokensResponseSchema = z
   .object({ tokens: z.array(tokenSchema) })
   .strict();

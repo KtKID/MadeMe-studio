@@ -54,3 +54,13 @@
 - Firefox 尚未实测。
 
 MIME 清单在 `src/modules/config/limits.ts`（`MEDIA_TYPES`），各类型上限与禁用类型在设置页配置；前后端共用 `uploadProblem()`，格式文案由 `formatsLabel()` / `uploadHint()` 生成。AI 生成的图片不受作者上传配置影响，使用硬上限策略 `GENERATED_MEDIA_POLICY`。
+
+## 删除媒体（DELETE /api/media/:id）
+
+实现：`delete.ts`。需要 `media:write` 作用域；与其它写接口一样先经过 `assertSameOrigin`（跨站 Origin 403）。
+
+- **引用检查**：`mediaReferences` 用 `json_tree` 在每篇文章的草稿文档与已发布快照里查找 `/api/files/<id>`（包含回收站文章），再逐篇精确判定封面（`coverImage`）与正文（`blocks`）。有引用且未带 `?force=1` → 409 `MEDIA_IN_USE`，`details.posts` 为 `{postId,title,cover,body,published,trashed}[]`，此时不做任何修改。
+- **强制删除只清封面**：草稿 `coverImage` 置空（版本 +1，修订原因 `save`）；已发布快照的封面若也是该图一并置空——文件删除后线上封面本来就会变成失效图片，置空让页面直接不显示封面，且不改动已发布内容的其它字段。正文引用保持不变（删除后显示为失效图片，这是作者确认过的取舍）。版本冲突时重读重试 `MEDIA_DELETE_COVER_RETRIES` 次，仍冲突返回 409 `VERSION_CONFLICT`，此时还没有删除任何媒体数据。
+- **删除顺序**：清封面 → 删 D1 `media` 行 → 删 `row.object_key` 对象 → 按前缀 `image-derivatives/v1/<id>/` 列举并删除全部衍生（旧路径与 `s1/` 子目录、manifest）。行删除之后的 R2 失败只记录 `media.delete_orphan_object` / `media.delete_orphan_derivatives`（error 级），接口仍返回成功，保证素材不会半删地留在媒体库里。成功写 `media.deleted`，每篇清封面写 `media.delete_cover_cleared`。
+- **响应**：`{ deleted: true, clearedCovers: [{ postId, version }] }`，前端据此同步编辑器版本号。
+- **边缘缓存**：公开图片在边缘缓存中最多仍可命中 600 秒。
