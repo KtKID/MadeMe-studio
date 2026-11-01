@@ -18,7 +18,8 @@
     "test:e2e:obsidian": "node scripts/test-obsidian-e2e.mjs",
     "test:e2e:home": "node scripts/test-home-e2e.mjs",
     "test:e2e:cover": "node scripts/test-cover-e2e.mjs",
-    "test:e2e:images": "node scripts/test-images-e2e.mjs"
+    "test:e2e:images": "node scripts/test-images-e2e.mjs",
+    "test:e2e:conflicts": "node scripts/test-conflicts-e2e.mjs"
   },
   "dependencies": {
     "astro": "7.4.2",

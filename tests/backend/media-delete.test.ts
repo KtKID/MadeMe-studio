@@ -164,8 +164,8 @@ describe("DELETE /api/media/:id", () => {
     const result = (await response.json()) as { clearedCovers: unknown[] };
     expect(result.clearedCovers).toEqual(
       expect.arrayContaining([
-        { postId: "p-live", version: 3 },
-        { postId: "p-trash", version: 3 },
+        { postId: "p-live", previousVersion: 2, version: 3 },
+        { postId: "p-trash", previousVersion: 2, version: 3 },
       ]),
     );
     const live = (await repo.get("p-live"))!;

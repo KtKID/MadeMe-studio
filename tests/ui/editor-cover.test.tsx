@@ -242,15 +242,20 @@ describe("编辑器封面：调整入口与持久化", () => {
     act(() =>
       h.library!.onDeleted(
         { id: "cover", url: "/api/files/cover" },
-        { deleted: true, clearedCovers: [{ postId: "fixture", version: 5 }] },
+        {
+          deleted: true,
+          clearedCovers: [
+            { postId: "fixture", previousVersion: 1, version: 2 },
+          ],
+        },
       ),
     );
-    h.api.mockResolvedValueOnce({ post: { ...post, version: 6 } });
+    h.api.mockResolvedValueOnce({ post: { ...post, version: 3 } });
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
     await act(async () => {});
-    expect(lastBody()).toMatchObject({ coverImage: "", version: 5 });
+    expect(lastBody()).toMatchObject({ coverImage: "", version: 2 });
   });
   it("服务端只清了已发布封面（草稿已换图）：保留草稿封面，只同步版本号", async () => {
     setup({ ...post, coverImage: "/api/files/other" });
@@ -263,17 +268,22 @@ describe("编辑器封面：调整入口与持久化", () => {
     act(() =>
       h.library!.onDeleted(
         { id: "cover", url: "/api/files/cover" },
-        { deleted: true, clearedCovers: [{ postId: "fixture", version: 5 }] },
+        {
+          deleted: true,
+          clearedCovers: [
+            { postId: "fixture", previousVersion: 1, version: 2 },
+          ],
+        },
       ),
     );
-    h.api.mockResolvedValueOnce({ post: { ...post, version: 6 } });
+    h.api.mockResolvedValueOnce({ post: { ...post, version: 3 } });
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
     await act(async () => {});
     expect(lastBody()).toMatchObject({
       coverImage: "/api/files/other",
-      version: 5,
+      version: 2,
     });
   });
 });

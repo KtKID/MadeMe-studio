@@ -91,6 +91,18 @@ import {
 import Dropdown from "../shared/Dropdown";
 import { resolveMode } from "../shared/appearance";
 import { EditClock, hasDocumentContent } from "./editor-state";
+import {
+  mergePost,
+  chooseLocalConflicts,
+  editablePatch,
+  conflictLabels,
+  type PostMerge,
+} from "./post-merge";
+import {
+  saveRecovery,
+  listRecoveries,
+  type LocalRecovery,
+} from "./local-recovery";
 import { AIRequestState } from "./ai-request-state";
 import { applyEditorReplacement } from "./editor-replacement";
 import {
@@ -234,6 +246,22 @@ export default function Editor({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [conflict, setConflict] = useState(false);
+  const [conflictReview, setConflictReview] = useState<
+    (PostMerge & { remote: Post }) | null
+  >(null);
+  const [recovery, setRecovery] = useState<LocalRecovery | null>(null);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryCopies, setRecoveryCopies] = useState<LocalRecovery[]>([]);
+  useEffect(() => {
+    if (!post?.id || !authenticated) return;
+    try {
+      const copies = listRecoveries(localStorage, post.id);
+      setRecoveryCopies(copies);
+      setRecovery(copies[0] ?? null);
+    } catch (e) {
+      clientCaught("editor.recovery_unavailable", e);
+    }
+  }, [post?.id, authenticated]);
   const [panel, setPanel] = useState<
     "meta" | "media" | "ai" | "revisions" | null
   >(null);
@@ -314,6 +342,15 @@ export default function Editor({
       }
     },
   });
+  const initialBodyCaptured = useRef(false);
+  if (!initialBodyCaptured.current) {
+    initialBodyCaptured.current = true;
+    if (currentRef.current)
+      currentRef.current = {
+        ...currentRef.current,
+        blocks: structuredClone(editor.document) as unknown as EditorBlock[],
+      };
+  }
   useEffect(() => {
     installEmbedAutoHeight();
     refreshVideoAdvice();
@@ -425,10 +462,7 @@ export default function Editor({
   /** 只有版本冲突才显示“载入最新版本”；链接标识冲突、文章已删除也是 409，但不是版本问题。 */
   function isVersionConflict(e: unknown) {
     return (
-      e instanceof ApiError &&
-      e.status === 409 &&
-      e.code !== "SLUG_CONFLICT" &&
-      e.code !== "POST_DELETED"
+      e instanceof ApiError && e.status === 409 && e.code === "VERSION_CONFLICT"
     );
   }
   /** 统一展示失败：中文原因 + 操作名；ApiError 已由 api() 记录，其余异常在这里记录。 */
@@ -467,24 +501,224 @@ export default function Editor({
     setCover(url);
     markDirty();
   }
-  /** 媒体库删除了图片：当前封面是它就清空；服务端已清空本文封面时同步版本号，避免下次保存冲突。 */
+  // 异步回调必须读取最新表单，不能使用请求发出时的React闭包。
+  const fieldsRef = useRef(fields);
+  fieldsRef.current = fields;
+  function localSnapshot(base: Post): Post {
+    return structuredClone({ ...base, ...fieldsRef.current() });
+  }
+  function applyFields(p: Post) {
+    editor.replaceBlocks(
+      editor.document,
+      p.blocks as unknown as PartialBlock<typeof schema.blockSchema>[],
+    );
+    setTitle(p.title);
+    setExcerpt(p.excerpt);
+    setTags(p.tags.join(", "));
+    setCategory(p.category);
+    setCategoryId(p.categoryId);
+    setCover(p.coverImage);
+    setCoverSettings(normalizeCoverSettings(p.coverSettings));
+    setSlug(p.slug);
+  }
+  /** 只允许已核实的同一基准做单步推进；旧服务端无previousVersion也不猜测。 */
   function mediaDeleted(media: Media, result: DeleteMediaResult) {
     const base = currentRef.current;
-    const cleared = base
-      ? result.clearedCovers.find((c) => c.postId === base.id)
-      : undefined;
-    // 服务端可能只清了已发布快照的封面（草稿已换成别的图）：只在草稿封面就是该图时清空，否则只同步版本号。
-    if (base && cleared)
-      updateCurrent({
-        ...base,
-        ...(base.coverImage === media.url ? { coverImage: "" } : {}),
-        version: cleared.version,
-      });
-    if (cover === media.url) {
+    const cleared =
+      base && result.clearedCovers.find((c) => c.postId === base.id);
+    if (base && cleared) {
+      if (
+        !lock.current &&
+        cleared.previousVersion === base.version &&
+        cleared.version === base.version + 1
+      ) {
+        updateCurrent({
+          ...base,
+          ...(base.coverImage === media.url ? { coverImage: "" } : {}),
+          version: cleared.version,
+        });
+      } else {
+        setConflict(true);
+        setMessage(
+          "素材已删除；文章版本已有变化，本页输入仍在，请检查版本冲突后保存。",
+        );
+      }
+    }
+    if (fieldsRef.current().coverImage === media.url) {
       setCover("");
       setCoverSettings({ ...DEFAULT_COVER_SETTINGS });
-      // 服务端已清空且本地无其它改动时不必标脏；否则标脏让未保存的封面选择也随下次保存清除。
-      if (!cleared) markDirty();
+      markDirty();
+    }
+  }
+  async function inspectConflict(base: Post, allowMerge: boolean) {
+    const { post: remote } = await api<{ post: Post }>(`/api/posts/${base.id}`);
+    const local = localSnapshot(base),
+      merged = mergePost(base, local, remote);
+    setConflict(true);
+    if (allowMerge && !merged.conflicts.length) {
+      const sequence = editClock.current.snapshot();
+      try {
+        const { post: saved } = await api<{ post: Post }>(
+          `/api/posts/${base.id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              ...editablePatch(merged.post),
+              version: remote.version,
+            }),
+          },
+        );
+        if (editClock.current.snapshot() !== sequence) {
+          // 服务器合并已保存，但后续本地输入未经过三方比较：保留旧基准，下次重新检查。
+          setError("合并保存期间又有输入，已保留；请重新检查版本冲突后保存。");
+          return undefined;
+        }
+        applyFields(saved);
+        updateCurrent(saved);
+        markClean();
+        setConflict(false);
+        setConflictReview(null);
+        setMessage("已安全合并不同字段的修改并保存；已发布内容保持不变。");
+        return { post: saved, sequence: editClock.current.snapshot() };
+      } catch (e) {
+        if (!isVersionConflict(e)) throw e;
+        // 一次自动重试仍冲突：重新读取并要求明确选择，不沿用先前授权覆盖。
+        return inspectConflict(base, false);
+      }
+    }
+    setConflictReview({ ...merged, remote });
+    setPublishOpen(false);
+    setCoverPickerOpen(false);
+    setPanel(null);
+    setError("");
+    return undefined;
+  }
+  async function reviewConflict() {
+    const base = currentRef.current;
+    if (!base || lock.current) return;
+    lock.current = true;
+    setBusy("conflict");
+    try {
+      await inspectConflict(base, false);
+    } catch (e) {
+      fail("reload", e);
+    } finally {
+      lock.current = false;
+      setBusy("");
+    }
+  }
+  async function keepMine() {
+    const base = currentRef.current,
+      review = conflictReview;
+    if (!base || !review || lock.current) return;
+    lock.current = true;
+    setBusy("conflict");
+    setError("");
+    const local = localSnapshot(base),
+      sequence = editClock.current.snapshot();
+    // 用户的这次选择仅授权覆盖已展示的远端版本；之后的服务器更新仍必须409。
+    const nextMerge = mergePost(base, local, review.remote);
+    const selected = chooseLocalConflicts(nextMerge, local);
+    try {
+      if (
+        nextMerge.conflicts.some((field) => !review.conflicts.includes(field))
+      ) {
+        setConflictReview({ ...nextMerge, remote: review.remote });
+        setError("本地输入又有变化，冲突字段已更新，请重新选择。");
+        return;
+      }
+      const problems = findContentProblems(selected.blocks);
+      if (problems.length) throw new Error(summarizeProblems(problems));
+      const { post: saved } = await api<{ post: Post }>(
+        `/api/posts/${base.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            ...editablePatch(selected),
+            version: review.remote.version,
+          }),
+        },
+      );
+      if (editClock.current.snapshot() !== sequence) {
+        setConflictReview(null);
+        setError("保存期间又有输入，已保留；请重新检查版本冲突后保存。");
+        return;
+      }
+      applyFields(saved);
+      updateCurrent(saved);
+      markClean();
+      setConflict(false);
+      setConflictReview(null);
+      setMessage(
+        "已保留本地冲突字段并保存，服务器独立修改也已保留。尚未发布。",
+      );
+    } catch (e) {
+      if (isVersionConflict(e)) {
+        try {
+          await inspectConflict(base, false);
+        } catch (error) {
+          fail("reload", error);
+        }
+      } else fail("save", e);
+    } finally {
+      lock.current = false;
+      setBusy("");
+    }
+  }
+  function backup(base: Post) {
+    const copy = saveRecovery(localStorage, base, localSnapshot(base));
+    setRecovery(copy);
+    setRecoveryCopies((copies) => [copy, ...copies]);
+    return copy;
+  }
+  async function loadLatest() {
+    const base = currentRef.current;
+    if (!base || lock.current) return;
+    lock.current = true;
+    setBusy("reload");
+    setError("");
+    const sequence = editClock.current.snapshot();
+    try {
+      const { post: remote } = await api<{ post: Post }>(
+        `/api/posts/${base.id}`,
+      );
+      if (editClock.current.snapshot() !== sequence) {
+        setError("载入期间又有输入，已保留；请重新选择。");
+        return;
+      }
+      backup(base); // 同步写入并读回验证；失败绝不替换当前输入。
+      applyFields(remote);
+      updateCurrent(remote);
+      markClean();
+      setConflict(false);
+      setConflictReview(null);
+      setMessage(
+        "本地副本已保存，已加载服务器最新版。找回：本文章编辑器顶部“本地副本”。",
+      );
+    } catch (e) {
+      fail("reload", e);
+    } finally {
+      lock.current = false;
+      setBusy("");
+    }
+  }
+  function restoreLocalCopy() {
+    const copy = recovery,
+      base = currentRef.current;
+    if (!copy || !base || lock.current) return;
+    try {
+      if (editClock.current.dirty) backup(base);
+      applyFields(copy.local);
+      updateCurrent(copy.base);
+      markDirty();
+      setConflict(false);
+      setConflictReview(null);
+      setRecoveryOpen(false);
+      setMessage(
+        "本地副本已恢复到编辑器，尚未保存；保存时仍会检查服务器版本。",
+      );
+    } catch (e) {
+      fail("reload", e);
     }
   }
   function removeCover() {
@@ -563,8 +797,17 @@ export default function Editor({
       succeeded = true;
       return { post: result.post, sequence };
     } catch (e) {
-      if (isVersionConflict(e)) setConflict(true);
-      fail(action, e);
+      if (isVersionConflict(e) && base) {
+        try {
+          const merged = await inspectConflict(base, true);
+          if (merged) {
+            succeeded = true;
+            return merged;
+          }
+        } catch (error) {
+          fail(action, error);
+        }
+      } else fail(action, e);
     } finally {
       if (!keepLock || !succeeded) {
         setBusy("");
@@ -607,52 +850,6 @@ export default function Editor({
     } catch (e) {
       if (isVersionConflict(e)) setConflict(true);
       fail("publish", e);
-    } finally {
-      lock.current = false;
-      setBusy("");
-    }
-  }
-  async function reload() {
-    if (
-      lock.current ||
-      !current ||
-      !confirm(
-        "加载服务器最新版本将替换本页未保存修改。建议先导出 Markdown 备份，确定继续？",
-      )
-    )
-      return;
-    lock.current = true;
-    setBusy("reload");
-    const sequence = editClock.current.snapshot();
-    try {
-      const { post: p } = await api<{ post: Post }>(`/api/posts/${current.id}`);
-      const applied = applyEditorReplacement(
-        editClock.current,
-        sequence,
-        () => {
-          editor.replaceBlocks(
-            editor.document,
-            p.blocks as unknown as PartialBlock<typeof schema.blockSchema>[],
-          );
-          updateCurrent(p);
-          setTitle(p.title);
-          setExcerpt(p.excerpt);
-          setTags(p.tags.join(", "));
-          setCategory(p.category);
-          setCategoryId(p.categoryId);
-          setCover(p.coverImage);
-          setCoverSettings(normalizeCoverSettings(p.coverSettings));
-          setSlug(p.slug);
-          markClean();
-          setConflict(false);
-          setError("");
-          setMessage("已载入服务器最新版本。");
-        },
-      );
-      if (!applied)
-        setError("载入期间你又修改了文章，已保留本地输入；请备份后重新载入。");
-    } catch (e) {
-      fail("reload", e);
     } finally {
       lock.current = false;
       setBusy("");
@@ -960,6 +1157,15 @@ export default function Editor({
           </span>
         </div>
         <div className="editor-toolbar-actions">
+          {recovery && (
+            <button
+              className="button small"
+              disabled={!!busy}
+              onClick={() => setRecoveryOpen(true)}
+            >
+              本地副本
+            </button>
+          )}
           <button
             className="icon-button"
             title="文章设置"
@@ -1002,16 +1208,82 @@ export default function Editor({
       {conflict && (
         <Notice kind="error">
           <strong>检测到版本冲突。</strong>
-          另一个窗口已保存了更新，本页内容仍在。请先备份，再载入最新版本进行合并。
-          <div className="button-group">
-            <button className="button small" onClick={exportMarkdown}>
-              导出本页 Markdown
+          本页输入仍在，检查后再选择；关闭弹窗也会保留输入。
+          <button
+            className="button small"
+            disabled={!!busy}
+            onClick={reviewConflict}
+          >
+            检查版本冲突
+          </button>
+        </Notice>
+      )}
+      {conflictReview && (
+        <Modal
+          title="处理版本冲突"
+          onClose={() => {
+            if (!lock.current) setConflictReview(null);
+          }}
+        >
+          <p>本地输入仍在。正文按整篇选择，不拼接段落。</p>
+          <p>
+            {conflictReview.conflicts.length
+              ? `双方修改了：${conflictReview.conflicts.map((k) => conflictLabels[k]).join("、")}。`
+              : "服务器再次更新，请确认后继续。"}
+          </p>
+          <p>
+            保留我的版本：上述冲突字段采用本地内容，服务器独立修改也会保留。
+          </p>
+          <p>加载最新版：先保存完整本地副本，再用服务器最新版替换所有字段。</p>
+          <p className="muted">
+            副本只存在当前浏览器、当前网站。可从本文章编辑器顶部“本地副本”找回；清理网站数据会删除副本。
+          </p>
+          {error && <Notice kind="error">{error}</Notice>}
+          <div className="modal-actions">
+            <button className="button" disabled={!!busy} onClick={loadLatest}>
+              保留我的副本，再加载最新版
             </button>
-            <button className="button small" onClick={reload}>
-              载入最新版本
+            <button
+              className="button primary"
+              disabled={!!busy}
+              onClick={keepMine}
+            >
+              保留我的版本
             </button>
           </div>
-        </Notice>
+        </Modal>
+      )}
+      {recoveryOpen && recovery && (
+        <Modal title="本地副本" onClose={() => setRecoveryOpen(false)}>
+          <p>
+            已保存副本：{recovery.local.title} · {date(recovery.savedAt)}
+          </p>
+          <Dropdown
+            id="editor-recovery-copy"
+            label="选择本地副本"
+            value={recovery.id}
+            options={recoveryCopies.map((copy) => ({
+              value: copy.id,
+              label: `${date(copy.savedAt)} · ${copy.local.title}`,
+            }))}
+            onChange={(id) =>
+              setRecovery(
+                recoveryCopies.find((copy) => copy.id === id) ?? recovery,
+              )
+            }
+          />
+          <p>
+            恢复后先放回编辑器，不会直接写入服务器；当前未保存修改也会先备份。副本仅在当前浏览器保存，清理网站数据后不可找回。
+          </p>
+          {error && <Notice kind="error">{error}</Notice>}
+          <button
+            className="button primary"
+            disabled={!!busy}
+            onClick={restoreLocalCopy}
+          >
+            恢复这份副本到编辑器
+          </button>
+        </Modal>
       )}
       <div className="editor-workspace">
         <div className="editor-document">

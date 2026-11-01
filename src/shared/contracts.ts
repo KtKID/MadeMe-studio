@@ -610,12 +610,18 @@ export const mediaReferenceSchema = z
   })
   .strict();
 export type MediaReference = z.infer<typeof mediaReferenceSchema>;
-/** DELETE /api/media/:id 成功响应：clearedCovers 为被清空封面的文章及其新版本号。 */
+/** DELETE /api/media/:id 成功响应：clearedCovers 含清封面前后版本；previousVersion 缺省仅兼容旧服务端，客户端不可据此推进基准。 */
 export const deleteMediaResponseSchema = z
   .object({
     deleted: z.literal(true),
     clearedCovers: z.array(
-      z.object({ postId: z.string(), version: z.number().int() }).strict(),
+      z
+        .object({
+          postId: z.string(),
+          previousVersion: z.number().int().positive().optional(),
+          version: z.number().int().positive(),
+        })
+        .strict(),
     ),
   })
   .strict();

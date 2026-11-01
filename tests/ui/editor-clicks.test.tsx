@@ -216,31 +216,28 @@ describe("编辑器真实按钮与状态链路", () => {
     });
     await act(async () => {});
   });
-  it("409 后载入最新版本的迟到响应不覆盖继续输入", async () => {
+  it("409 检查期间的新输入保留，不能先推进版本", async () => {
     const pending = deferred<{ post: Post }>();
     h.api
-      .mockRejectedValueOnce(new ApiError(409, "CONFLICT", "版本冲突"))
+      .mockRejectedValueOnce(new ApiError(409, "VERSION_CONFLICT", "版本冲突"))
       .mockReturnValueOnce(pending.promise);
     setup();
-    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "载入最新版本" }),
-    );
     fireEvent.change(screen.getByLabelText("文章标题"), {
-      target: { value: "载入等待时的新输入" },
+      target: { value: "本地标题" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await act(async () => {});
+    fireEvent.change(screen.getByLabelText("文章标题"), {
+      target: { value: "检查等待时的新输入" },
     });
     await act(async () =>
       pending.resolve({ post: { ...post, version: 2, title: "服务器新标题" } }),
     );
     expect((screen.getByLabelText("文章标题") as HTMLInputElement).value).toBe(
-      "载入等待时的新输入",
+      "检查等待时的新输入",
     );
     expect(h.editor.replaceBlocks).not.toHaveBeenCalled();
-    expect(
-      screen
-        .getAllByRole("alert")
-        .some((a) => a.textContent?.includes("保留本地输入")),
-    ).toBe(true);
+    expect(screen.getByRole("dialog", { name: "处理版本冲突" })).toBeTruthy();
   });
   it("Markdown 文件读取迟到不覆盖随后输入", async () => {
     const pending = deferred<string>();
@@ -469,9 +466,9 @@ it("AI 对话框重新选择当前动作/模型/提示词不清空已编辑的�
   pick("想怎么处理", "润色文字");
   pick("模型", modelLabel);
   pick("提示词", "我的润色");
-  expect(
-    (screen.getByLabelText(/AI 建议/) as HTMLTextAreaElement).value,
-  ).toBe("我改过的建议");
+  expect((screen.getByLabelText(/AI 建议/) as HTMLTextAreaElement).value).toBe(
+    "我改过的建议",
+  );
   expect(screen.getByRole("combobox", { name: "提示词" }).textContent).toBe(
     "我的润色",
   );

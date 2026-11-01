@@ -84,7 +84,7 @@ async function clearCover(db: D1Database, postId: string, url: string) {
         draft: draftUses,
         published: publishedUses,
       });
-      return { postId, version: expected + 1 };
+      return { postId, previousVersion: expected, version: expected + 1 };
     }
   }
   throw new AppError(

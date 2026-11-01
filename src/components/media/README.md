@@ -33,3 +33,5 @@
 编辑器的 `onDeleted`：当前封面就是被删图片时清空封面；`result.clearedCovers` 里包含本文时把本地版本号同步为服务端新版本，避免下次保存出现版本冲突。
 
 测试：`tests/ui/media-clicks.test.tsx`（确认/忙碌/移除、被引用二次确认 force、失败显示+日志）、`tests/ui/editor-cover.test.tsx`（封面清空与版本同步）、`tests/e2e/media.spec.ts`（真实 Worker：取消不删、确认删除后卡片消失且文件 404）。
+
+删除成功向编辑器传递清封面前后版本；基准不匹配不能给旧文章套新版本。编辑冲突与副本找回规则见[编辑器说明](../editor/README.md#并发编辑与正文二选一2026-11-01)。
