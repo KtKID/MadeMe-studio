@@ -19,7 +19,7 @@
 - 刊物首页使用 `HomeCover`，按位置定义框；只复用作者 `focusX/focusY/zoom`，使用等比 cover 裁切，不写回文章数据。无图时抽象占位也遵循同一布局几何。
 - 文章页、编辑器、工作台和其他首页主题仍使用 `CoverFrame`，沿用文章自己的比例与 contain/cover。文章设置与发布快照保持原协议，布局调整不批量改图或改文章。
 - 文章 Zod 比例枚举仍是 `original`、`1:1`、`4:3`、`16:9`，没有新增 3:2 的作者编辑预设；首页主图 3:2 是展示层画框，与协议枚举分开。
-- 渲染依据 [HomeFeaturedPosts](../src/components/content/HomeFeaturedPosts.tsx)、[首页 CSS](../src/components/content/home-featured-posts.css)和[封面契约](../src/modules/cover/contracts.ts)。采用 CSS subgrid 和内容测量；当前有真实 Chromium 验证，其他浏览器与首屏稳定性仍需专项验收。
+- 渲染依据 [HomeFeaturedPosts](../src/components/content/HomeFeaturedPosts.tsx)、[首页 CSS](../src/components/content/home-featured-posts.css)和[封面契约](../src/modules/cover/contracts.ts)。桌面采用 CSS subgrid 和内容测量；不支持 subgrid 时有 CSS 与 JS 的纵向回退。当前有真实 Chromium 及回退分支模拟验证，其他浏览器与首屏稳定性仍需专项验收。
 
 ## 素材、裁切和显示
 

@@ -2,7 +2,6 @@
 .home-featured {
   --featured-column-ratio: 1.8;
   --featured-max-crop-ratio: 3;
-  container-type: inline-size;
 }
 .home-featured-grid {
   display: grid;
@@ -186,92 +185,95 @@
 }
 
 /* 三篇桌面共享五条轨道：图片上半 / 中间文案 / 图片下半 / 日期 / 标题区。摘要跟随左标题自然排列。 */
-@media (min-width: 961px) {
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    .home-featured-grid {
-    grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr) auto auto;
-    row-gap: 0;
-    align-items: start;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked) .home-post {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: subgrid;
-    align-self: stretch;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked) .home-post-link {
-    display: grid;
-    grid-row: 1 / -1;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: subgrid;
-    height: auto;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="0"] {
-    grid-area: 1 / 1 / 6 / 2;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="1"] {
-    grid-area: 1 / 2 / 3 / 3;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="2"] {
-    grid-area: 3 / 2 / 6 / 3;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="0"]
-    .article-card-visual {
-    grid-row: 1 / 4;
-    align-self: start;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="1"]
-    .article-card-visual,
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="2"]
-    .article-card-visual {
-    grid-row: 1;
-    aspect-ratio: auto;
-    height: 100%;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="0"]
-    .article-card-body,
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="2"]
-    .article-card-body {
-    display: contents;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="0"]
-    .article-meta {
-    grid-row: 4;
-    padding-top: 13px;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="0"]
-    .home-post-copy {
-    grid-row: 5;
-    align-self: first baseline;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="2"]
-    .article-meta {
-    grid-row: 2;
-    padding-top: 13px;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="2"]
-    .home-post-copy {
-    grid-row: 3;
-    align-self: first baseline;
-  }
-  .home-featured[data-count="3"]:not(.home-featured--stacked)
-    [data-featured-index="1"]
-    .article-card-body {
-    grid-row: 2;
-    display: block;
-    padding: 13px 0 22px;
+@supports (grid-template-rows: subgrid) {
+  @media (min-width: 961px) {
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      .home-featured-grid {
+      grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr) auto auto;
+      row-gap: 0;
+      align-items: start;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked) .home-post {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: subgrid;
+      align-self: stretch;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      .home-post-link {
+      display: grid;
+      grid-row: 1 / -1;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: subgrid;
+      height: auto;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"] {
+      grid-area: 1 / 1 / 6 / 2;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="1"] {
+      grid-area: 1 / 2 / 3 / 3;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"] {
+      grid-area: 3 / 2 / 6 / 3;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"]
+      .article-card-visual {
+      grid-row: 1 / 4;
+      align-self: start;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="1"]
+      .article-card-visual,
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"]
+      .article-card-visual {
+      grid-row: 1;
+      aspect-ratio: auto;
+      height: 100%;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"]
+      .article-card-body,
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"]
+      .article-card-body {
+      display: contents;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"]
+      .article-meta {
+      grid-row: 4;
+      padding-top: 13px;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="0"]
+      .home-post-copy {
+      grid-row: 5;
+      align-self: first baseline;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"]
+      .article-meta {
+      grid-row: 2;
+      padding-top: 13px;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="2"]
+      .home-post-copy {
+      grid-row: 3;
+      align-self: first baseline;
+    }
+    .home-featured[data-count="3"]:not(.home-featured--stacked)
+      [data-featured-index="1"]
+      .article-card-body {
+      grid-row: 2;
+      display: block;
+      padding: 13px 0 22px;
+    }
   }
 }
 /* 独立测量实际换行高度，不依赖当前是否已降级，避免状态来回跳动。 */
@@ -293,4 +295,26 @@
 .home-featured-measure .article-card-body {
   display: block !important;
   padding: 13px 0 22px !important;
+}
+
+/* 无 JS 时也有 CSS 回退，不让不支持 subgrid 的浏览器套用桌面轨道映射。 */
+@supports not (grid-template-rows: subgrid) {
+  .home-featured-grid {
+    grid-template-columns: 1fr;
+  }
+  .home-featured .home-post--lead {
+    grid-row: auto;
+  }
+  .home-featured .home-post-link {
+    height: auto;
+  }
+  .home-featured .home-post--secondary .home-post-link {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    gap: 18px;
+    align-items: start;
+  }
+  .home-featured .home-post--secondary .article-card-body {
+    padding: 0;
+  }
 }

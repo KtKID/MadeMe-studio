@@ -87,6 +87,7 @@ describe("首页位置画框与文章/工作台封面设置", () => {
     const width = vi
       .spyOn(Element.prototype, "clientWidth", "get")
       .mockReturnValue(1140);
+    const styles = vi.spyOn(globalThis, "getComputedStyle");
     try {
       const view = render(
         <PublicFeed
@@ -94,11 +95,20 @@ describe("首页位置画框与文章/工作台封面设置", () => {
           authenticated={false}
         />,
       );
+      // jsdom 未加载布局 CSS：缺失的比例变量应保守降级，不能生成 NaNpx。
+      expect(
+        view.container.querySelector(".home-featured--stacked"),
+      ).not.toBeNull();
       view.rerender(<PublicFeed posts={[post("one")]} authenticated={false} />);
+      const beforeFonts = styles.mock.calls.length;
       await act(async () => {
         resolveFonts();
       });
       expect(disconnect).toHaveBeenCalled();
+      expect(styles.mock.calls).toHaveLength(beforeFonts);
+      expect(
+        view.container.querySelector(".home-featured--stacked"),
+      ).toBeNull();
       expect(
         view.container.querySelectorAll(".home-featured-measure"),
       ).toHaveLength(0);
@@ -106,6 +116,7 @@ describe("首页位置画框与文章/工作台封面设置", () => {
     } finally {
       cleanup();
       width.mockRestore();
+      styles.mockRestore();
       vi.unstubAllGlobals();
       if (fonts) Object.defineProperty(document, "fonts", fonts);
       else Reflect.deleteProperty(document, "fonts");

@@ -3,8 +3,14 @@ import { test, expect } from "@playwright/test";
 test("@guest 冒烟：首页、工作台入口与窄屏无横向溢出", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/MadeMe/);
+  await expect(page.locator("h1")).toHaveText("MadeMe");
+  const heading = (await page.locator("h1").boundingBox())!;
+  expect(heading.width).toBeLessThanOrEqual(1);
+  expect(heading.height).toBeLessThanOrEqual(1);
   await expect(page.locator(".public-hero, .hero-decoration")).toHaveCount(0);
-  await expect(page.getByRole("navigation", { name: "站点导航" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "站点导航" }),
+  ).toBeVisible();
   await expect(page.getByRole("searchbox")).toBeVisible();
   await expect(
     page.getByRole("link", { name: /工作台|写作台/ }).first(),

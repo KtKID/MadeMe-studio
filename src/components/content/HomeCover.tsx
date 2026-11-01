@@ -28,6 +28,7 @@ export default function HomeCover({
         loading={loading}
         decoding="async"
         draggable={false}
+        // 这里只复用 cover 的焦点/缩放样式；画框比例由首页 CSS 控制，不采用此枚举作布局。
         style={coverImageStyle({ ...framing, aspect: "16:9", fit: "cover" })}
       />
     </div>

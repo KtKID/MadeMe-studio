@@ -101,14 +101,30 @@ export default function HomeFeaturedPosts({
       setNeedsStack(false);
       return;
     }
+    if (
+      typeof CSS !== "undefined" &&
+      typeof CSS.supports === "function" &&
+      !CSS.supports("grid-template-rows", "subgrid")
+    ) {
+      setNeedsStack(true);
+      return;
+    }
     if (typeof ResizeObserver === "undefined") return;
     let disposed = false;
-    let previousWidth = -1;
+    let previousWidth = root.clientWidth;
     const measure = () => {
       if (disposed || !root.isConnected) return;
       const width = root.clientWidth;
       if (width <= 0) return;
-      const grid = root.querySelector<HTMLElement>(".home-featured-grid")!;
+      const grid = root.querySelector<HTMLElement>(".home-featured-grid");
+      const source = root.querySelector<HTMLElement>(
+        '[data-featured-index="1"]',
+      );
+      // 版面或样式尚未齐备时使用可读的纵向布局，不构造无效测量尺寸。
+      if (!grid || !source) {
+        setNeedsStack(true);
+        return;
+      }
       const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
       // 读取 CSS 的列比例和最低展示比例；不用标题字符数猜测实际换行。
       const css = getComputedStyle(root);
@@ -116,21 +132,36 @@ export default function HomeFeaturedPosts({
       const minAspect = parseFloat(
         css.getPropertyValue("--featured-max-crop-ratio"),
       );
+      if (
+        !Number.isFinite(ratio) ||
+        ratio <= 0 ||
+        !Number.isFinite(minAspect) ||
+        minAspect <= 0 ||
+        width <= gap
+      ) {
+        setNeedsStack(true);
+        return;
+      }
       const sideWidth = (width - gap) / (1 + ratio);
       const leadHeight = (sideWidth * ratio) / (3 / 2);
-      const source = root.querySelector<HTMLElement>(
-        '[data-featured-index="1"]',
-      )!;
       const clone = source.cloneNode(true) as HTMLElement;
       clone.classList.add("home-featured-measure");
       clone.setAttribute("aria-hidden", "true");
       clone.inert = true;
       clone.style.width = `${sideWidth}px`;
       root.appendChild(clone);
-      const middleHeight = clone
-        .querySelector<HTMLElement>(".article-card-body")!
-        .getBoundingClientRect().height;
-      clone.remove();
+      const middle = clone.querySelector<HTMLElement>(".article-card-body");
+      if (!middle) {
+        clone.remove();
+        setNeedsStack(true);
+        return;
+      }
+      let middleHeight: number;
+      try {
+        middleHeight = middle.getBoundingClientRect().height;
+      } finally {
+        clone.remove();
+      }
       setNeedsStack((leadHeight - middleHeight) / 2 < sideWidth / minAspect);
     };
     const observer = new ResizeObserver(() => {
