@@ -203,3 +203,7 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 - 新增稳定 ID 类型目录、设置即时维护、编辑器内新增并选中、首页配置下拉；旧 category/标签无损兼容。详见[模块](../src/modules/article-types/README.md)与[报告](../reports/2026-10-29-article-types.md)。
 - 本轮自动化：89 文件 / 792 用例通过；check 254 文件，0 errors / 0 warnings / 5 既有 hints；build、隔离 HTTP smoke、真实 Worker/D1/R2 端到端均通过。日志 `/tmp/article-types-{tests,check,build,smoke,worker}.log`。
 - 后端测试执行真实 SQLite 原子语句；浏览器原生视觉/点击验收及独立预览发布仍需另记，未修改正式站或自动推业务 GitHub。
+
+## Markdown 嵌入附件导入（2026-11-01）
+
+全量976项单测、23项共享客户端测试、类型检查/构建、插件SDK检查与打包、临时Worker/HTTP冒烟通过；4项真实浏览器/API测试覆盖文件夹与补选附件、中文空格/编码、wiki嵌入、PNG/GIF/MP4/MOV保存刷新播放、缺失/失败/取消/重复点击/新增输入。GIF原字节与两帧/实际画面变化已验，MOV仅H.264 Chromium。没有原生Obsidian宿主或生产验收，未部署。详见[报告](../reports/2026-11-01-markdown-attachments.md)和[支持矩阵](../src/modules/markdown-import/README.md)。

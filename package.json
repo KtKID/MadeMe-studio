@@ -21,7 +21,8 @@
     "test:e2e:images": "node scripts/test-images-e2e.mjs",
     "test:e2e:conflicts": "node scripts/test-conflicts-e2e.mjs",
     "verify:production": "node scripts/deploy-production.mjs --dry-run",
-    "deploy:production": "node scripts/deploy-production.mjs --publish"
+    "deploy:production": "node scripts/deploy-production.mjs --publish",
+    "test:e2e:markdown": "node scripts/test-markdown-attachments-e2e.mjs"
   },
   "dependencies": {
     "astro": "7.4.2",
@@ -39,7 +40,8 @@
     "drizzle-orm": "0.45.2",
     "jose": "^6.2.13",
     "@cf-wasm/photon": "^0.4.0",
-    "@jsquash/webp": "^1.5.0"
+    "@jsquash/webp": "^1.5.0",
+    "mdast-util-from-markdown": "2.0.2"
   },
   "devDependencies": {
     "@astrojs/check": "latest",

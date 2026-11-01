@@ -91,7 +91,6 @@ test("@author 回归：单段 Markdown 导入取消后原文不变", async ({
     await expect(page.locator(".bn-editor")).toContainText(
       "唯一一段不可丢失的文字",
     );
-    page.once("dialog", (dialog) => dialog.dismiss());
     await page
       .locator('input[type="file"][accept*=".markdown"]')
       .setInputFiles({
@@ -99,6 +98,10 @@ test("@author 回归：单段 Markdown 导入取消后原文不变", async ({
         mimeType: "text/markdown",
         buffer: Buffer.from("# 不应被导入\n\n替换文字"),
       });
+    const preview = page.getByRole("dialog", { name: "导入 Markdown 与附件" });
+    await expect(preview).toBeVisible();
+    await preview.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(preview).not.toBeVisible();
     await expect(page.locator(".bn-editor")).toContainText(
       "唯一一段不可丢失的文字",
     );

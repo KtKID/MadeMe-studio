@@ -9,6 +9,7 @@
 - `normalizeSiteUrl`：HTTPS 原点校验，固定 API 路径。
 - `draftInput`：UTF-8 大小限制、换行规范化、草稿强制默认值。
 - `createDraft` / `publishPost`：Bearer 认证、禁 Cookie/重定向、20 秒超时、错误不反射响应正文。
+- `uploadAttachment` / `createDraftWithAttachments`：附件先上传到固定 `/api/media`，使用统一 `mediaResponseSchema`；解析、去重、惰性读取、地址替换及 MIME 转换复用[附件模块](../../src/modules/markdown-import/README.md)，全部就绪后用现有 `createPostSchema` 创建私有草稿。附件需 `media:write`；不替服务器拉远端地址，不自动重试 POST 或发布。旧 `createDraft` 仍接受 Markdown，但服务端对未解析本地媒体返回 422，不再静默丢图。
 - `sourceUrl` / `clipMarkdown`：移除剪藏 URL 的 query/fragment，引用文本不当作 HTML 执行。
 
 浏览器/Obsidian 由 esbuild 打包；CLI 使用 Node 原生 TS。此模块的单元测试在 `../tests/client.node.mjs`。HTTP Mock 测试并不等于真实部署端到端验证。
