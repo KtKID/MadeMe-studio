@@ -59,7 +59,7 @@ export async function mediaReferences(
 /**
  * 只清封面，正文不动：草稿 coverImage 置空（版本 +1，修订原因 save），
  * 已发布快照的封面若也是该图一并置空——文件删除后线上封面本来就会变成坏图，置空让页面干净地不显示封面。
- * 版本冲突（文章正被并发保存）时重读重试，仍失败则抛 409，此时尚未删除任何媒体数据。
+ * 版本冲突（文章正被并发保存）时重读重试，仍失败则抛 409：媒体本身未删除，但前面文章的封面可能已清空（不回滚）。
  */
 async function clearCover(db: D1Database, postId: string, url: string) {
   const repository = new D1PostRepository(db);
@@ -90,7 +90,7 @@ async function clearCover(db: D1Database, postId: string, url: string) {
   throw new AppError(
     409,
     "VERSION_CONFLICT",
-    "引用这张图片的文章正在被保存，请稍后再删除。",
+    "引用这张图片的文章正在被保存，请稍后再删除（部分文章的封面可能已清空）。",
   );
 }
 

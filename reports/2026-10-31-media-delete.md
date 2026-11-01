@@ -8,7 +8,7 @@ KID：“每个图片下的按钮新增一个删除”；批准新增 `DELETE /a
 
 - **接口** `DELETE /api/media/:id`（`src/server/media/delete.ts`，路由在 `src/server/api.ts`）：`media:write` 作用域；同源校验沿用全局 `assertSameOrigin`，未放宽。
 - **引用检查**：草稿文档与已发布快照（含回收站文章）中出现 `/api/files/<id>` 即视为引用；未带 `?force=1` 返回 409 `MEDIA_IN_USE`，`details.posts` 列出 `{postId,title,cover,body,published,trashed}`，不做任何修改。
-- **强制删除只清封面**：草稿封面置空（版本 +1，修订 `save`）；已发布快照封面若相同也置空。理由：文件删除后线上封面必然失效，置空让线上页面干净地不显示封面，且不触碰已发布内容的其它字段；只清草稿会让线上长期显示坏图。正文引用不动（作者确认的取舍）。冲突重试 3 次，仍冲突 409，此时尚未删除任何媒体数据。
+- **强制删除只清封面**：草稿封面置空（版本 +1，修订 `save`）；已发布快照封面若相同也置空。理由：文件删除后线上封面必然失效，置空让线上页面干净地不显示封面，且不触碰已发布内容的其它字段；只清草稿会让线上长期显示坏图。正文引用不动（作者确认的取舍）。冲突重试 3 次，仍冲突 409：媒体本身未删除，但排在前面的文章封面可能已清空（不回滚，重试收敛）。
 - **删除顺序**：清封面 → 删 D1 行 → 删 `row.object_key` → 前缀列举删除 `image-derivatives/v1/<id>/`（含 `s1/`、manifest）。行删除后的 R2 失败记 `media.delete_orphan_*` 错误日志并仍返回成功。为此 `R2Bucket` 接口补充了 `list`（真实 R2 绑定原生支持），测试替身同步实现。
 - **前端**：卡片操作行末尾新增 `Trash2` 图标按钮（“删除”，`icon-button danger`）；`Modal` 确认 → 409 时列出引用文章并要求“仍然删除”二次确认；忙碌态禁用；失败显示在对话框并写 `media.delete_failed`；成功从列表移除。编辑器 `onDeleted`：清空当前封面，若服务端清了本文封面则同步版本号，避免下次保存版本冲突。
 - **其它**：令牌作用域说明 `media:write` 改为“上传和删除媒体”；媒体库空状态去掉已不成立的“原图会保留”。常量 `MEDIA_DELETE_COVER_RETRIES`、`MEDIA_DELETE_LIST_PAGE` 在 `src/modules/config/limits.ts`。
@@ -26,3 +26,11 @@ KID：“每个图片下的按钮新增一个删除”；批准新增 `DELETE /a
 - 拥有 `media:write` 的 API 令牌现在也能删除媒体。
 
 未合并、未部署。
+
+## AI 审核（6b1f0c9）
+
+无 🔴，结论“建议修改后合并”。
+
+- 🟡 “`?force=1` 不走响应 schema 校验”：经核实不成立——`parseApiResponse` 先用 `new URL(url).pathname` 去掉查询串再匹配。已补协议单测锁定（`tests/ui-protocol.test.ts`）。
+- 🔵 清封面中途冲突的副作用表述：已在 README、代码注释与 409 文案中说明“部分文章封面可能已清空”。
+- 🔵 R2 衍生改批量删除：未改（衍生每图仅数个对象，且 `R2Bucket` 接口保持单 key），记为后续优化。
