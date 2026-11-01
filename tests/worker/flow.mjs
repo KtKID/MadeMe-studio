@@ -69,6 +69,9 @@ const uploaded = await fetch(base + "/api/media", {
 });
 assert.equal(uploaded.status, 201);
 const { media } = await uploaded.json();
+// 当前上传契约：静态PNG转WebP落库，文件名/MIME与实际响应均应匹配。
+assert.equal(media.name, "valid-image.webp");
+assert.equal(media.mime, "image/webp");
 // 工作台 SSR 列表契约：正文不再进入列表岛屿，私有资源首屏已有数据。
 const dashboardResponse = await fetch(base + "/studio");
 assert.equal(dashboardResponse.status, 200);
@@ -82,37 +85,42 @@ assert.ok(!dashboardHTML.includes("已发布正文"));
 const mediaPage = await fetch(base + "/studio/media");
 assert.equal(mediaPage.status, 200);
 const mediaHTML = await mediaPage.text();
-assert.ok(mediaHTML.includes("valid-image.png"));
+assert.ok(mediaHTML.includes("valid-image.webp"));
 assert.ok(mediaHTML.includes("initialMedia"));
 const integrationPage = await fetch(base + "/studio/integrations");
 assert.equal(integrationPage.status, 200);
 assert.ok((await integrationPage.text()).includes("initialTokens"));
 const readerMedia = await fetch(`${secondBase}/studio/media`);
-assert.ok(!(await readerMedia.text()).includes("valid-image.png"));
+assert.ok(!(await readerMedia.text()).includes("valid-image.webp"));
 const original = readFileSync(
   new URL("../fixtures/valid-image.png", import.meta.url),
 );
 const downloaded = await fetch(base + media.url);
 assert.equal(downloaded.status, 200);
-assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), original);
+const stored = Buffer.from(await downloaded.arrayBuffer());
+assert.equal(downloaded.headers.get("Content-Type"), "image/webp");
+assert.equal(stored.toString("ascii", 0, 4), "RIFF");
+assert.equal(stored.toString("ascii", 8, 12), "WEBP");
+assert.notDeepEqual(stored, original);
+assert.equal(media.size, stored.length);
 // 真实 workerd/R2 范围读取：验证 size 是完整对象大小，而正文只含所选字节。
 for (const [range, start, end] of [
   ["bytes=0-7", 0, 7],
-  [`bytes=${original.length - 5}-`, original.length - 5, original.length - 1],
-  ["bytes=-4", original.length - 4, original.length - 1],
+  [`bytes=${stored.length - 5}-`, stored.length - 5, stored.length - 1],
+  ["bytes=-4", stored.length - 4, stored.length - 1],
 ]) {
   const partial = await fetch(base + media.url, { headers: { Range: range } });
   assert.equal(partial.status, 206);
   assert.equal(
     partial.headers.get("Content-Range"),
-    `bytes ${start}-${end}/${original.length}`,
+    `bytes ${start}-${end}/${stored.length}`,
   );
   assert.equal(partial.headers.get("Content-Length"), String(end - start + 1));
   assert.equal(partial.headers.get("Accept-Ranges"), "bytes");
   assert.equal(partial.headers.get("Cache-Control"), "private, no-store");
   assert.deepEqual(
     Buffer.from(await partial.arrayBuffer()),
-    original.subarray(start, end + 1),
+    stored.subarray(start, end + 1),
   );
 }
 const head = await fetch(base + media.url, {
@@ -120,16 +128,16 @@ const head = await fetch(base + media.url, {
   headers: { Range: "bytes=0-1" },
 });
 assert.equal(head.status, 200);
-assert.equal(head.headers.get("Content-Length"), String(original.length));
+assert.equal(head.headers.get("Content-Length"), String(stored.length));
 assert.equal(head.headers.get("Content-Range"), null);
 assert.equal((await head.arrayBuffer()).byteLength, 0);
 const unsatisfiable = await fetch(base + media.url, {
-  headers: { Range: `bytes=${original.length}-` },
+  headers: { Range: `bytes=${stored.length}-` },
 });
 assert.equal(unsatisfiable.status, 416);
 assert.equal(
   unsatisfiable.headers.get("Content-Range"),
-  `bytes */${original.length}`,
+  `bytes */${stored.length}`,
 );
 assert.equal(unsatisfiable.headers.get("Cache-Control"), "private, no-store");
 assert.equal((await unsatisfiable.arrayBuffer()).byteLength, 0);
@@ -137,7 +145,7 @@ assert.equal((await unsatisfiable.arrayBuffer()).byteLength, 0);
 for (const method of ["GET", "HEAD"]) {
   const denied = await fetch(secondBase + media.url, {
     method,
-    headers: { Range: `bytes=${original.length}-` },
+    headers: { Range: `bytes=${stored.length}-` },
   });
   assert.equal(denied.status, 404);
   assert.equal(denied.headers.get("Content-Range"), null);

@@ -2,27 +2,45 @@
   "name": "author-studio",
   "main": "@astrojs/cloudflare/entrypoints/server",
   "compatibility_date": "2026-10-01",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "assets": {
-    "binding": "ASSETS"
+    "binding": "ASSETS",
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "author-studio",
       "database_id": "00000000-0000-4000-8000-000000000000",
-      "migrations_dir": "drizzle"
-    }
+      "migrations_dir": "drizzle",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "BUCKET",
-      "bucket_name": "author-studio-media"
-    }
-  ]
+      "bucket_name": "author-studio-media",
+    },
+  ],
+  "keep_vars": true,
+  "env": {
+    "production": {
+      "name": "author-studio",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "author-studio",
+          "database_id": "c2758015-872a-454b-8915-68a8a662040c",
+          "migrations_dir": "drizzle",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "BUCKET",
+          "bucket_name": "author-studio-media",
+        },
+      ],
+    },
+  },
 }

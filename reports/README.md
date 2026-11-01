@@ -1,5 +1,7 @@
 # 工程交接报告
 
+- [2026-11-01：既有 Cloudflare Worker 生产配置准备](2026-11-01-cloudflare-production-config.md)：独立 production 绑定、保留 Dashboard 变量及路由设置、精确版本部署脚本；968 单测与离线 dry-run 通过，GitHub Actions 通过 needs:test 串接现有 CI，旧PNG测试在未改main复现后按现有WebP契约修正，完整Worker通过；独立PR审查未发布，用户确认保存 CLOUDFLARE_API_TOKEN_FOR_DEPLOY，名称元数据已核验，首次生产结果另核。
+
 - [2026-10-31：媒体库删除按钮与 DELETE /api/media/:id](2026-10-31-media-delete.md)：引用检查 409 + force 二次确认，强制删除只清封面（草稿与已发布快照）、正文不动；删行→对象→衍生目录，失败记孤儿日志；单测/集成/真实 Worker E2E 通过，未合并、未部署。
 - [2026-10-31：上传即缩到 960 WebP 落库，存量原图转换后删除](2026-10-31-media-store-960.md)：静态图按方向转正缩到 960 宽 WebP 只存一份，动画/视频原样；浏览器预缩小超限照片、衍生失败回退；一次性迁移脚本（生产 dry-run 10 张 4.7MB→358KB）；923 单测与真实 Worker E2E 通过；已合并（ab2c131）、部署（ae0f0825）并完成生产迁移（10 张，0 失败）。
 - [2026-10-31：图片衍生与安全缓存](2026-10-31-image-derivatives.md)：保留原图、统一按需 WebP、公开/私有缓存隔离；910 测试及真实 Worker/浏览器回归通过，实际用户封面下载仍阻塞，未部署。
