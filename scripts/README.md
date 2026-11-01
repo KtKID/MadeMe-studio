@@ -5,6 +5,7 @@
 - `local-worker-runner.mjs`：从全新临时 D1/R2 应用本地迁移，启动构建产物，管理超时并清理本次进程与临时存储。
 - `smoke-local.mjs`：无身份访客实例的真实 HTTP 冒烟入口。
 - `test-worker.mjs`：独立作者/访客实例的完整 HTTP 流程入口。
+- `deploy-production.mjs`：验证 Astro 生产产物；`verify:production` 只做离线 dry-run，`deploy:production` 在获准的 GitHub main 构建中上传版本并只发布本次返回的 UUID，保留控制台管理的变量、域名与访问设置。配置、权限和首次启用边界见[生产部署](../docs/DEPLOYMENT.md#既有-cloudflare-生产-worker自动部署准备)。
 - `vite/`：托管集成插件，第三方许可证保留。
 
 ## 验证顺序

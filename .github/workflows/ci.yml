@@ -3,13 +3,15 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # main的CI可能已进入生产发布，不能被新提交中途取消。
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   test:
@@ -17,8 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
           cache: npm
@@ -27,3 +31,13 @@ jobs:
       - run: npx vitest run
       - run: npm run test:integrations
       - run: npm run check
+
+  deploy:
+    needs: test
+    if: >-
+      github.repository == 'KtKID/MadeMe-studio' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    uses: ./.github/workflows/deploy-production.yml
+    secrets:
+      cloudflare_deploy_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}

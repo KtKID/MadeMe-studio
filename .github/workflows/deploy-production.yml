@@ -1,0 +1,56 @@
+name: Deploy production
+
+on:
+  workflow_call:
+    secrets:
+      cloudflare_deploy_token:
+        required: true
+
+permissions:
+  contents: read
+
+# 不取消正在切流量的发布；较新的提交排队，旧的排队提交会在发布前被main校验拒绝。
+concurrency:
+  group: production-author-studio
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.repository == 'KtKID/MadeMe-studio' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact main commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Verify checked out commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - run: npm ci
+      # 调用方needs:test要求同提交CI已成功；此处添加发布专属硬门槛。
+      - name: Build isolated local profile
+        run: env -u CLOUDFLARE_ENV npm run build
+      - run: npm run test:smoke
+      # 完整真实Worker流程，包括WebP落库、Range/HEAD/416与私有鉴权，不跳过错误。
+      - run: npm run test:worker
+      - name: Build production profile
+        env:
+          CLOUDFLARE_ENV: production
+        run: npm run build
+      - run: npm run verify:production
+      # 只在所有检查通过后注入专用部署token；不要回退到未知旧token。
+      - name: Publish exact uploaded version
+        env:
+          CLOUDFLARE_ACCOUNT_ID: aa31bc6b12b747b89ccb446e43aef6c4
+          CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare_deploy_token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run deploy:production

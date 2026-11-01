@@ -2,9 +2,84 @@
 
 ## 运行结构
 
-Astro 服务端渲染及 API 运行于 Cloudflare Worker；D1 绑定名为 `DB`，R2 绑定名为 `BUCKET`。`wrangler.jsonc` 中的数据库 ID 是本地占位符，不能直接当成生产资源。`drizzle/` 仅包含结构迁移，不包含作者、文章或密钥种子数据。
+Astro 服务端渲染及 API 运行于 Cloudflare Worker；D1 绑定名为 `DB`，R2 绑定名为 `BUCKET`。`wrangler.jsonc` 默认配置中的数据库 ID 是本地占位符；命名环境 `production` 才绑定已核实的生产资源。`drizzle/` 仅包含结构迁移，不包含作者、文章或密钥种子数据。
 
 生产构建生成 `dist/client` 静态资产及 `dist/server` Worker；`scripts/package-worker.mjs` 创建托管兼容入口，同时保留 Astro 原始入口。`.openai/hosting.json` 声明绑定，不应保存凭据。
+
+## 既有 Cloudflare 生产 Worker：自动部署准备
+
+本节是 2026-11-01 准备的配置方案，最终采用 **GitHub Actions，不连接 Cloudflare Workers Builds**。补丁通过独立分支和PR审查；此执行器未创建 token、设置 secret 或执行生产发布；专用单 Worker token 已由受支持的控制台任务创建；仓库 Secret 由用户一次性手动保存，是否已保存须由父任务确认。下文的 Sites 说明属于另一个预览目标，不能据此覆盖生产认证。
+
+### 目标与保留范围
+
+| 项目         | 已核实目标                                                    |
+| ------------ | ------------------------------------------------------------- |
+| Worker       | `author-studio`，不是新建 `author-studio-production`          |
+| 既有自定义域 | `blog.ktkid.ai`；继续由控制台管理                             |
+| `DB`         | D1 `author-studio`，ID `c2758015-872a-454b-8915-68a8a662040c` |
+| `BUCKET`     | R2 `author-studio-media`                                      |
+| `ASSETS`     | 构建后的 `dist/client`                                        |
+| 兼容设置     | `2026-10-01`、`nodejs_compat`                                 |
+
+`production` 显式重复 D1/R2 绑定，因为绑定不从默认环境继承。默认 `npm run build` 仍使用本地占位 ID，供本地隔离测试；真实部署脚本会在调用 Wrangler 前拒绝这种产物。不要把生产环境配置用于日常测试，也不要额外执行远程数据库迁移或媒体迁移脚本。
+
+顶层 `keep_vars: true` 适用于所有环境，保留控制台设置的普通变量；它不保护路由或任意其它设置，源码中显式写入同名变量仍会覆盖。当前不在源码或构建产物写入运行变量值：沿用现有 `APP_ORIGIN`、`AUTH_MODE`、`ENVIRONMENT`、`GOOGLE_CLIENT_ID`、`OWNER_EMAIL`。现有 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_AI_TOKEN`、`GOOGLE_CLIENT_SECRET`、`SESSION_SECRET` 继续是运行时 secret，不读取其值，也不复制到构建配置。Wrangler 默认继承现存 secrets，本流程不调用 secret 写入或删除。
+
+### 构建与发布命令
+
+[ci.yml](../.github/workflows/ci.yml) 在原有 `test` job 成功后，用 `needs: test` 调用同提交的 [deploy-production.yml](../.github/workflows/deploy-production.yml)。其固定配置：
+
+| 设置                  | 值                                 |
+| --------------------- | ---------------------------------- |
+| Git 仓库 / 生产分支   | `KtKID/MadeMe-studio` / `main`     |
+| 根目录                | 仓库根目录                         |
+| Node / 生产构建变量   | `24` / `CLOUDFLARE_ENV=production` |
+| Build command         | `npm run build`                    |
+| Deploy command        | `npm run deploy:production`        |
+| 构建账户 ID（非秘密） | `aa31bc6b12b747b89ccb446e43aef6c4` |
+
+CI 保留原有 push/PR 检查，增加 `workflow_dispatch` 手动入口；只有本仓库 main 的 push/手动事件才进入 deploy job。手动运行其它分支或 tag 仅能检查，不能发布。调用方、被调用 job 与脚本均拒绝 PR、fork、tag、其它仓库或分支发布；没有自填部署 SHA 入口。`actions/checkout` v6.1.0 和 `actions/setup-node` v6.5.0 固定完整官方提交 SHA，checkout 不保留凭据，无其它 Action，不下载其它工作流产物。`permissions` 只有 `contents: read`，不创建 deployment environment 或要求额外写权限。
+
+原有 CI 先运行 `npm ci` → `npx vitest run` / `test:integrations` / `check`，成功后 `needs: test` 才进入发布 job；发布 job 重新精确 checkout 和安装依赖，再运行默认本地 build → 隔离 `test:smoke` → 隔离 `test:worker` → 生产 build → `verify:production`。所有步骤都是硬门槛，没有 `continue-on-error`，失败不进入发布。**当前普通 CI 没跑 build/smoke/worker，CI 通过不等于这组发布检查通过**。本轮在未修改 main 复现了旧用例仍查找 `valid-image.png`、期待PNG原样返回的失败；随后仅更新测试以符合已存在的WebP落库契约，新增文件名/MIME/签名/大小断言，以实际WebP作为Range字节基准，完整流程已通过。没有跳过检查或修改媒体业务实现。
+
+专用部署 token 只在最后发布步骤注入 `CLOUDFLARE_API_TOKEN`，不会注入安装、测试或构建阶段；`GITHUB_TOKEN` 同步只用于只读核对 main。父任务确认原来不存在同名 secret，确定使用仓库 Actions Secret `CLOUDFLARE_API_TOKEN`；CI 只将这一项显式传给可复用工作流的 `cloudflare_deploy_token`，不使用 secrets inherit 或其它 token 回退。此执行器未读取/保存 secret，待用户手动保存就绪后再协调首次推送合入。
+
+选择 Node 24 以满足 `engines.node >=24`；依赖由锁文件安装，不能排除构建所需的 devDependencies。`CLOUDFLARE_ENV` 必须在**构建时**设置，Astro/Vite 在这一步选择 Wrangler 环境。不要先按默认环境构建，再仅给部署命令补 `--env production`。
+
+本地无凭据验证：
+
+```sh
+CLOUDFLARE_ENV=production npm run build
+npm run verify:production
+```
+
+实际构建确认产物为 `dist/server/wrangler.json`，入口 `entry.mjs`、`no_bundle: true`，静态目录相对该文件为 `../client`，保留 `keep_vars`、生产 DB/R2/ASSETS。`.wrangler/deploy/config.json` 也指向它；脚本仍显式指定该生成文件，不使用托管兼容入口 `index.js` 或原始适配器别名发布。
+
+工作流启用后，`npm run deploy:production` 的步骤是：
+
+1. 只接受 `GITHUB_ACTIONS=true`、目标 `GITHUB_REPOSITORY`、`GITHUB_REF=refs/heads/main`、push/手动事件及完整 `GITHUB_SHA`。以只读 GitHub API 再核对当前 main，API 失败或 SHA 过时即停止；再校验构建产物、目标及绑定。CI 元数据是防误用检查，不代替 token 权限。
+2. `wrangler versions upload --config dist/server/wrangler.json --strict --tag <该提交SHA>`，只上传到已经存在的 Worker；不创建 Worker、不应用数据库迁移。
+3. 从 Wrangler 官方 NDJSON 输出读取本次唯一的 `version-upload` UUID，执行 `wrangler versions deploy <本次UUID>@100% --config <临时仅含Worker名称的JSON> --yes`。不按 `latest` 或相同 tag 猜测，上传结果不明确时不会切流量。
+4. 要求命令成功及对应 Worker 的 `version-deploy` 结果，记录版本与 deployment ID。命令超时/异常或确认缺失时不自动重试；尤其发布阶段异常须先查控制台部署历史，不能假设未执行。
+
+采用版本上传再精确切流量，是为了保留既有 Routes、自定义域、`workers.dev`、预览地址等设置。普通 `wrangler deploy` 会协调路由，省略 `workers_dev` 也有默认行为；本流程不调用 triggers，也不猜测当前访问设置。`versions deploy` 可能同步配置内的 observability 等非版本设置，因此第二步切流量只传 Worker 名称，不拿完整生成配置覆盖它们。上述行为经过当前锁定 Wrangler 4.153.0 源码及离线测试核对；真实账户执行和线上验证仍待授权通道。
+
+CI 的 main 并发组不取消正在运行的流水线，其它分支仍保留取消旧 CI 的行为；被调用部署工作流使用不同的固定 `production-author-studio` concurrency group、`cancel-in-progress: false`，防止此工作流并发生产发布或在切流量中途被新提交取消；排队旧提交在发布前被 main 核对拒绝。main 核对与 Cloudflare 发布跨平台，不能做成原子事务；极短窗口内 main 更新仍可能先完成当前已验证提交再发布新提交。此锁不覆盖手工 Wrangler/其它系统，发布时不能同时由另一部署者改配置或上传版本。普通变量和 secret 由 Cloudflare 的继承机制保留，不是可恢复的配置备份。
+
+### 部署 token：单项目权限及验证边界
+
+用户批准专用 token，仅 `author-studio` 的 `Individual Workers Editor`，不更改任何已有 token，不给 D1/R2 或路由编辑权限。由控制台任务直接存入本仓库 Actions Secret，不经此执行器或聊天传递值。完整首次发布尚未实测；若权限被 API 拒绝，应报告确切步骤，不能自动扩大 token 范围。
+
+权限应区分旧模型与新模型：
+
+- 旧 `Account → Workers Scripts Edit/Write` 可以限制到目标账户，但覆盖该账户的 Workers，**不能仅凭脚本名称限制到一个 Worker**。
+- 官方新版 [Workers 角色](https://developers.cloudflare.com/workers/authorization/workers/)支持对已存在的单个 Worker 授予 `Editor`，API 的版本上传与部署也接受 `Individual Workers Editor`。代码不会创建新 Worker，完整 Wrangler 流程是否通过仍需真实首次发布验证。
+- 官方说明，仅部署绑定已有 D1/R2 的 Worker 不需要这些资源的独立读写权限；只有直接查询数据库、列举/读写对象等操作才需要。此次没有这类操作，不应为此授予 D1/R2 编辑权限。
+- 不变更 Routes/自定义域的版本部署不要求 Zone Workers Routes Write。若以后确实管理路由，Zone 权限可只限定相关 zone；不是所有 zone，也不是按单个域名记录隔离。官方同时注明 Custom Domains 暂不支持 per-Worker roles，应在首次真实验证时注意这一限制，不擅自扩大权限。
+
+[GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/) 是官方支持的执行环境；它不会自动缩小 Cloudflare token 的范围。运行时的 `CLOUDFLARE_ACCOUNT_ID` secret 与构建用的上述公开账户 ID 是不同配置渠道，不能读取运行时 secret 来借用部署授权。先前调查的 Workers Builds 自有用户 token 路径仅是官方文档能力，当前方案不启用该服务，也不自动创建它的宽权限 token。
+
+依据：[Wrangler 配置及 keep_vars](https://developers.cloudflare.com/workers/wrangler/configuration/)、[Astro Cloudflare 适配器](https://docs.astro.build/en/guides/integrations-guide/cloudflare/)、[Worker 版本](https://developers.cloudflare.com/workers/versions-and-deployments/)、[API token 资源范围](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/)、[版本上传 API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/versions/methods/create/)、[部署 API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/deployments/methods/create/)。首次上线结果须另记，不用离线 dry-run 替代生产部署确认。
 
 ## 本地开发
 
