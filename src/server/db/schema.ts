@@ -111,3 +111,24 @@ export const googleAuthorSessions = sqliteTable("google_author_sessions", {
   revokedAt: integer("revoked_at"),
   displayName: text("display_name"),
 });
+
+// 文章访问事件：每行一次公开文章页访问（毫秒时间戳、明文 IP 等完整字段），
+// 不去重、不清理；爬虫照常入库，查询口径过滤见 src/server/page-views.ts。
+export const pageViewEvents = sqliteTable(
+  "page_view_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ts: integer("ts").notNull(),
+    path: text("path").notNull(),
+    ip: text("ip"),
+    country: text("country"),
+    ua: text("ua"),
+    referer: text("referer"),
+    durationMs: integer("duration_ms").notNull().default(0),
+    status: integer("status").notNull().default(200),
+  },
+  (t) => [
+    index("idx_page_view_events_path_ts").on(t.path, t.ts),
+    index("idx_page_view_events_ts").on(t.ts),
+  ],
+);

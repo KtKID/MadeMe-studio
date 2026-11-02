@@ -2,14 +2,15 @@
 
 运行：`npm test -- tests/backend`。要求支持 `node:sqlite` 的 Node 版本。
 
-| 文件 | 覆盖 |
-| --- | --- |
-| identity.test.ts | 身份、明确拥有者、CSRF、scope、密码与脱敏单元测试 |
-| posts.test.ts | 真实 SQLite 迁移、CAS、快照、修订、可见性、媒体与块校验 |
-| settings.test.ts | 明暗/皮肤/字体协议、独立更新与兼容默认值 |
-| smoke.test.ts | 服务端页面数据及无云绑定冒烟 |
-| http.e2e.test.ts | 真实本地 HTTP 服务上的文章、媒体、密码、令牌、配置与缺密钥 E2E |
-| support.ts | SQLite D1 边界适配器及 R2 对象存储替身 |
+| 文件               | 覆盖                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| identity.test.ts   | 身份、明确拥有者、CSRF、scope、密码与脱敏单元测试                                                                    |
+| posts.test.ts      | 真实 SQLite 迁移、CAS、快照、修订、可见性、媒体与块校验                                                              |
+| settings.test.ts   | 明暗/皮肤/字体协议、独立更新与兼容默认值                                                                             |
+| smoke.test.ts      | 服务端页面数据及无云绑定冒烟                                                                                         |
+| page-views.test.ts | 文章访问事件记录、阅读数/热门/访客汇总与分页查询口径（爬虫与非 200 排除）、`/api/views/*` 作者鉴权与协议、无绑定��界 |
+| http.e2e.test.ts   | 真实本地 HTTP 服务上的文章、媒体、密码、令牌、配置与缺密钥 E2E                                                       |
+| support.ts         | SQLite D1 边界适配器及 R2 对象存储替身                                                                               |
 
 ## 实际开发顺序
 

@@ -1,6 +1,6 @@
 # 工作台会话导航
 
-四个后台深链共享 `loadStudioPageData` 的单次 SSR 引导。身份确认后并行读取文章摘要、媒体和令牌**元数据**，错误独立处理。访客不加载私有列表。
+五个后台深链（含 `/studio/data` 访问数据面板）共享 `loadStudioPageData` 的单次 SSR 引导。身份确认后并行读取文章摘要、媒体和令牌**元数据**，错误独立处理。访客不加载私有列表。
 
 `StudioHistory` 只保存本 document 的 session/index；浏览器后退取消使用 `history.go` 补偿，不 push 伪历史、不破坏前进。补偿期间锁定新导航。未知历史交回完整 SSR。`StudioPaneContext` 只含 active/navigationKey，不存储业务数据。
 

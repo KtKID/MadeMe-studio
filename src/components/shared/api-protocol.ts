@@ -17,6 +17,8 @@ import {
   unlockResponseSchema,
   revokeTokenResponseSchema,
   identityResponseSchema,
+  visitSummaryResponseSchema,
+  visitorsResponseSchema,
 } from "../../shared/contracts";
 /** 按端点选择唯一共享 Zod 协议；未知端点和任意 success 对象一律拒绝。 */
 export function parseApiResponse(
@@ -68,6 +70,10 @@ export function parseApiResponse(
     return tokenCreatedResponseSchema.parse(data);
   if (/^\/api\/tokens(?:\/[^/]+)?$/.test(path) && verb === "DELETE")
     return revokeTokenResponseSchema.parse(data);
+  if (path === "/api/views/summary" && verb === "GET")
+    return visitSummaryResponseSchema.parse(data);
+  if (path === "/api/views/visitors" && verb === "GET")
+    return visitorsResponseSchema.parse(data);
   throw new Error("未定义的 API 响应协议");
 }
 export function parseApiError(data: unknown) {
