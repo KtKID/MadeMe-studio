@@ -314,6 +314,17 @@ export async function uploadAttachment(
     options.signal,
     INTEGRATION_MEDIA_UPLOAD_TIMEOUT_MS,
   );
+  // 取消原因/解析错误可能含调用方或响应中的私密文本，只输出固定说明。
+  const interrupted = () =>
+    options.signal?.aborted
+      ? new DOMException(
+          "附件上传已取消。请求可能已送达，请核对媒体库。",
+          "AbortError",
+        )
+      : new DOMException(
+          "附件上传等待超时。请核对媒体库后重试。",
+          "TimeoutError",
+        );
   try {
     let response: Response;
     try {
@@ -329,15 +340,24 @@ export async function uploadAttachment(
         signal: cancellation.signal,
       });
     } catch {
+      if (cancellation.signal.aborted) throw interrupted();
       throw new Error(
-        "附件上传连接失败、超时、取消或遇到重定向，文章尚未保存。请核对媒体库后重试。",
+        "附件上传连接失败或遇到重定向，文章尚未保存。请核对媒体库后重试。",
       );
     }
     if (!response.ok)
       throw new Error(
         `附件上传失败（HTTP ${response.status}）。含附件的 Token 需要 media:write；未保存文章，请检查媒体库后重试。`,
       );
-    const parsed = mediaResponseSchema.safeParse(await response.json());
+    let payload: unknown;
+    try {
+      payload = await response.json();
+      throwIfAborted(cancellation.signal);
+    } catch {
+      if (cancellation.signal.aborted) throw interrupted();
+      throw new Error("附件上传响应格式异常，未保存文章。请核对媒体库后重试。");
+    }
+    const parsed = mediaResponseSchema.safeParse(payload);
     if (!parsed.success) throw new Error("附件上传响应格式异常，未保存文章。");
     return parsed.data.media;
   } finally {

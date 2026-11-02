@@ -239,6 +239,24 @@ describe("编辑器真实按钮与状态链路", () => {
     expect(h.editor.replaceBlocks).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "处理版本冲突" })).toBeTruthy();
   });
+  it("附件导入失败只显示窗口错误，不重复写编辑器顶栏", async () => {
+    setup();
+    h.api.mockRejectedValue(new Error("isolated upload failure"));
+    const file = new File(["![A](x.png)"], "A.md");
+    file.text = async () => "![A](x.png)";
+    const input = document.querySelector('input[accept*=".markdown"]')!;
+    await act(async () =>
+      fireEvent.change(input, { target: { files: [file] } }),
+    );
+    fireEvent.change(screen.getByLabelText("选择附件文件"), {
+      target: { files: [new File(["test"], "x.png", { type: "image/png" })] },
+    });
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "上传附件并导入" })),
+    );
+    expect(screen.getAllByText(/isolated upload failure/)).toHaveLength(1);
+    expect(screen.queryByText(/^上传失败：/)).toBeNull();
+  });
   it("Markdown 文件读取迟到不覆盖随后输入", async () => {
     const pending = deferred<string>();
     setup();

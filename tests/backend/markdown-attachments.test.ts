@@ -7,12 +7,51 @@ import {
 import { markdownToBlocks } from "../../src/server/content/markdown";
 import { applyMediaKinds } from "../../src/modules/markdown-import/attachments";
 import { createPostSchema } from "../../src/shared/contracts";
+import { fromMarkdown } from "mdast-util-from-markdown";
 
 const asset = (path: string, type = "image/png") => ({
   path,
   file: new File(["test"], path.split("/").at(-1)!, { type }),
 });
 describe("Markdown 附件导入", () => {
+  it("实际CommonMark解析未定义图片引用为文字，已定义引用才有imageReference", () => {
+    for (const markdown of ["![a][missing]", "![missing][]", "![missing]"]) {
+      const tree = fromMarkdown(markdown);
+      expect(JSON.stringify(tree)).not.toContain('"type":"imageReference"');
+      expect(mediaReferences(markdown)).toEqual([]);
+      expect(JSON.stringify(markdownToBlocks(markdown))).toContain(markdown);
+    }
+    expect(
+      JSON.stringify(
+        fromMarkdown("![a][ref]\n\n[ref]: https://example.com/x.png"),
+      ),
+    ).toContain('"type":"imageReference"');
+  });
+  it("准备附件统一BOM与CRLF/CR，不混入两套换行", async () => {
+    const result = await prepareAttachments(
+      "\uFEFF# title\r\n\r\n![x](x.png)\r\n\r尾段",
+      [asset("x.png")],
+      { mode: "selected" },
+      async () => ({ url: "/api/files/id", mime: "image/png" }),
+    );
+    expect(result.markdown).not.toContain("\r");
+    expect(result.markdown).not.toContain("\uFEFF");
+    expect(result.markdown).toContain("# title\n");
+    expect(result.markdown).toContain("尾段");
+  });
+  it("不支持的远程协议明确提示HTTPS且不回显远程凭据", () => {
+    for (const value of [
+      "http://secret:password@example.com/x.png",
+      "ftp://example.com/x.png",
+    ]) {
+      expect(() =>
+        attachmentPlan(`![x](${value})`, [], { mode: "selected" }),
+      ).toThrow(/远程媒体仅支持 HTTPS/);
+      expect(() =>
+        attachmentPlan(`![x](${value})`, [], { mode: "selected" }),
+      ).not.toThrow(/password/);
+    }
+  });
   it("wiki的合法笔记相对父级不被另一个根路径解释误拒绝", () => {
     expect(
       attachmentPlan(

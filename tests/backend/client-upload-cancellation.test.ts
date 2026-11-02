@@ -7,6 +7,7 @@ import {
   MiB,
   INTEGRATION_MEDIA_UPLOAD_TIMEOUT_MS,
 } from "../../src/modules/config/limits";
+import { throwIfAborted } from "../../src/shared/request-cancellation";
 const token = "mm_" + "a".repeat(64);
 const media = {
   id: "test-id",
@@ -38,6 +39,42 @@ afterEach(() => {
   );
 });
 describe("媒体上传等待与旧运行时取消", () => {
+  it("主动取消有独立错误且不反射调用方的取消原因", async () => {
+    const controller = new AbortController();
+    const result = uploadAttachment({
+      site: "https://example.com",
+      token,
+      file: new File(["test"], "x.png", { type: "image/png" }),
+      signal: controller.signal,
+      fetchImpl: async (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        }),
+    });
+    controller.abort(new Error(token));
+    await expect(result).rejects.toMatchObject({ name: "AbortError" });
+    await expect(result).rejects.toThrow(/已取消/);
+    await expect(result).rejects.not.toThrow(token);
+  });
+  it("非JSON媒体响应包装成中文错误，不包含响应体片段", async () => {
+    const result = uploadAttachment({
+      site: "https://example.com",
+      token,
+      file: new File(["test"], "x.png", { type: "image/png" }),
+      fetchImpl: async () => new Response(`<html>${token}</html>`),
+    });
+    await expect(result).rejects.toThrow(/响应格式异常/);
+    await expect(result).rejects.not.toThrow(token);
+  });
+  it("非Error取消原因不会直接抛出字符串", () => {
+    const controller = new AbortController();
+    controller.abort("private reason");
+    expect(() => throwIfAborted(controller.signal)).toThrow(/操作已取消/);
+  });
   it("25MiB附件模拟45秒传输不会在20秒中止，结束清理计时器", async () => {
     vi.useFakeTimers();
     let completed = false,

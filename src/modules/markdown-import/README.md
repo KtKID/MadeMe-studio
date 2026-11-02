@@ -48,4 +48,8 @@ API兼容边界：不新增或改变 Post/Media Zod字段。未定义的引用�
 
 ## 验证
 
+兼容性发布说明：防止静默丢媒体的422是破坏性行为变更，不保证所有旧Markdown无损兼容。未上传的本地媒体、HTML媒体、链接包图与非HTTPS远程媒体会拒绝，不能靠放宽URL校验或服务器代抓解决。仓库内CLI和Chrome剪藏仍调用 `createDraft`：CLI不上传附件；剪藏生成器会转义选区图片语法，但用户手改的Markdown仍受相同限制。Obsidian已走 `createDraftWithAttachments`。外部生产自动化未盘点，不能保证没有旧调用方，部署前应核对并迁移输入。
+
+实际CommonMark解析回归证明：未定义的 `![a][missing]`、`![missing][]`、`![missing]` 都是文字，不产生 `imageReference`，有定义时才产生该节点。缺definition检查保留作不完整AST防御，不表示普通缺定义输入必然422。网页/插件准备附件时统一去BOM、CRLF/CR转LF，源码区间在规范化后计算。
+
 `npm run test:e2e:markdown` 要求先 `npm run build`，启动全新临时本地 Worker/D1/R2；`CHROMIUM_PATH` 可指定已安装 Chromium。合成样本在 `tests/fixtures/markdown-media`，不使用用户笔记或生产凭据。测试涵盖文件夹选择、真实媒体 HTTP、草稿保存刷新、GIF 两帧与实际画面变化、H.264 MP4/MOV 播放，以及缺文件、网络失败、取消、重复点击和新输入。共享客户端是真实 API 测试；不等于原生 Obsidian 应用端到端。

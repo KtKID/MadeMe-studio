@@ -206,4 +206,10 @@ Chrome/Obsidian 代码已打包，但未在用户浏览器或私人 vault 中安
 
 ## Markdown 嵌入附件导入（2026-11-01）
 
+以下976项为首轮历史结果；当前结果见下方审核修复小节。
+
 全量976项单测、23项共享客户端测试、类型检查/构建、插件SDK检查与打包、临时Worker/HTTP冒烟通过；4项真实浏览器/API测试覆盖文件夹与补选附件、中文空格/编码、wiki嵌入、PNG/GIF/MP4/MOV保存刷新播放、缺失/失败/取消/重复点击/新增输入。GIF原字节与两帧/实际画面变化已验，MOV仅H.264 Chromium。没有原生Obsidian宿主或生产验收，未部署。详见[报告](../reports/2026-11-01-markdown-attachments.md)和[支持矩阵](../src/modules/markdown-import/README.md)。
+
+## Markdown 附件审核修复（2026-11-02，当前结果）
+
+第一轮修复为113文件/990项；本轮再增8项回归为998项，其中7项先失败、缺定义引用的实际解析验证原本通过。同步最新 main `0fdef3e`（保留访问记录模块，无冲突）后，最终 **115文件/1018项**、23项共享客户端测试、6项真实浏览器/API测试、check 0 errors/0 warnings/6 hints、build、插件SDK检查/打包、Chrome打包、隔离Worker/HTTP冒烟全部通过。没有把976或990当当前全量数字。原生Obsidian与外部生产自动化仍未验证。详见[审核修复报告](../reports/2026-11-02-markdown-attachments-review-fixes.md)。

@@ -1,5 +1,7 @@
 # Shared 客户端
 
+媒体取消使用固定中文 `AbortError`，超时使用固定中文 `TimeoutError`；不回显调用方的任意取消原因。媒体响应的JSON解析失败同样固定包装，不暴露原始响应片段；异常/取消可能已上传，需核对结果后再试。兼容变更与直接提交Markdown的迁移边界见[导入模块](../../src/modules/markdown-import/README.md)。
+
 `client.ts` 为 Chrome、Obsidian、agent CLI 复用的安全客户端。请求正文直接通过 `src/shared/contracts.ts` 的 Zod schema 校验，不另造 BlockNote JSON 协议。
 
 请求带 `Accept: application/json; mademe-post-schema=2`（CORS 安全头，旧服务端忽略）；响应由容忍未知字段的 `postMutationResponseSchema` 解析，服务端新增字段（如 `coverSettings`）不会让客户端失败。客户端只建草稿和发布，不读后回写文章，因此不会丢失 `coverSettings`。

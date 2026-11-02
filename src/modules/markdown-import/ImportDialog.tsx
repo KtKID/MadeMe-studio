@@ -159,7 +159,9 @@ export default function MarkdownImportDialog({
     } catch (e) {
       if (!operation.signal.aborted && latestSource.current === source) {
         clientCaught("editor.attachment_import_failed", e);
-        setError(`导入未完成，当前正文已保留：${(e as Error).message}`);
+        setError(
+          `导入未完成，当前正文已保留：${e instanceof Error ? e.message : "附件处理失败，请重试。"}`,
+        );
       }
     } finally {
       if (controller.current === operation) {

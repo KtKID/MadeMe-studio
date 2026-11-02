@@ -46,6 +46,7 @@
   "devDependencies": {
     "@astrojs/check": "latest",
     "typescript": "^5.9.3",
+    "@types/mdast": "^4.0.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/node": "^24",

@@ -309,6 +309,7 @@ export default function Editor({
   async function uploadEditorAttachment(
     picked: File,
     signal?: AbortSignal,
+    reportFailure = true,
   ): Promise<UploadedAttachment> {
     throwIfAborted(signal);
     // 超出 Worker 解码上限的照片先在浏览器缩到落库宽度，避免 413。
@@ -323,7 +324,7 @@ export default function Editor({
         mime: file.type || "unknown",
         size: file.size,
       });
-      setError(problem.message);
+      if (reportFailure) setError(problem.message);
       throw new Error(problem.message);
     }
     const form = new FormData();
@@ -339,7 +340,10 @@ export default function Editor({
       return { url: media.url, mime: media.mime };
     } catch (e) {
       // api() 已经记录 api.request_failed / api.network_failed，这里只负责展示。
-      if (!signal?.aborted) setError(`上传失败：${(e as Error).message}`);
+      if (reportFailure && !signal?.aborted)
+        setError(
+          `上传失败：${e instanceof Error ? e.message : "附件处理失败，请重试。"}`,
+        );
       throw e;
     }
   }
@@ -1390,7 +1394,9 @@ export default function Editor({
                 key={markdownImport.request}
                 source={markdownImport}
                 onClose={() => closeMarkdownImport(markdownImport.request)}
-                upload={uploadEditorAttachment}
+                upload={(file, signal) =>
+                  uploadEditorAttachment(file, signal, false)
+                }
                 apply={(prepared) =>
                   applyMarkdownImport(prepared, markdownImport.request)
                 }

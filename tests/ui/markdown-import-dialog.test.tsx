@@ -22,6 +22,30 @@ const source = (name: string) => ({
   markdown: `![${name}](x.png)`,
 });
 const file = () => new File(["synthetic"], "x.png", { type: "image/png" });
+it("附件失败不是Error时显示明确提示，保留窗口与输入", async () => {
+  const close = vi.fn(),
+    apply = vi.fn();
+  render(
+    <Dialog
+      source={source("A")}
+      onClose={close}
+      upload={async () => {
+        throw "offline";
+      }}
+      apply={apply}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText("选择附件文件"), {
+    target: { files: [file()] },
+  });
+  await act(async () =>
+    fireEvent.click(screen.getByRole("button", { name: "上传附件并导入" })),
+  );
+  expect(screen.getByText(/导入未完成/).textContent).not.toContain("undefined");
+  expect(screen.getByText(/导入未完成/).textContent).toContain("附件处理失败");
+  expect(close).not.toHaveBeenCalled();
+  expect(apply).not.toHaveBeenCalled();
+});
 it("切到新来源会取消旧上传，迟到结果不应用、不关闭新窗口；新来源可继续导入", async () => {
   let finish!: (value: attachments.UploadedAttachment) => void;
   let firstSignal: AbortSignal | undefined;

@@ -79,6 +79,7 @@ export function mediaReferences(markdown: string): MediaReference[] {
           });
         if (node.type === "imageReference") {
           const definition = definitions.get(key(node.identifier));
+          // 当前 CommonMark 解析器会把未定义引用留作 text；仍防御不完整 AST。
           if (!definition) throw new Error("图片引用缺少 Markdown 链接定义。");
           add({
             start,
@@ -159,6 +160,8 @@ export function isHostedMedia(target: string) {
 }
 
 function localTarget(value: string, wiki: boolean): string {
+  if (/^(?:https?|ftp):/i.test(value))
+    throw new Error("远程媒体仅支持 HTTPS；本地附件请选择文件后导入。");
   // 分隔符解码后再检查，避免 %2f / %5c 绕过根目录限制。
   let path: string;
   try {
@@ -312,6 +315,8 @@ export async function prepareAttachments(
     readFile?: (asset: Attachment) => Promise<File>;
   } = {},
 ) {
+  // 在识别源码区间之前统一换行，网页与插件采用同一替换坐标。
+  markdown = markdown.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   const plan = attachmentPlan(markdown, assets, options);
   const cache = execution.cache || new Map<File, UploadedAttachment>();
   const sources = new Map(plan.map((item) => [item.asset.file, item.asset]));
