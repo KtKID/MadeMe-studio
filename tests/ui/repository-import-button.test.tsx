@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({
   get: vi.fn(),
   assert: vi.fn(),
   subscribe: vi.fn(),
-  changed: undefined as undefined | (() => void),
+  changed: undefined as undefined | ((id?: string) => void),
   check: vi.fn(),
   pick: vi.fn(),
   read: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock(
   "../../src/modules/obsidian-repository/connection",
   async (original) => ({
     ...(await original<object>()),
-    getRepository: h.get,
+    listRepositories: h.get,
     assertRepositoryCurrent: h.assert,
     checkRepositoryRead: h.check,
     authorizeRepositoryRead: h.authorize,
@@ -43,7 +43,7 @@ vi.mock("../../src/modules/log/client", () => ({ clientLog: vi.fn() }));
 import RepositoryImportButton from "../../src/modules/markdown-import/RepositoryImportButton";
 import { RepositoryReadPermissionError } from "../../src/modules/obsidian-repository/connection";
 const record = (id: string) => ({
-  id: "active",
+  id,
   revision: id,
   name: "仓库" + id,
   handle: {},
@@ -70,7 +70,7 @@ async function open() {
 beforeEach(() => {
   vi.clearAllMocks();
   h.supported = true;
-  h.get.mockResolvedValue(record("A"));
+  h.get.mockResolvedValue([record("A")]);
   h.assert.mockResolvedValue(undefined);
   h.subscribe.mockImplementation((listener) => {
     h.changed = listener;
@@ -85,7 +85,7 @@ afterEach(cleanup);
 it("明确独立仓库连接，直接选择文章，不要求导出预设", async () => {
   const { onChosen } = setup();
   await open();
-  expect(screen.getByText("仓库A")).toBeTruthy();
+  expect(screen.getByText(/仓库A · A/)).toBeTruthy();
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: "选择 Markdown 文章" }));
   });
@@ -166,11 +166,10 @@ it.each([true, false])(
   "无连接或不支持时准确说明同源边界和降级",
   async (supported) => {
     h.supported = supported;
-    h.get.mockResolvedValue(undefined);
+    h.get.mockResolvedValue([]);
     const { onManual } = setup();
     await open();
-    if (supported)
-      expect(screen.getByText(/尚未连接 Obsidian 仓库/)).toBeTruthy();
+    if (supported) expect(screen.getByText(/尚未添加 Obsidian/)).toBeTruthy();
     expect(
       screen
         .getByRole("link", { name: "设置 Obsidian 仓库" })
@@ -185,3 +184,41 @@ it.each([true, false])(
     expect(h.pick).not.toHaveBeenCalled();
   },
 );
+
+it("多仓库必须明确选择，不默认猜第一个根", async () => {
+  h.get.mockResolvedValue([record("A"), record("B")]);
+  setup();
+  await open();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "选择 Markdown 文章",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  fireEvent.click(screen.getByRole("combobox", { name: "导入仓库" }));
+  fireEvent.click(screen.getByRole("option", { name: /仓库B/ }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "选择 Markdown 文章" }));
+  });
+  expect(h.pick).toHaveBeenCalledWith(record("B"));
+});
+
+it("其他仓库变化不会打断已选根的读取", async () => {
+  let finish!: (v: any) => void;
+  h.read.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const { onChosen } = setup();
+  await open();
+  fireEvent.click(screen.getByRole("button", { name: "选择 Markdown 文章" }));
+  await waitFor(() => expect(h.read).toHaveBeenCalled());
+  act(() => h.changed?.("B"));
+  expect(h.read.mock.calls[0][3].aborted).toBe(false);
+  await act(async () => {
+    finish({ markdown: "same root" });
+  });
+  expect(onChosen).toHaveBeenCalledTimes(1);
+});

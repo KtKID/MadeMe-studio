@@ -233,3 +233,14 @@ export const OBSIDIAN_REPOSITORY_LOCAL = {
   changeEvent: "mademe:obsidian-repository-changed",
   key: "active",
 } as const;
+
+/** 规范化多仓库/所属预设；旧两个v1库仅作为只读迁移源。 */
+export const OBSIDIAN_WORKSPACE_LOCAL = {
+  databaseName: "mademe-obsidian-workspace",
+  databaseVersion: 1,
+  repositories: "repositories",
+  presets: "presets",
+  meta: "meta",
+  migrationKey: "legacy-import-v1",
+  labelIdLength: 8,
+} as const;

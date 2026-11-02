@@ -77,8 +77,8 @@ Markdown 转换本身有损；特殊块/样式需核对。平台视频和嵌入�
 新导出basename的#改为_，正文和网站原名不变，旧文件保留；用户目录含#明确拒绝。采用新根后清空旧子目录选择。正文提交前复核全部附件摘要，长下载期间复用附件被删/改则安全失败。同名目录按占用避让，不吞权限/父路径错误。
 实际临时文件、官方Obsidian1.14.5、浏览器授权受限的证据逐项见[主动审计](../../../reports/2026-10-29-obsidian-path-audit.md)。未保存临时UUID→服务端ID可能生成第二MD，不自动跨ID迁移；不声明事务级幂等。
 
-## 与独立导入仓库的边界
+## 当前仓库/预设模型（取代先前单连接方案）
 
-本模块继续负责笔记导出预设与本机保存。导入使用独立[Obsidian仓库连接](../obsidian-repository/README.md)，不依赖预设ID、不读取/复制/迁移旧预设。删除、改名或修改预设不影响导入；清除导入连接也不影响本模块数据或文件。
+统一[仓库管理](../obsidian-repository/README.md)保存多个仓库和其所属预设；根handle仅存仓库，预设通过repositoryId关联。SaveButton从export-presets适配器解析所属根，并在权限/子目录/保存前校验版本；原文件分配、冲突、下载、Markdown-only及打开规则保持。
 
-`directory.ts`仅从原presets.ts抽出原有只读picker与直属 `.obsidian` 检查供两处复用，presets.ts保持原导出再导出函数与v1/presets存储不变。DirectoryHandle接口来自单一contracts.ts，既有保存/导出仍按原readwrite契约，写入实现未改。
+presets.ts和旧Settings.tsx仅保留作为v1历史协议/回归参考，应用设置入口已经统一，不再用旧UI创建活动配置。迁移只读旧v1，原数据留作恢复档案，完成标记阻止正常删除后复活。DirectoryHandle及路径验证仍是单一contracts来源，directory.ts复用纯只读picker/根校验。

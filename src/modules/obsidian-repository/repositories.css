@@ -1,0 +1,61 @@
+.obsidian-repositories .repository-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  background: var(--surface);
+}
+.obsidian-repositories .repository-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.obsidian-repositories .repository-heading h3,
+.obsidian-repositories .repository-heading h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.obsidian-repositories .repository-presets {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.obsidian-repositories .repository-preset-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.obsidian-repositories .repository-preset-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.obsidian-repositories .repository-preset-editor {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--soft);
+}
+.obsidian-repositories .repository-pending {
+  margin-top: 12px;
+}
+.obsidian-repositories .repository-add {
+  padding-top: 8px;
+}
+.obsidian-repositories input {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .obsidian-repositories .repository-card {
+    padding: 14px;
+  }
+  .obsidian-repositories .repository-preset-list .button-group {
+    width: 100%;
+  }
+}

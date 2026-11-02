@@ -8,6 +8,7 @@ async function run(filters) {
         "node_modules/@playwright/test/cli.js",
         "test",
         "tests/e2e/markdown-attachments.spec.ts",
+        "tests/e2e/obsidian-repositories.spec.ts",
         "--workers=1",
         ...filters,
       ],

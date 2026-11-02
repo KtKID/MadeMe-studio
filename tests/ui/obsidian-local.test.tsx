@@ -27,6 +27,18 @@ vi.mock("../../src/modules/obsidian-local/presets", () => ({
   putPreset: h.put,
   deletePreset: h.remove,
 }));
+vi.mock("../../src/modules/obsidian-repository/export-presets", () => ({
+  listExportPresets: h.list,
+  assertExportPresetCurrent: vi.fn(async () => {}),
+}));
+vi.mock("../../src/modules/obsidian-repository/store", () => ({
+  listRepositories: vi.fn(async () => [{}]),
+}));
+vi.mock("../../src/modules/obsidian-local/directory", () => ({
+  isDirectoryPickerSupported: h.supported,
+  pickDirectory: h.pick,
+  verifyVault: h.verify,
+}));
 vi.mock("../../src/modules/obsidian-local/save", async (original) => ({
   ...(await original<object>()),
   saveToDirectory: h.save,
@@ -300,7 +312,9 @@ it("本地保存弹窗与fallback使用共享Modal及按钮样式", async () => 
   fireEvent.click(screen.getByText("保存到 Obsidian"));
   await screen.findByText("本地库");
   // 共享下拉触发器是 combobox，不是操作按钮，样式由 Dropdown 统一管理。
-  for (const button of baseElement.querySelectorAll("button:not([role=combobox])"))
+  for (const button of baseElement.querySelectorAll(
+    "button:not([role=combobox])",
+  ))
     expect(button.matches(".button,.icon-button")).toBe(true);
   expect(baseElement.querySelector("select")).toBeNull();
   expect(baseElement.querySelector("dialog")).toBeNull();
@@ -1123,8 +1137,8 @@ it.each([false, true])(
   "确认旧预设以真实根检查拒绝无标记目录，缓存 isVault=%s",
   async (isVault) => {
     const actual = await vi.importActual<
-      typeof import("../../src/modules/obsidian-local/presets")
-    >("../../src/modules/obsidian-local/presets");
+      typeof import("../../src/modules/obsidian-local/directory")
+    >("../../src/modules/obsidian-local/directory");
     h.verify.mockImplementation(actual.verifyVault);
     h.list.mockResolvedValue([
       {
@@ -1164,8 +1178,8 @@ it.each(["NotFoundError", "TypeMismatchError", "NotAllowedError"])(
   "真实根 Browse 的 %s 拒绝本次目录，子 brain 标记不替代根标记",
   async (name) => {
     const actual = await vi.importActual<
-      typeof import("../../src/modules/obsidian-local/presets")
-    >("../../src/modules/obsidian-local/presets");
+      typeof import("../../src/modules/obsidian-local/directory")
+    >("../../src/modules/obsidian-local/directory");
     h.verify.mockImplementation(actual.verifyVault);
     const getDirectoryHandle = vi.fn(async (child: string) => {
       if (child === ".obsidian")
@@ -1200,8 +1214,8 @@ it.each(["NotFoundError", "TypeMismatchError", "NotAllowedError"])(
 
 it("真实根 Browse 新建拒绝缺标记目录，不能保存无效选择", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/modules/obsidian-local/presets")
-  >("../../src/modules/obsidian-local/presets");
+    typeof import("../../src/modules/obsidian-local/directory")
+  >("../../src/modules/obsidian-local/directory");
   h.verify.mockImplementation(actual.verifyVault);
   h.list.mockResolvedValue([]);
   h.pick.mockResolvedValue({
@@ -1221,8 +1235,8 @@ it("真实根 Browse 新建拒绝缺标记目录，不能保存无效选择", as
 
 it("真实根 Browse 等待时重复点击只选一次，取消保留原路径", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/modules/obsidian-local/presets")
-  >("../../src/modules/obsidian-local/presets");
+    typeof import("../../src/modules/obsidian-local/directory")
+  >("../../src/modules/obsidian-local/directory");
   h.verify.mockImplementation(actual.verifyVault);
   let reject!: (error: unknown) => void;
   h.pick.mockImplementation(
@@ -1271,8 +1285,8 @@ it.each([true, false])(
 
 it("新建根选择强制可见校验中到成功，完成前不能保存", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/modules/obsidian-local/presets")
-  >("../../src/modules/obsidian-local/presets");
+    typeof import("../../src/modules/obsidian-local/directory")
+  >("../../src/modules/obsidian-local/directory");
   h.verify.mockImplementation(actual.verifyVault);
   h.list.mockResolvedValue([]);
   let finish!: (value: unknown) => void;
@@ -1312,8 +1326,8 @@ it("设置布局将列表操作与保存靠右，根校验位于独立路径组"
 
 it("真实旧预设进入编辑不能信缓存，校验完成前禁用保存；新增清除状态", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/modules/obsidian-local/presets")
-  >("../../src/modules/obsidian-local/presets");
+    typeof import("../../src/modules/obsidian-local/directory")
+  >("../../src/modules/obsidian-local/directory");
   h.verify.mockImplementation(actual.verifyVault);
   let finish!: (value: unknown) => void;
   h.list.mockResolvedValue([
@@ -1354,8 +1368,8 @@ it("真实旧预设进入编辑不能信缓存，校验完成前禁用保存；�
 
 it("真实新根 Browse 通过后标记消失，确认再次校验拒绝且撤下成功状态", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/modules/obsidian-local/presets")
-  >("../../src/modules/obsidian-local/presets");
+    typeof import("../../src/modules/obsidian-local/directory")
+  >("../../src/modules/obsidian-local/directory");
   h.verify.mockImplementation(actual.verifyVault);
   h.list.mockResolvedValue([]);
   let exists = true;
@@ -1607,8 +1621,8 @@ it("仅Markdown保留HTML图片caption且转成完整远程URL，不追加重复
 
 it("真实根和子目录井号拒绝就近反馈，不保存或改动旧子目录", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/modules/obsidian-local/presets")
-  >("../../src/modules/obsidian-local/presets");
+    typeof import("../../src/modules/obsidian-local/directory")
+  >("../../src/modules/obsidian-local/directory");
   h.verify.mockImplementation(actual.verifyVault);
   render(<ObsidianSettings />);
   const edit = await screen.findByText("编辑 本地库");

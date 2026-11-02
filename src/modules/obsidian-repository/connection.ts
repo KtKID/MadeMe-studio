@@ -1,23 +1,31 @@
 import { clientLog } from "../log/client";
-import { z } from "zod";
 import { OBSIDIAN_REPOSITORY_LOCAL as LOCAL } from "../config/limits";
-import {
-  directoryHandleSchema,
-  type DirectoryHandle,
-} from "../obsidian-local/contracts";
 import { verifyVault } from "../obsidian-local/directory";
-
-export const repositoryConnectionSchema = z
-  .object({
-    id: z.literal(LOCAL.key),
-    revision: z.uuid(),
-    name: z.string().min(1),
-    handle: directoryHandleSchema,
-  })
-  .strict();
-export type RepositoryConnection = z.infer<typeof repositoryConnectionSchema>;
-export type RepositoryRoot = Pick<RepositoryConnection, "name" | "handle">;
-
+import type { DirectoryHandle } from "../obsidian-local/contracts";
+import {
+  getRepository,
+  insertRepository,
+  confirmRepository,
+  removeRepository,
+} from "./store";
+import type { Repository, RepositoryPreset, RepositoryRoot } from "./models";
+export {
+  repositorySchema as repositoryConnectionSchema,
+  repositoryLabel,
+} from "./models";
+export type {
+  Repository as RepositoryConnection,
+  Repository,
+  RepositoryPreset,
+  RepositoryRoot,
+} from "./models";
+export {
+  getRepository,
+  listRepositories,
+  listWorkspace,
+  savePreset,
+  removePreset,
+} from "./store";
 export class RepositoryReadPermissionError extends Error {
   constructor(readonly state: PermissionState) {
     super(
@@ -37,102 +45,47 @@ export async function checkRepositoryRead(root: RepositoryRoot) {
       "连接的目录找不到 .obsidian，请在 Obsidian 仓库设置重新选择；当前正文未改变。",
     );
 }
-function openDatabase(): Promise<IDBDatabase> {
-  if (typeof indexedDB === "undefined")
-    return Promise.reject(
-      new Error("IndexedDB 不可用，无法保存此浏览器的仓库连接。"),
-    );
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(LOCAL.databaseName, LOCAL.databaseVersion);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(LOCAL.store))
-        request.result.createObjectStore(LOCAL.store, { keyPath: "id" });
-    };
-    request.onerror = () =>
-      reject(request.error ?? new Error("无法打开仓库连接。"));
-    request.onblocked = () =>
-      reject(new Error("仓库连接存储被其他标签页阻塞，请关闭旧页面后重试。"));
-    request.onsuccess = () => {
-      request.result.onversionchange = () => request.result.close();
-      resolve(request.result);
-    };
-  });
-}
-async function transaction<T>(
-  mode: IDBTransactionMode,
-  operation: (store: IDBObjectStore) => IDBRequest<T>,
-): Promise<T> {
-  const db = await openDatabase();
-  try {
-    return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(LOCAL.store, mode);
-      let value: T;
-      tx.oncomplete = () => resolve(value);
-      tx.onabort = () =>
-        reject(tx.error ?? new Error("仓库连接存储未提交，原连接保留。"));
-      tx.onerror = () => reject(tx.error ?? new Error("仓库连接存储失败。"));
-      const request = operation(tx.objectStore(LOCAL.store));
-      request.onsuccess = () => {
-        value = request.result;
-      };
-      request.onerror = () =>
-        reject(request.error ?? new Error("仓库连接读写失败。"));
-    });
-  } finally {
-    db.close();
-  }
-}
-/** 只访问独立存储，不查询、复制或迁移笔记导出预设。 */
-export async function getRepository(): Promise<
-  RepositoryConnection | undefined
-> {
-  const value = await transaction<unknown>("readonly", (store) =>
-    store.get(LOCAL.key),
-  );
-  return value === undefined
-    ? undefined
-    : repositoryConnectionSchema.parse(value);
-}
-/** 只用于明确选择/替换后的目录句柄，原连接在校验或事务失败时保留。 */
-export async function setRepository(
-  handle: DirectoryHandle,
-): Promise<RepositoryConnection> {
-  await checkRepositoryRead({ name: handle.name, handle });
-  const connection = repositoryConnectionSchema.parse({
-    id: LOCAL.key,
-    revision: crypto.randomUUID(),
-    name: handle.name,
-    handle,
-  });
-  await transaction("readwrite", (store) => store.put(connection));
-  notifyRepositoryChange();
-  return connection;
-}
-export async function clearRepository(): Promise<void> {
-  await transaction("readwrite", (store) => store.delete(LOCAL.key));
-  notifyRepositoryChange();
-}
-export async function assertRepositoryCurrent(
-  connection: RepositoryConnection,
-) {
-  const current = await getRepository();
-  if (!current || current.revision !== connection.revision)
-    throw new Error(
-      "Obsidian 仓库连接已更换或清除，请重新选择文章；当前正文未改变。",
-    );
-}
-/** 用户明确点击重新授权才请求read，既不申请写权限也不写入预设。 */
-export async function authorizeRepositoryRead(
-  connection: RepositoryConnection,
-) {
-  await assertRepositoryCurrent(connection);
-  if (!connection.handle.requestPermission)
-    throw new Error("浏览器无法恢复此授权，请重新选择 Obsidian 仓库目录。");
-  const state = await connection.handle.requestPermission({ mode: "read" });
-  if (state !== "granted") throw new RepositoryReadPermissionError(state);
-  await assertRepositoryCurrent(connection);
-}
 
+export async function addRepository(handle: DirectoryHandle) {
+  await checkRepositoryRead({ name: handle.name, handle });
+  const saved = await insertRepository(handle);
+  notifyRepositoryChange(saved.id);
+  return saved;
+}
+export async function confirmRepositoryIdentity(repository: Repository) {
+  await assertRepositoryCurrent(repository);
+  await checkRepositoryRead(repository);
+  const saved = await confirmRepository(repository.id, repository.revision);
+  notifyRepositoryChange(saved.id);
+  return saved;
+}
+export async function deleteRepository(
+  repository: Repository,
+  presets: RepositoryPreset[],
+) {
+  await removeRepository(repository, presets);
+  notifyRepositoryChange(repository.id);
+}
+export async function assertRepositoryCurrent(repository: Repository) {
+  const current = await getRepository(repository.id);
+  if (!current || current.revision !== repository.revision)
+    throw new Error(
+      "所选Obsidian仓库已变化或删除，请重新选择；不会自动换用其他仓库。 ",
+    );
+}
+export async function authorizeRepositoryRead(repository: Repository) {
+  await assertRepositoryCurrent(repository);
+  if (!repository.handle.requestPermission)
+    throw new Error(
+      "浏览器不能恢复此目录读取授权，请在支持的浏览器核对此仓库。 ",
+    );
+  const permission = await repository.handle.requestPermission({
+    mode: "read",
+  });
+  if (permission !== "granted")
+    throw new RepositoryReadPermissionError(permission);
+  await assertRepositoryCurrent(repository);
+}
 /** 通知只传变化事件，不传句柄或路径；通道不可用时版本校验仍有效。 */
 function changeChannel(): BroadcastChannel | undefined {
   if (
@@ -152,25 +105,29 @@ function logChannelFailure(error: unknown) {
     reason: error instanceof DOMException ? error.name : "operation_failed",
   });
 }
-function notifyRepositoryChange() {
+function notifyRepositoryChange(id: string) {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(LOCAL.changeEvent));
+  window.dispatchEvent(new CustomEvent(LOCAL.changeEvent, { detail: { id } }));
   const channel = changeChannel();
   try {
-    channel?.postMessage("changed");
+    channel?.postMessage({ id });
   } catch (error) {
     logChannelFailure(error);
   } finally {
     channel?.close();
   }
 }
-export function subscribeRepositoryChanges(listener: () => void) {
+export function subscribeRepositoryChanges(listener: (id?: string) => void) {
   if (typeof window === "undefined") return () => {};
-  window.addEventListener(LOCAL.changeEvent, listener);
+  const local = (event: Event) =>
+    listener((event as CustomEvent<{ id?: string }>).detail?.id);
+  const remote = (event: MessageEvent) =>
+    listener(typeof event.data?.id === "string" ? event.data.id : undefined);
+  window.addEventListener(LOCAL.changeEvent, local);
   const channel = changeChannel();
-  channel?.addEventListener("message", listener);
+  channel?.addEventListener("message", remote);
   return () => {
-    window.removeEventListener(LOCAL.changeEvent, listener);
+    window.removeEventListener(LOCAL.changeEvent, local);
     channel?.close();
   };
 }

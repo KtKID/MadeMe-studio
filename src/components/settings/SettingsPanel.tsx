@@ -1,7 +1,6 @@
 import RepositorySettings from "../../modules/obsidian-repository/Settings";
 import TypeSettings from "../../modules/article-types/TypeSettings";
 import Dropdown from "../shared/Dropdown";
-import ObsidianSettings from "../../modules/obsidian-local/Settings";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { useEffect, useRef, useState } from "react";
@@ -191,7 +190,10 @@ export default function SettingsPanel({
   }
   useEffect(() => {
     if (active && location.hash === "#models") setTab("models");
-    if (active && location.hash === "#obsidian-repository")
+    if (
+      active &&
+      ["#obsidian-repository", "#obsidian-local"].includes(location.hash)
+    )
       setTab("obsidian-repository");
   }, [active, navigationKey]);
   function change<K extends keyof Settings>(key: K, value: Settings[K]) {
@@ -324,7 +326,6 @@ export default function SettingsPanel({
             { id: "models", name: "AI 模型", icon: SlidersHorizontal },
             { id: "prompts", name: "提示词", icon: Sparkles },
             { id: "code", name: "自定义代码", icon: Code2 },
-            { id: "obsidian-local", name: "同步 Obsidian", icon: BookOpen },
             {
               id: "obsidian-repository",
               name: "Obsidian 仓库",
@@ -348,8 +349,9 @@ export default function SettingsPanel({
           ))}
         </nav>
         <section className="settings-content">
-          {tab === "obsidian-local" && <ObsidianSettings />}
-          {tab === "obsidian-repository" && <RepositorySettings />}
+          {(tab === "obsidian-repository" || tab === "obsidian-local") && (
+            <RepositorySettings />
+          )}
           {tab === "article-types" && (
             <TypeSettings
               initialTypes={settings.articleTypes}

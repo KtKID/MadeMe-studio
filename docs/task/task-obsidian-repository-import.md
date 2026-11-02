@@ -1,4 +1,6 @@
-# 独立 Obsidian 仓库连接：需求与验收 TODO
+# 独立 Obsidian 仓库连接：历史需求与验收
+
+> 已被最新[多仓库及所属预设结构](task-obsidian-repositories-and-presets.md)取代。以下保留历史证据，不是当前产品约束。
 
 最新用户指令取代上一轮预设复用方案：导入不得依赖可删除的笔记导出预设。
 

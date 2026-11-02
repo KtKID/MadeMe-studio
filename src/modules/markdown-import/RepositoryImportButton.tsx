@@ -1,9 +1,11 @@
+import Dropdown from "../../components/shared/Dropdown";
 import { useEffect, useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import { Modal, Notice, Busy } from "../../components/shared/ui";
 import { clientLog } from "../log/client";
 import {
-  getRepository,
+  listRepositories,
+  repositoryLabel,
   subscribeRepositoryChanges,
   assertRepositoryCurrent,
   checkRepositoryRead,
@@ -36,6 +38,9 @@ export default function RepositoryImportButton({
 }) {
   const [open, setOpen] = useState(false),
     [connection, setConnection] = useState<RepositoryConnection>();
+  const [repositories, setRepositories] = useState<RepositoryConnection[]>([]);
+  const selectedRoot = useRef(connection);
+  selectedRoot.current = connection;
   const [loading, setLoading] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -52,7 +57,9 @@ export default function RepositoryImportButton({
   );
   useEffect(
     () =>
-      subscribeRepositoryChanges(() => {
+      subscribeRepositoryChanges((id) => {
+        if (id && selectedRoot.current && id !== selectedRoot.current.id)
+          return;
         generation.current++;
         controller.current?.abort();
         locked.current = false;
@@ -87,8 +94,11 @@ export default function RepositoryImportButton({
     setError("");
     setLoading(true);
     try {
-      const found = await getRepository();
-      if (current === generation.current) setConnection(found);
+      const found = await listRepositories();
+      if (current === generation.current) {
+        setRepositories(found);
+        setConnection(found.length === 1 ? found[0] : undefined);
+      }
     } catch (e) {
       if (current === generation.current) {
         log("editor.import_repository_failed", e);
@@ -183,7 +193,7 @@ export default function RepositoryImportButton({
         <Modal title="从 Obsidian 仓库导入" onClose={close}>
           <p>
             选择一篇
-            Markdown，自动读取它引用的图片、视频与动图。导入仓库独立于笔记导出预设。
+            Markdown，自动读取它引用的图片、视频与动图。导入直接使用所选仓库，删除某个笔记预设不会影响它。
           </p>
           {loading ? (
             <Busy text="读取仓库连接…" />
@@ -191,20 +201,45 @@ export default function RepositoryImportButton({
             <Notice>
               此浏览器不支持原生文件句柄选择，请使用支持本机文件访问的桌面浏览器。
             </Notice>
-          ) : !connection ? (
+          ) : !repositories.length ? (
             <Notice>
-              尚未连接 Obsidian 仓库。请先在后台“Obsidian
-              仓库”选择目录；不会自动使用笔记导出预设。
+              尚未添加 Obsidian
+              仓库。请先到后台仓库管理添加真实目录；无预设也可导入。
             </Notice>
           ) : (
             <div className="config-card">
-              <strong>{connection.name}</strong>
-              <p className="form-hint">仅导入使用 · 当前浏览器与域名</p>
+              {repositories.length > 1 && (
+                <Dropdown
+                  label="导入仓库"
+                  value={connection?.id ?? ""}
+                  options={[
+                    {
+                      value: "",
+                      label: "请选择 Obsidian 仓库",
+                      disabled: true,
+                    },
+                    ...repositories.map((repository) => ({
+                      value: repository.id,
+                      label: repositoryLabel(repository),
+                    })),
+                  ]}
+                  disabled={busy}
+                  onChange={(id) => {
+                    setConnection(
+                      repositories.find((repository) => repository.id === id),
+                    );
+                    setError("");
+                    setNeedsPermission(false);
+                  }}
+                />
+              )}
+              {connection && <strong>{repositoryLabel(connection)}</strong>}
+              <p className="form-hint">仓库是根目录连接 · 当前浏览器与域名</p>
               <button
                 type="button"
                 className="button primary"
-                disabled={busy}
-                onClick={() => void choose(connection)}
+                disabled={busy || !connection}
+                onClick={() => connection && void choose(connection)}
               >
                 选择 Markdown 文章
               </button>
@@ -236,7 +271,7 @@ export default function RepositoryImportButton({
               取消
             </button>
           </div>
-          {(!connection || !supported) && !loading && (
+          {(!repositories.length || !supported) && !loading && (
             <button
               type="button"
               className="import-text-button"

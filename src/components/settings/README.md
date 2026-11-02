@@ -23,3 +23,6 @@
 链接离开另有捕获阶段的显式确认，取消保留输入；确认放行该次原生卸载，避免再次弹窗。浏览器历史/刷新/地址跳转仍走原生保护，不引入 Astro 路由；实际浏览器验收需分别记录显式 confirm 与 beforeunload，不能混算。
 
 模型列表读取按服务商 ID 使用同步锁与独立忙碌状态，防止同帧重复请求以及先完成的服务商清除另一请求的占位。失败后释放对应锁；不调用收费生成接口。
+
+
+Obsidian设置统一为“Obsidian 仓库”父子列表：仓库卡片下管理所属预设，旧“同步Obsidian”入口移除；旧#obsidian-local hash转入统一管理，#obsidian-repository继续可用。配置仅本机IDB，不触发服务器设置PATCH。详细迁移与生命周期见[模块](../../modules/obsidian-repository/README.md)。
