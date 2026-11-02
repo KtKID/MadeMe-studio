@@ -1,5 +1,9 @@
 # 工程交接报告
 
+- [2026-11-02：PR11附件导入审核修复](2026-11-02-markdown-attachments-review-fixes.md)：独立媒体等待、取消兼容、链接包图拒绝、A/B来源竞态、wiki百分号字面路径及预检/区间扫描优化；990单测、6项浏览器/API验收。
+
+- [2026-11-02：Markdown 附件导入 PR 交付复核](2026-11-02-markdown-attachments-pr.md)：独立私有 Site 实际保存/播放、磁盘文件选择额外流程未完成的边界，以及不混入 Sites 配置的业务分支范围。
+
 - [2026-11-01：既有 Cloudflare Worker 生产配置准备](2026-11-01-cloudflare-production-config.md)：独立 production 绑定、保留 Dashboard 变量及路由设置、精确版本部署脚本；968 单测与离线 dry-run 通过，GitHub Actions 通过 needs:test 串接现有 CI，旧PNG测试在未改main复现后按现有WebP契约修正，完整Worker通过；独立PR审查未发布，用户确认保存 CLOUDFLARE_API_TOKEN_FOR_DEPLOY，名称元数据已核验，首次生产结果另核。
 
 - [2026-10-31：媒体库删除按钮与 DELETE /api/media/:id](2026-10-31-media-delete.md)：引用检查 409 + force 二次确认，强制删除只清封面（草稿与已发布快照）、正文不动；删行→对象→衍生目录，失败记孤儿日志；单测/集成/真实 Worker E2E 通过，未合并、未部署。
@@ -88,3 +92,5 @@
 - [2026-11-01：PR8并发版本安全与冲突二选一](2026-11-01-editor-conflict-safety.md)：修复删封面错贴新版本，三方字段安全合并、正文整篇二选一；其中本地副本方案已由后续A/B版本撤回。
 
 - [2026-11-01：冲突改为A/B选择，不额外存副本](2026-11-01-editor-conflict-ab.md)：保留严格版本校验和独立字段合并，展示两种状态、明确放弃未选冲突，验证失败/竞态及大量引用配额风险。
+
+- [2026-11-01：Markdown 与 Obsidian 嵌入附件导入](2026-11-01-markdown-attachments.md)：显式附件选择、路径边界/去重上传/URL 替换、按 MIME 转块；真实混合 PNG/GIF/MP4/MOV 保存刷新播放及失败/取消/竞态保护，未部署。

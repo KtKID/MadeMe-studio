@@ -1,5 +1,7 @@
 # 单文件 Agent Publisher
 
+兼容性提醒：本CLI不处理附件。新的服务端对未上传本地媒体、HTML媒体标签、链接包裹图片及非HTTPS媒体明确422，避免旧转换静默丢媒体；`--dry-run`只验证本地载荷，不能保证服务器转块成功。含附件改用项目的 `publish-obsidian-note` skill／共享附件客户端或网页导入，详见[兼容边界](../../src/modules/markdown-import/README.md)。外部生产自动化未核查，不能宣称全部旧客户端已迁移。
+
 `SKILL.md` 给 agent 规定授权边界；`publish.mjs` 是可直接运行的 Node CLI。默认只创建草稿，没有目录上传、文件 glob、自动重试或同步服务。
 
 ```sh

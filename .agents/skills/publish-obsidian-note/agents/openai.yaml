@@ -1,0 +1,4 @@
+interface:
+  display_name: "MadeMe 默认笔记上传"
+  short_description: "上传明确选定的笔记和引用附件，独立可选封面，默认保存为私有草稿"
+  default_prompt: "使用 $publish-obsidian-note 上传指定 Markdown 和引用附件，单独传封面及分类，未明确 public 时只保存草稿。"

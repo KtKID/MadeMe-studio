@@ -1,3 +1,9 @@
+import MarkdownImportDialog from "../../modules/markdown-import/ImportDialog";
+import { throwIfAborted } from "../../shared/request-cancellation";
+import {
+  applyMediaKinds,
+  type UploadedAttachment,
+} from "../../modules/markdown-import/attachments";
 import TypeSelector from "../../modules/article-types/TypeSelector";
 import ObsidianSaveButton from "../../modules/obsidian-local/SaveButton";
 import { useEffect, useRef, useState } from "react";
@@ -90,7 +96,7 @@ import {
 } from "../../modules/cover/contracts";
 import Dropdown from "../shared/Dropdown";
 import { resolveMode } from "../shared/appearance";
-import { EditClock, hasDocumentContent } from "./editor-state";
+import { EditClock } from "./editor-state";
 import {
   mergePost,
   sameValue,
@@ -275,6 +281,19 @@ export default function Editor({
   const [promptId, setPromptId] = useState("");
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const importInput = useRef<HTMLInputElement>(null);
+  const [markdownImport, setMarkdownImport] = useState<{
+    file: File;
+    markdown: string;
+    sequence: number;
+    request: number;
+  } | null>(null);
+  const importRequest = useRef(0);
+  useEffect(
+    () => () => {
+      importRequest.current++;
+    },
+    [],
+  );
   const lock = useRef(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const leaveGuardRef = useRef<ReturnType<
@@ -287,44 +306,54 @@ export default function Editor({
       show: setLeaveOpen,
     });
   const leaveGuard = leaveGuardRef.current;
+  async function uploadEditorAttachment(
+    picked: File,
+    signal?: AbortSignal,
+    reportFailure = true,
+  ): Promise<UploadedAttachment> {
+    throwIfAborted(signal);
+    // 超出 Worker 解码上限的照片先在浏览器缩到落库宽度，避免 413。
+    const file = mayNeedShrink(picked) ? await shrinkForUpload(picked) : picked;
+    throwIfAborted(signal);
+    // BlockNote 上传面板吞掉异常、只显示通用“上传失败”，块会以空 url 留在正文里；
+    // 因此拒绝原因必须由这里写日志并显示到编辑器提示栏，避免失败静默。
+    const problem = mediaUploadProblem(file, limits.upload);
+    if (problem) {
+      clientLog("warn", "editor.upload_rejected", {
+        reason: problem.reason,
+        mime: file.type || "unknown",
+        size: file.size,
+      });
+      if (reportFailure) setError(problem.message);
+      throw new Error(problem.message);
+    }
+    const form = new FormData();
+    form.append("file", file);
+    if (current?.id) form.append("postId", current.id);
+    try {
+      const { media } = await api<{ media: Media }>("/api/media", {
+        method: "POST",
+        body: form,
+        signal,
+      });
+      throwIfAborted(signal);
+      return { url: media.url, mime: media.mime };
+    } catch (e) {
+      // api() 已经记录 api.request_failed / api.network_failed，这里只负责展示。
+      if (reportFailure && !signal?.aborted)
+        setError(
+          `上传失败：${e instanceof Error ? e.message : "附件处理失败，请重试。"}`,
+        );
+      throw e;
+    }
+  }
   const editor = useCreateBlockNote({
     schema,
     dictionary: blockNoteDictionary(limits.upload),
     initialContent: post?.blocks.length
       ? (post.blocks as unknown as PartialBlock<typeof schema.blockSchema>[])
       : undefined,
-    uploadFile: async (picked) => {
-      // 超出 Worker 解码上限的照片先在浏览器缩到落库宽度，避免 413。
-      const file = mayNeedShrink(picked)
-        ? await shrinkForUpload(picked)
-        : picked;
-      // BlockNote 上传面板吞掉异常、只显示通用“上传失败”，块会以空 url 留在正文里；
-      // 因此拒绝原因必须由这里写日志并显示到编辑器提示栏，避免失败静默。
-      const problem = mediaUploadProblem(file, limits.upload);
-      if (problem) {
-        clientLog("warn", "editor.upload_rejected", {
-          reason: problem.reason,
-          mime: file.type || "unknown",
-          size: file.size,
-        });
-        setError(problem.message);
-        throw new Error(problem.message);
-      }
-      const form = new FormData();
-      form.append("file", file);
-      if (current?.id) form.append("postId", current.id);
-      try {
-        const { media } = await api<{ media: Media }>("/api/media", {
-          method: "POST",
-          body: form,
-        });
-        return media.url;
-      } catch (e) {
-        // api() 已经记录 api.request_failed / api.network_failed，这里只负责展示。
-        setError(`上传失败：${(e as Error).message}`);
-        throw e;
-      }
-    },
+    uploadFile: async (picked) => (await uploadEditorAttachment(picked)).url,
   });
   const initialBodyCaptured = useRef(false);
   if (!initialBodyCaptured.current) {
@@ -840,6 +869,10 @@ export default function Editor({
   }
   async function importMarkdown(file: File | undefined) {
     if (!file || lock.current) return;
+    const request = ++importRequest.current;
+    setMarkdownImport(null);
+    setMessage("");
+    setError("");
     // 上限来自设置页“上传与媒体 → Markdown 导入上限”（硬上限与服务端正文字符上限一致）。
     const importMax = limits.upload.markdownImportMaxKB * KiB;
     if (file.size > importMax) {
@@ -853,53 +886,70 @@ export default function Editor({
       if (importInput.current) importInput.current.value = "";
       return;
     }
-    if (
-      hasDocumentContent(editor.document) &&
-      !confirm("导入会替换当前正文。确定继续？")
-    ) {
-      if (importInput.current) importInput.current.value = "";
-      return;
-    }
-    lock.current = true;
-    setBusy("import");
     const sequence = editClock.current.snapshot();
     try {
-      const text = await file.text();
-      const parsed = editor.tryParseMarkdownToBlocks(text);
-      // 转换后的正文 JSON 会比 Markdown 大；超过服务端正文上限时现在就提示，而不是保存时才失败。
-      if (JSON.stringify(parsed).length > MAX_DOCUMENT_CHARS) {
-        clientLog("warn", "editor.import_rejected", {
-          reason: "content_too_large",
-          size: file.size,
-        });
-        setError(
-          "这份 Markdown 转换后超过了单篇文章的正文上限，请拆成几篇再导入。",
-        );
-        return;
-      }
+      const markdown = await file.text();
+      if (request !== importRequest.current) return;
+      setMarkdownImport({ file, markdown, sequence, request });
+    } catch (e) {
+      if (request === importRequest.current) fail("import", e);
+    } finally {
+      if (request === importRequest.current && importInput.current)
+        importInput.current.value = "";
+    }
+  }
+  function closeMarkdownImport(request: number) {
+    if (request !== importRequest.current) return;
+    importRequest.current++;
+    setMarkdownImport(null);
+  }
+  async function applyMarkdownImport(
+    prepared: {
+      markdown: string;
+      mimeByUrl: Record<string, string>;
+    },
+    request: number,
+  ) {
+    if (request !== importRequest.current)
+      throw new Error("旧导入已取消，已保留新选择和当前正文。");
+    if (!markdownImport || markdownImport.request !== request || lock.current)
+      throw new Error("编辑器正忙，请稍后重试。");
+    lock.current = true;
+    setBusy("import");
+    try {
+      const parsed = applyMediaKinds(
+        editor.tryParseMarkdownToBlocks(prepared.markdown),
+        prepared.mimeByUrl,
+      );
+      if (JSON.stringify(parsed).length > MAX_DOCUMENT_CHARS)
+        throw new Error("转换后超过正文上限，请拆分导入。");
       const applied = applyEditorReplacement(
         editClock.current,
-        sequence,
+        markdownImport.sequence,
         () => {
-          editor.replaceBlocks(editor.document, parsed);
+          editor.replaceBlocks(
+            editor.document,
+            parsed as PartialBlock<typeof schema.blockSchema>[],
+          );
           if (!title) {
-            const match = text.match(/^#\s+(.+)$/m);
+            const match = prepared.markdown.match(/^#\s+(.+)$/m);
             if (match) setTitle(match[1]);
           }
           markDirty();
+          setError("");
           setMessage("已导入 Markdown，请检查排版后保存。");
         },
       );
       if (!applied)
-        setError("读取文件期间你又修改了文章，已取消导入并保留本地输入。");
-    } catch (e) {
-      fail("import", e);
+        throw new Error(
+          "导入期间你又修改了文章，已保留本地输入；请关闭窗口后重新选择 Markdown。",
+        );
     } finally {
       lock.current = false;
       setBusy("");
-      if (importInput.current) importInput.current.value = "";
     }
   }
+
   function closeAI() {
     aiSession.current.invalidate();
     setPanel(null);
@@ -1339,6 +1389,19 @@ export default function Editor({
               ref={importInput}
               onChange={(e) => void importMarkdown(e.target.files?.[0])}
             />
+            {markdownImport && (
+              <MarkdownImportDialog
+                key={markdownImport.request}
+                source={markdownImport}
+                onClose={() => closeMarkdownImport(markdownImport.request)}
+                upload={(file, signal) =>
+                  uploadEditorAttachment(file, signal, false)
+                }
+                apply={(prepared) =>
+                  applyMarkdownImport(prepared, markdownImport.request)
+                }
+              />
+            )}
           </div>
           <BlockNoteView
             editor={editor}

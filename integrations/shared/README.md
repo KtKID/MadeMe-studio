@@ -1,5 +1,7 @@
 # Shared 客户端
 
+媒体取消使用固定中文 `AbortError`，超时使用固定中文 `TimeoutError`；不回显调用方的任意取消原因。媒体响应的JSON解析失败同样固定包装，不暴露原始响应片段；异常/取消可能已上传，需核对结果后再试。兼容变更与直接提交Markdown的迁移边界见[导入模块](../../src/modules/markdown-import/README.md)。
+
 `client.ts` 为 Chrome、Obsidian、agent CLI 复用的安全客户端。请求正文直接通过 `src/shared/contracts.ts` 的 Zod schema 校验，不另造 BlockNote JSON 协议。
 
 请求带 `Accept: application/json; mademe-post-schema=2`（CORS 安全头，旧服务端忽略）；响应由容忍未知字段的 `postMutationResponseSchema` 解析，服务端新增字段（如 `coverSettings`）不会让客户端失败。客户端只建草稿和发布，不读后回写文章，因此不会丢失 `coverSettings`。
@@ -8,7 +10,8 @@
 
 - `normalizeSiteUrl`：HTTPS 原点校验，固定 API 路径。
 - `draftInput`：UTF-8 大小限制、换行规范化、草稿强制默认值。
-- `createDraft` / `publishPost`：Bearer 认证、禁 Cookie/重定向、20 秒超时、错误不反射响应正文。
+- `createDraft` / `publishPost`：Bearer 认证、禁 Cookie/重定向、JSON 请求20秒等待、错误不反射响应正文。媒体请求使用独立10分钟预算，支持立即取消；不是所有请求共用20秒。预算均来自配置模块，结束即释放定时器和取消监听器。
+- `uploadAttachment` / `createDraftWithAttachments`：附件先上传到固定 `/api/media`，使用统一 `mediaResponseSchema`；解析、去重、惰性读取、地址替换及 MIME 转换复用[附件模块](../../src/modules/markdown-import/README.md)，全部就绪后用现有 `createPostSchema` 创建私有草稿。附件需 `media:write`；不替服务器拉远端地址，不自动重试 POST 或发布。旧 `createDraft` 仍接受 Markdown，但服务端对未解析本地媒体返回 422，不再静默丢图。
 - `sourceUrl` / `clipMarkdown`：移除剪藏 URL 的 query/fragment，引用文本不当作 HTML 执行。
 
 浏览器/Obsidian 由 esbuild 打包；CLI 使用 Node 原生 TS。此模块的单元测试在 `../tests/client.node.mjs`。HTTP Mock 测试并不等于真实部署端到端验证。

@@ -14,6 +14,8 @@
 
 此模块不访问数据库、环境变量或网络。运行 `npm test -- tests/backend/settings.test.ts` 验证外观协议；完整后端协议验证见 `tests/backend`。
 
+`request-cancellation.ts` 提供同构请求取消：普通 `AbortController` 组合调用方取消与请求预算，结束时清理定时器/监听器；不依赖新版 `AbortSignal.any/timeout/throwIfAborted`。该工具不发请求，也不改变授权、重试或响应协议。
+
 ## 安全回执与结构约束
 
 `editorBlockSchema` 校验受支持 BlockNote 块类型、内联文字/链接及表格行列结构；畸形 JSON 在写入前被拒绝。`postMutationResponseSchema` 是完整文章与严格 `{id, version}` 回执的联合：write-only Token 不能通过写响应读取已有私密内容。完整文章分支使用 `postReadSchema`（未知字段剥离、块与封面设置容忍增量字段），新增文章字段不会再让客户端解析失败；服务端输入仍由 strict 的 create/patch/publish schema 校验。
