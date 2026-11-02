@@ -107,9 +107,7 @@ test("真实编辑器切换导入A/B：取消旧请求，新窗口与正文不�
   await expect(
     page.getByRole("dialog", { name: "导入 Markdown 与附件" }),
   ).toContainText("B.md");
-  await page
-    .getByRole("button", { name: "上传附件并导入", exact: true })
-    .click();
+  await page.getByRole("button", { name: "导入正文", exact: true }).click();
   await expect(page.locator(".bn-editor")).toContainText("B新文档");
   await expect(page.locator(".bn-editor img")).toHaveCount(0);
   await expect(page.getByText(/^上传失败：/)).toHaveCount(0);
@@ -138,9 +136,7 @@ test("链接包裹图片拒绝且无上传；百分号字面文件与URL编码�
   });
   await open(page, "[![image](x.png)](https://example.com/article)");
   await expect(page.getByText(/暂不支持链接包裹图片/)).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "上传附件并导入" }),
-  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: "无法导入" })).toBeDisabled();
   expect(uploads).toBe(0);
   await page
     .getByRole("dialog")
@@ -368,9 +364,9 @@ test("缺失/不支持/网络失败/取消：保留原正文，不发保存请�
   const id = await seed(page);
   await open(page);
   await expect(
-    page.getByRole("button", { name: "上传附件并导入" }),
-  ).toBeDisabled();
-  await expect(page.getByText(/缺少附件/)).toBeVisible();
+    page.getByRole("button", { name: "补充缺失附件" }),
+  ).toBeVisible();
+  await expect(page.getByText(/还有.*处本地附件待添加/)).toBeVisible();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "取消", exact: true })
@@ -517,4 +513,180 @@ test("插件共享客户端：真实上传/API 私有草稿；旧客户端未解
   } finally {
     await vite.close();
   }
+});
+
+test("真实磁盘MD：两图分次累加、多选GIF/本地视频、远程视频清单→保存刷新与移动布局", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const id = await seed(page);
+  const first = join(
+    vault,
+    "自媒体/assets/mingting-mvp-zcode-success-20261101.png",
+  );
+  await copyFile(join(fixtures, "中文 空格.png"), first);
+  const second = join(vault, "自媒体/assets/第二张图.png");
+  await copyFile(join(fixtures, "中文 空格.png"), second);
+  const mdPath = join(vault, "文章/导入体验验收.md");
+  const markdown =
+    "# 导入体验验收\n\n![第一张](../自媒体/assets/mingting-mvp-zcode-success-20261101.png)\n\n![第二张](../自媒体/assets/第二张图.png)\n\n![[../自媒体/assets/动画.gif]]\n\n![本地视频](../自媒体/assets/片段.mp4)\n\n![远程视频](https://media.example.test/remote.mp4)\n\n[普通视频链接](https://media.example.test/link.mp4)\n";
+  await writeFile(mdPath, markdown);
+  const video = await readFile(join(fixtures, "片段.mp4"));
+  // 外部链接由受控HTTPS响应供播放，真实解码；不把外站可达性当本功能测试。
+  await page.route("https://media.example.test/**", (route) =>
+    route.fulfill({ contentType: "video/mp4", body: video }),
+  );
+  let chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "导入", exact: true }).click();
+  await (await chooser).setFiles(mdPath);
+  const dialog = page.getByRole("dialog", { name: "导入 Markdown 与附件" });
+  await expect(dialog).toContainText("已识别 5 处附件引用");
+  await expect(dialog.locator("input[type=file]:visible")).toHaveCount(0);
+  await expect(dialog.locator('li[data-source="hosted"]')).toContainText(
+    "视频",
+  );
+  await expect(dialog.locator('li[data-source="hosted"]')).toContainText(
+    "保留链接",
+  );
+  if (process.env.MD_UI_SCREENSHOTS) {
+    await mkdir(process.env.MD_UI_SCREENSHOTS, { recursive: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await dialog.screenshot({
+      path: join(process.env.MD_UI_SCREENSHOTS, "desktop-detected.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: join(process.env.MD_UI_SCREENSHOTS, "mobile-detected.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  const add = async (paths: string | string[]) => {
+    const choosing = page.waitForEvent("filechooser");
+    await dialog
+      .getByRole("button", { name: "补充缺失附件", exact: true })
+      .click();
+    const picker = await choosing;
+    expect(picker.isMultiple()).toBe(true);
+    await picker.setFiles(paths);
+    await expect(dialog.getByText("正在匹配…")).toHaveCount(0);
+  };
+  await add(first);
+  await expect(dialog.locator('li[data-matched="true"]')).toHaveCount(1);
+  await add(first); // 同一文件重选不能重复，也不能清掉原选择。
+  await expect(dialog.locator('li[data-matched="true"]')).toHaveCount(1);
+  await add(second);
+  await expect(dialog.locator('li[data-matched="true"]')).toHaveCount(2);
+  const artifacts = process.env.MD_UI_SCREENSHOTS;
+  if (artifacts) {
+    await mkdir(artifacts, { recursive: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await dialog.screenshot({ path: join(artifacts, "desktop-missing.png") });
+  }
+  await add([join(fixtures, "动画.gif"), join(fixtures, "片段.mp4")]);
+  await expect(dialog.locator('li[data-matched="true"]')).toHaveCount(4);
+  await expect(dialog).toContainText("4 个文件上传 · 1 个链接保留");
+  await expect(
+    dialog.getByRole("button", { name: "上传附件并导入" }),
+  ).toBeEnabled();
+  for (const size of [
+    { width: 1440, height: 1000 },
+    { width: 768, height: 1024 },
+    { width: 390, height: 844 },
+    { width: 360, height: 740 },
+  ]) {
+    await page.setViewportSize(size);
+    const geometry = await dialog.evaluate((el) => ({
+      width: el.clientWidth,
+      scroll: el.scrollWidth,
+    }));
+    expect(geometry.scroll).toBeLessThanOrEqual(geometry.width + 1);
+    const button = dialog.getByRole("button", { name: "上传附件并导入" });
+    await button.scrollIntoViewIfNeeded();
+    const rect = await button.boundingBox();
+    expect(rect!.x).toBeGreaterThanOrEqual(0);
+    expect(rect!.x + rect!.width).toBeLessThanOrEqual(size.width);
+    if (artifacts && size.width === 390)
+      await page.screenshot({ path: join(artifacts, "mobile-ready.png") });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  if (artifacts)
+    await dialog.screenshot({ path: join(artifacts, "desktop-ready.png") });
+  const uploads: any[] = [];
+  page.on("response", (response) => {
+    if (
+      response.url().endsWith("/api/media") &&
+      response.request().method() === "POST"
+    )
+      uploads.push(response);
+  });
+  await dialog.getByRole("button", { name: "上传附件并导入" }).click();
+  await expect(page.locator(".bn-editor video")).toHaveCount(2);
+  expect(uploads).toHaveLength(4);
+  const save = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      response.url().endsWith("/api/posts/" + id),
+  );
+  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  expect((await save).status()).toBe(200);
+  await page.reload();
+  await expect(page.locator(".bn-editor")).toBeVisible();
+  await expect(page.locator(".bn-editor img")).toHaveCount(3);
+  await expect(page.locator(".bn-editor video")).toHaveCount(2);
+  const stored = (await (await page.request.get("/api/posts/" + id)).json())
+    .post;
+  expect(JSON.stringify(stored.blocks)).toContain(
+    "https://media.example.test/remote.mp4",
+  );
+  expect(JSON.stringify(stored.blocks)).toContain(
+    "https://media.example.test/link.mp4",
+  );
+  for (const media of await page.locator(".bn-editor video").all()) {
+    await media.evaluate(async (element: HTMLVideoElement) => {
+      element.muted = true;
+      await element.play();
+    });
+    await expect
+      .poll(() =>
+        media.evaluate((element: HTMLVideoElement) => element.currentTime),
+      )
+      .toBeGreaterThan(0.2);
+    await media.evaluate((element: HTMLVideoElement) => element.pause());
+  }
+  console.log(
+    JSON.stringify({
+      scenario: "real disk guided import",
+      references: 5,
+      uploaded: 4,
+      remoteVideoPreserved: true,
+      savedDraft: id,
+      viewportWidths: [1440, 768, 390, 360],
+    }),
+  );
+});
+
+test("无附件MD只确认正文，取消与重选不改原文", async ({ page }) => {
+  await seed(page);
+  const path = join(vault, "文章/纯文字.md");
+  await writeFile(path, "# 纯文字验收\n\n没有附件。");
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "导入", exact: true }).click();
+  await (await chooser).setFiles(path);
+  const dialog = page.getByRole("dialog", { name: "导入 Markdown 与附件" });
+  await expect(dialog).toContainText("已识别 0 处附件引用");
+  await expect(
+    dialog.getByRole("button", { name: "补充缺失附件" }),
+  ).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "导入正文" })).toBeEnabled();
+  if (process.env.MD_UI_SCREENSHOTS)
+    await dialog.screenshot({
+      path: join(process.env.MD_UI_SCREENSHOTS, "text-only.png"),
+    });
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page.locator(".bn-editor")).toContainText("原有输入必须保留");
+  const again = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "导入", exact: true }).click();
+  await (await again).setFiles(path);
+  await page.getByRole("button", { name: "导入正文" }).click();
+  await expect(page.locator(".bn-editor")).toContainText("纯文字验收");
 });

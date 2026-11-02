@@ -248,8 +248,10 @@ describe("编辑器真实按钮与状态链路", () => {
     await act(async () =>
       fireEvent.change(input, { target: { files: [file] } }),
     );
-    fireEvent.change(screen.getByLabelText("选择附件文件"), {
-      target: { files: [new File(["test"], "x.png", { type: "image/png" })] },
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("选择附件文件"), {
+        target: { files: [new File(["test"], "x.png", { type: "image/png" })] },
+      });
     });
     await act(async () =>
       fireEvent.click(screen.getByRole("button", { name: "上传附件并导入" })),
@@ -311,8 +313,10 @@ describe("编辑器真实按钮与状态链路", () => {
     Object.defineProperty(a, "text", { value: async () => "![A](x.png)" });
     Object.defineProperty(b, "text", { value: async () => "# B" });
     await act(async () => fireEvent.change(input, { target: { files: [a] } }));
-    fireEvent.change(screen.getByLabelText("选择附件文件"), {
-      target: { files: [new File(["test"], "x.png", { type: "image/png" })] },
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("选择附件文件"), {
+        target: { files: [new File(["test"], "x.png", { type: "image/png" })] },
+      });
     });
     fireEvent.click(screen.getByRole("button", { name: "上传附件并导入" }));
     const signal = h.api.mock.calls[0][1].signal as AbortSignal;
@@ -326,7 +330,7 @@ describe("编辑器真实按钮与状态链路", () => {
       screen.getByRole("dialog", { name: "导入 Markdown 与附件" }).textContent,
     ).toContain("B.md");
     await act(async () =>
-      fireEvent.click(screen.getByRole("button", { name: "上传附件并导入" })),
+      fireEvent.click(screen.getByRole("button", { name: "导入正文" })),
     );
     expect(h.editor.replaceBlocks).toHaveBeenCalledOnce();
   });
