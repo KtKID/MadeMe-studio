@@ -19,6 +19,12 @@ if (!post && !locked) Astro.response.status = 404;
 const capabilities = authenticated
   ? (await loadPageData(Astro, false, { posts: "none" })).capabilities
   : null;
+// 公开文章的成功阅读才计数；作者自己的浏览不产生访问记录。
+// 访问数据只在作者工作台「数据」面板展示，公开页不显示任何阅读数。
+if (post && !locked && !authenticated)
+  (Astro.locals as unknown as { pageView?: { path: string } }).pageView = {
+    path: Astro.url.pathname,
+  };
 ---
 
 <Base
@@ -69,7 +75,9 @@ const capabilities = authenticated
           <article
             id="article-reading"
             class="article-reading"
-            data-embed-fallback-ms={settings.limits.reading.xFallbackSeconds * 1000}
+            data-embed-fallback-ms={
+              settings.limits.reading.xFallbackSeconds * 1000
+            }
           >
             <header class="reading-heading">
               <div class="eyebrow">
@@ -95,13 +103,21 @@ const capabilities = authenticated
                 <CoverFrame
                   src={post.coverImage}
                   settings={post.coverSettings}
-                  publiclyVisible={post.visibility === "public" && !!post.publishedAt}
+                  publiclyVisible={
+                    post.visibility === "public" && !!post.publishedAt
+                  }
                   alt={post.title}
                 />
               </figure>
             )}
             <div class="reading-prose">
-              <BlockReader blocks={post.blocks} reading={settings.limits.reading} publicImages={post.visibility === "public" && !!post.publishedAt} />
+              <BlockReader
+                blocks={post.blocks}
+                reading={settings.limits.reading}
+                publicImages={
+                  post.visibility === "public" && !!post.publishedAt
+                }
+              />
             </div>
             <footer class="article-end">
               <span class="end-mark">✳</span>

@@ -9,6 +9,7 @@
 - `media-clicks.test.tsx`：实际媒体组件的按钮/文件输入/延迟响应回归，详见用例。
 
 - `settings-clicks.test.tsx`：实际设置五个面板、导航/模型/提示词/主题控件、保存失败重试及 dirty 状态。API 为隔离 mock，不改变生产设置。
+- `data-studio.test.tsx`：工作台「数据」面板（网站状态 tab）渲染访客数/访问次数/IP 列表、分页请求 `page=2`、接口失败提示。API 为隔离 mock，不触达真实访问数据。
 - `author-account.test.tsx`：工作台侧边栏账号名渲染（Google 昵称优先/邮箱回退/未登录/缺账号）、昵称清洗、登录页账号展示、`ownerAccount` 模式矩阵与头像字母。
 - `public-auth-clicks.test.tsx`：公开列表筛选、密码解锁、现有登录表单校验/重复提交/失败重试；不配置真实认证或使用真实凭据。
 

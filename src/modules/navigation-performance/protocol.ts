@@ -4,6 +4,7 @@ export const Route = z.enum([
   "/studio/media",
   "/studio/settings",
   "/studio/integrations",
+  "/studio/data",
 ]);
 export type StudioRoute = z.infer<typeof Route>;
 export const Sample = z
