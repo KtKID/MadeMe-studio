@@ -13,6 +13,7 @@ import {
   Image,
   Settings as SettingsIcon,
   Cable,
+  BarChart3,
   ArrowUpRight,
   Plus,
   UserRound,
@@ -40,12 +41,14 @@ import Dashboard from "../content/Dashboard";
 import MediaLibrary from "../media/MediaLibrary";
 import SettingsPanel from "../settings/SettingsPanel";
 import Integrations from "../integrations/Integrations";
+import DataStudio from "./DataStudio";
 import { Notice } from "../shared/ui";
 const links = [
   { href: "/studio", label: "所有文章", icon: FileText },
   { href: "/studio/media", label: "媒体库", icon: Image },
   { href: "/studio/settings", label: "站点设置", icon: SettingsIcon },
   { href: "/studio/integrations", label: "连接与发布", icon: Cable },
+  { href: "/studio/data", label: "数据", icon: BarChart3 },
 ] as const;
 type Guard = { dirty: boolean; discard: () => void };
 /** 四个业务模块自持数据；外壳只协调导航、离开保护与身份生命周期。 */
@@ -306,6 +309,7 @@ export default function StudioShell({
           initialTokens={initial.initialTokens}
           initialError={initial.tokensError}
         />,
+        <DataStudio />,
       ]
     : [];
   return (

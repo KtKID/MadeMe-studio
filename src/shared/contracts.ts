@@ -648,6 +648,33 @@ export const identityResponseSchema = z
     ownerConfigured: z.boolean(),
   })
   .strict();
+/** 访问统计：只对作者开放；公开页与访客接口不暴露任何计数。 */
+export const visitSummaryResponseSchema = z
+  .object({
+    visits: z.number().int().nonnegative(),
+    visitors: z.number().int().nonnegative(),
+  })
+  .strict();
+export const visitorsResponseSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            ip: z.string().nullable(),
+            views: z.number().int().nonnegative(),
+            lastTs: z.number().nonnegative(),
+            country: z.string().nullable(),
+          })
+          .strict(),
+      )
+      .max(100),
+    total: z.number().int().nonnegative(),
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    totalPages: z.number().int().positive(),
+  })
+  .strict();
 export const ackResponseSchema = z.union([
   unlockResponseSchema,
   revokeTokenResponseSchema,

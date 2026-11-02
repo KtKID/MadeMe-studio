@@ -29,6 +29,13 @@
       "when": 1793094000000,
       "tag": "0004_google_session_display_name",
       "breakpoints": false
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793531020000,
+      "tag": "0005_page_view_events",
+      "breakpoints": false
     }
   ]
 }

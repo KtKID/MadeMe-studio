@@ -48,6 +48,7 @@ import {
 } from "../modules/image-delivery/contracts";
 import { runAI, generateImage, listModels } from "./ai/service";
 import { createToken, listTokens, revokeToken } from "./tokens";
+import { listVisitors, visitSummary } from "./page-views";
 import { rateLimit } from "./rate-limit";
 import {
   AUTH_RATE_LIMITS,
@@ -490,6 +491,18 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
       );
       if (!provider) throw notFound();
       return json({ models: await listModels(env, provider) });
+    }
+    // 访问数据只对作者开放；公开页与访客接口不暴露任何计数。
+    if (path[0] === "views") {
+      requireOwner(identity, env);
+      if (method === "GET" && path.length === 2 && path[1] === "summary")
+        return json(await visitSummary(env));
+      if (method === "GET" && path.length === 2 && path[1] === "visitors") {
+        const page = Number(url.searchParams.get("page") ?? "1");
+        return json(
+          await listVisitors(env, { page: Number.isFinite(page) ? page : 1 }),
+        );
+      }
     }
     if (path[0] === "tokens") {
       requireOwner(identity, env);
