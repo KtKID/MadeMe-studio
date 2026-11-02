@@ -1,3 +1,4 @@
+import { throwIfAborted } from "../../shared/request-cancellation.ts";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { RootContent, Definition } from "mdast";
 import {
@@ -29,15 +30,34 @@ export function mediaReferences(markdown: string): MediaReference[] {
   const tree = fromMarkdown(markdown);
   const definitions = new Map<string, Definition>();
   const ignored: [number, number][] = [];
+  const links: [number, number][] = [];
   const refs: MediaReference[] = [];
   const key = (value: string) => value.replace(/\s+/g, " ").toUpperCase();
-  const walk = (nodes: RootContent[], collect = false) => {
+  const add = (reference: MediaReference) => {
+    if (refs.length >= MAX_MARKDOWN_MEDIA_REFERENCES)
+      throw new Error(
+        `单次导入最多支持 ${MAX_MARKDOWN_MEDIA_REFERENCES} 处媒体引用，请拆分导入。`,
+      );
+    refs.push(reference);
+  };
+  const walk = (nodes: RootContent[], collect = false, withinLink = false) => {
     for (const node of nodes) {
       const start = node.position?.start.offset,
         end = node.position?.end.offset;
       if (node.type === "definition")
         definitions.set(key(node.identifier), node);
+      const inLink =
+        withinLink || node.type === "link" || node.type === "linkReference";
       if (collect && start !== undefined && end !== undefined) {
+        if (node.type === "link" || node.type === "linkReference")
+          links.push([start, end]);
+        if (
+          withinLink &&
+          (node.type === "image" || node.type === "imageReference")
+        )
+          throw new Error(
+            "暂不支持链接包裹图片，请将图片移出链接后导入；原文已保留。",
+          );
         if (
           [
             "code",
@@ -50,7 +70,7 @@ export function mediaReferences(markdown: string): MediaReference[] {
         )
           ignored.push([start, end]);
         if (node.type === "image")
-          refs.push({
+          add({
             start,
             end,
             target: node.url,
@@ -60,7 +80,7 @@ export function mediaReferences(markdown: string): MediaReference[] {
         if (node.type === "imageReference") {
           const definition = definitions.get(key(node.identifier));
           if (!definition) throw new Error("图片引用缺少 Markdown 链接定义。");
-          refs.push({
+          add({
             start,
             end,
             target: definition.url,
@@ -77,20 +97,43 @@ export function mediaReferences(markdown: string): MediaReference[] {
             "暂不支持 HTML 媒体标签，请改用 ![说明](附件路径) 或 ![[附件路径]]。",
           );
       }
-      if ("children" in node) walk(node.children as RootContent[], collect);
+      if ("children" in node)
+        walk(node.children as RootContent[], collect, inLink);
     }
   };
   walk(tree.children);
   walk(tree.children, true);
+  // 合并区间并单向推进，避免每个 wiki 都扫描全部代码/HTML/图片区间。
+  const intervalCursor = (ranges: [number, number][]) => {
+    ranges.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+    const merged: [number, number][] = [];
+    for (const range of ranges) {
+      const previous = merged.at(-1);
+      if (previous && range[0] <= previous[1])
+        previous[1] = Math.max(previous[1], range[1]);
+      else merged.push([...range]);
+    }
+    let index = 0;
+    return (offset: number) => {
+      while (index < merged.length && merged[index][1] <= offset) index++;
+      return index < merged.length && merged[index][0] <= offset;
+    };
+  };
+  const isIgnored = intervalCursor(ignored),
+    isLinked = intervalCursor(links);
   for (const match of markdown.matchAll(/!\[\[([^\]\n]+)\]\]/g)) {
     const start = match.index!,
       end = start + match[0].length;
-    if (ignored.some(([a, b]) => start >= a && start < b)) continue;
+    if (isIgnored(start)) continue;
     let escapes = 0;
     for (let i = start - 1; i >= 0 && markdown[i] === "\\"; i--) escapes++;
     if (escapes % 2) continue;
+    if (isLinked(start))
+      throw new Error(
+        "暂不支持链接包裹图片，请将图片移出链接后导入；原文已保留。",
+      );
     const [target, alias] = match[1].split("|");
-    refs.push({
+    add({
       start,
       end,
       target: target.trim(),
@@ -101,10 +144,6 @@ export function mediaReferences(markdown: string): MediaReference[] {
       wiki: true,
     });
   }
-  if (refs.length > MAX_MARKDOWN_MEDIA_REFERENCES)
-    throw new Error(
-      `单次导入最多支持 ${MAX_MARKDOWN_MEDIA_REFERENCES} 处媒体引用，请拆分导入。`,
-    );
   return refs.sort((a, b) => a.start - b.start);
 }
 
@@ -119,11 +158,14 @@ export function isHostedMedia(target: string) {
   }
 }
 
-function localTarget(value: string): string {
+function localTarget(value: string, wiki: boolean): string {
   // 分隔符解码后再检查，避免 %2f / %5c 绕过根目录限制。
   let path: string;
   try {
-    path = decodeURIComponent(value.split(/[?#]/)[0]);
+    // wiki 链接引用 vault 的字面文件名；只有标准 Markdown URL 解码一次。
+    path = wiki
+      ? value.split(/[?#]/)[0]
+      : decodeURIComponent(value.split(/[?#]/)[0]);
   } catch {
     throw new Error(`附件路径编码无效：${value}`);
   }
@@ -211,14 +253,22 @@ export function attachmentPlan(
   return mediaReferences(markdown)
     .filter((ref) => !isHostedMedia(ref.target))
     .map((ref) => {
-      const target = localTarget(ref.target);
+      const target = localTarget(ref.target, ref.wiki);
       let matches: typeof paths;
       if (options.mode === "root") {
         const base = documentPath.split("/").slice(0, -1).join("/");
         const relative = normalized(`${base ? `${base}/` : ""}${target}`);
         // 标准 Markdown 只接受相对笔记路径；wiki 还允许 vault 根路径与唯一文件名。
-        const rootTarget =
-          ref.wiki && !target.startsWith("../") ? normalized(target) : "";
+        let rootTarget = "";
+        if (ref.wiki) {
+          try {
+            rootTarget = normalized(target);
+          } catch {
+            // 笔记相对解释已通过上面的边界校验；仅丢弃越界的“vault根相对”候选。
+            // 最终仍只在显式 File/vault 目录表中匹配，无法读取根目录外的文件。
+            rootTarget = "";
+          }
+        }
         const exact = paths.filter(
           (item) =>
             item.path === relative || (ref.wiki && item.path === rootTarget),
@@ -264,29 +314,31 @@ export async function prepareAttachments(
 ) {
   const plan = attachmentPlan(markdown, assets, options);
   const cache = execution.cache || new Map<File, UploadedAttachment>();
-  const unique = [...new Set(plan.map((item) => item.asset.file))];
+  const sources = new Map(plan.map((item) => [item.asset.file, item.asset]));
+  const byStart = new Map(plan.map((item) => [item.ref.start, item]));
+  const unique = [...sources.keys()];
   let done = 0;
   for (const file of unique) {
-    execution.signal?.throwIfAborted();
+    throwIfAborted(execution.signal);
     if (!cache.has(file)) {
-      const source = plan.find((item) => item.asset.file === file)!.asset;
+      const source = sources.get(file)!;
       const picked = attachmentFile(
         execution.readFile ? await execution.readFile(source) : file,
       );
       if (picked.size > HARD_MAX_UPLOAD_BYTES)
         throw new Error(`附件超过上传硬上限：${picked.name}`);
-      execution.signal?.throwIfAborted();
+      throwIfAborted(execution.signal);
       const result = await upload(picked, execution.signal);
       if (!/^\/api\/files\/[a-zA-Z0-9-]+$/.test(result.url))
         throw new Error("上传返回了无效的本站媒体地址，已停止导入。");
       cache.set(file, result);
     }
-    execution.signal?.throwIfAborted();
+    throwIfAborted(execution.signal);
     execution.progress?.(++done, unique.length);
   }
   const mimeByUrl: Record<string, string> = {};
   const replacements = mediaReferences(markdown).map((ref) => {
-    const item = plan.find((item) => item.ref.start === ref.start);
+    const item = byStart.get(ref.start);
     const result = item ? cache.get(item.asset.file)! : undefined;
     if (result) mimeByUrl[result.url] = result.mime;
     return { ...ref, url: result?.url || ref.target };

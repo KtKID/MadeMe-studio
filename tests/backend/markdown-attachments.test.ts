@@ -5,12 +5,48 @@ import {
   mediaReferences,
 } from "../../src/modules/markdown-import/attachments";
 import { markdownToBlocks } from "../../src/server/content/markdown";
+import { applyMediaKinds } from "../../src/modules/markdown-import/attachments";
+import { createPostSchema } from "../../src/shared/contracts";
 
 const asset = (path: string, type = "image/png") => ({
   path,
   file: new File(["test"], path.split("/").at(-1)!, { type }),
 });
 describe("Markdown 附件导入", () => {
+  it("wiki的合法笔记相对父级不被另一个根路径解释误拒绝", () => {
+    expect(
+      attachmentPlan(
+        "![[./../自媒体/assets/x.png]]",
+        [asset("自媒体/assets/x.png")],
+        { mode: "root", documentPath: "个人AgentOS/test.md" },
+      )[0].asset.path,
+    ).toBe("自媒体/assets/x.png");
+    expect(() =>
+      attachmentPlan("![[./../../x.png]]", [asset("x.png")], {
+        mode: "root",
+        documentPath: "个人AgentOS/test.md",
+      }),
+    ).toThrow(/越界/);
+  });
+  it("音频/PDF转块保留现有字段，符合统一Zod输入协议", () => {
+    for (const [mime, type] of [
+      ["audio/mpeg", "audio"],
+      ["application/pdf", "file"],
+    ]) {
+      const blocks = applyMediaKinds(
+        markdownToBlocks("![附件](/api/files/test-id)"),
+        { "/api/files/test-id": mime },
+      );
+      expect(blocks[0].type).toBe(type);
+      expect(
+        createPostSchema.safeParse({
+          title: "测试",
+          blocks,
+          visibility: "draft",
+        }).success,
+      ).toBe(true);
+    }
+  });
   it("忽略代码和转义，解析标准、引用式和 wiki 媒体", () => {
     const refs = mediaReferences(
       "`![[secret.png]]`\n\n```md\n![x](secret.png)\n```\n\n\\![[skip.png]]\n\n![a](<../自媒体/assets/中文 空格.png>)\n\n![[assets/动画.gif|240]]\n\n![b][cover]\n\n[cover]: assets/video.mp4",
@@ -123,7 +159,7 @@ describe("Markdown 附件导入", () => {
   });
   it("支持文件名中的百分号、NFC；引用路径只解码一次", () => {
     expect(
-      attachmentPlan("![[100%25.png]]", [asset("100%.png")], {
+      attachmentPlan("![x](100%25.png)", [asset("100%.png")], {
         mode: "selected",
       }),
     ).toHaveLength(1);
@@ -139,6 +175,74 @@ describe("Markdown 附件导入", () => {
         documentPath: "note.md",
       }),
     ).toThrow(/缺少/);
+  });
+  it("链接包裹标准/引用式/wiki 图片在上传前明确拒绝，不破坏原文", async () => {
+    for (const markdown of [
+      "[![a](x.png)](https://example.com)",
+      "[![a][image]][link]\n\n[image]: x.png\n[link]: https://example.com",
+      "[![[x.png]]](https://example.com)",
+    ]) {
+      let uploads = 0;
+      await expect(
+        prepareAttachments(
+          markdown,
+          [asset("x.png")],
+          { mode: "selected" },
+          async () => {
+            uploads++;
+            return { url: "/api/files/test-id", mime: "image/png" };
+          },
+        ),
+      ).rejects.toThrow(/链接/);
+      expect(uploads).toBe(0);
+    }
+  });
+  it("wiki 文件名按字面匹配百分号，Markdown URL 只解码一次；不会混淆两个文件", () => {
+    const assets = [
+      asset("100%.png"),
+      asset("100%25.png"),
+      asset("中文 空格.png"),
+      asset("中文%20空格.png"),
+    ];
+    const options = { mode: "root" as const, documentPath: "note.md" };
+    for (const name of [
+      "100%.png",
+      "100%25.png",
+      "中文 空格.png",
+      "中文%20空格.png",
+    ]) {
+      expect(
+        attachmentPlan(`![[${name}]]`, assets, options)[0].asset.path,
+      ).toBe(name);
+    }
+    expect(
+      attachmentPlan("![a](100%25.png)", assets, options)[0].asset.path,
+    ).toBe("100%.png");
+    expect(
+      attachmentPlan("![a](100%2525.png)", assets, options)[0].asset.path,
+    ).toBe("100%25.png");
+    expect(
+      attachmentPlan("![a](中文%20空格.png)", assets, options)[0].asset.path,
+    ).toBe("中文 空格.png");
+    for (const markdown of [
+      "![[../../x.png]]",
+      "![a](..%2F..%2Fx.png)",
+      "![[file:///tmp/x.png]]",
+      "![[/etc/x.png]]",
+    ])
+      expect(() =>
+        attachmentPlan(markdown, [asset("x.png")], options),
+      ).toThrow();
+  });
+  it("大量代码内 wiki 不计入限额，真实引用边界128/129正确", () => {
+    const code = "```\n![[ignore.png]]\n```\n\n".repeat(1500);
+    expect(mediaReferences(code + "![[x.png]]\n".repeat(128))).toHaveLength(
+      128,
+    );
+    expect(() => mediaReferences(code + "![[x.png]]\n".repeat(129))).toThrow(
+      /128/,
+    );
+    expect(() => mediaReferences("![x](x.png)\n".repeat(129))).toThrow(/128/);
   });
   it("所有引用预检成功才上传；顺序惰性读取，取消不继续读取/保存", async () => {
     let read = 0,

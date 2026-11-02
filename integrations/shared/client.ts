@@ -1,4 +1,8 @@
 import {
+  requestCancellation,
+  throwIfAborted,
+} from "../../src/shared/request-cancellation.ts";
+import {
   POST_SCHEMA_ACCEPT,
   createPostSchema,
   postMutationResponseSchema,
@@ -21,6 +25,7 @@ import {
   KiB,
   OPAQUE_TOKEN_PATTERN,
   INTEGRATION_REQUEST_TIMEOUT_MS,
+  INTEGRATION_MEDIA_UPLOAD_TIMEOUT_MS,
 } from "../../src/modules/config/limits.ts";
 /** 与站内编辑器“Markdown 导入上限”的默认值同源（src/modules/config）。 */
 export const MAX_MARKDOWN_BYTES =
@@ -229,13 +234,13 @@ async function requestPost({
 }: ClientOptions & { path: string; body: unknown }): Promise<MutationResult> {
   const origin = normalizeSiteUrl(site);
   const authorization = `Bearer ${normalizeToken(token)}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
+  const cancellation = requestCancellation(
+    signal,
     INTEGRATION_REQUEST_TIMEOUT_MS,
   );
   let response: Response | undefined;
   try {
+    throwIfAborted(cancellation.signal);
     response = await fetchImpl(`${origin}${path}`, {
       method: "POST", // Accept 声明可读取的响应版本（CORS 安全头）；旧服务端忽略参数，新服务端据此返回完整字段。
       headers: {
@@ -248,9 +253,7 @@ async function requestPost({
       redirect: "error",
       cache: "no-store",
       referrerPolicy: "no-referrer",
-      signal: signal
-        ? AbortSignal.any([signal, controller.signal])
-        : controller.signal,
+      signal: cancellation.signal,
     });
     if (!response.ok)
       throw new Error(
@@ -280,7 +283,7 @@ async function requestPost({
       "Connection failed, timed out, or redirected. Check the site and Studio before retrying; the request may have succeeded.",
     );
   } finally {
-    clearTimeout(timeout);
+    cancellation.dispose();
   }
 }
 
@@ -307,33 +310,39 @@ export async function uploadAttachment(
   const origin = normalizeSiteUrl(options.site);
   const body = new FormData();
   body.append("file", options.file);
-  const timeout = AbortSignal.timeout(INTEGRATION_REQUEST_TIMEOUT_MS);
-  let response: Response;
+  const cancellation = requestCancellation(
+    options.signal,
+    INTEGRATION_MEDIA_UPLOAD_TIMEOUT_MS,
+  );
   try {
-    response = await (options.fetchImpl || fetch)(`${origin}/api/media`, {
-      method: "POST",
-      body,
-      headers: { Authorization: `Bearer ${normalizeToken(options.token)}` },
-      credentials: "omit",
-      redirect: "error",
-      cache: "no-store",
-      referrerPolicy: "no-referrer",
-      signal: options.signal
-        ? AbortSignal.any([options.signal, timeout])
-        : timeout,
-    });
-  } catch {
-    throw new Error(
-      "附件上传连接失败、超时、取消或遇到重定向，文章尚未保存。请核对媒体库后重试。",
-    );
+    let response: Response;
+    try {
+      throwIfAborted(cancellation.signal);
+      response = await (options.fetchImpl || fetch)(`${origin}/api/media`, {
+        method: "POST",
+        body,
+        headers: { Authorization: `Bearer ${normalizeToken(options.token)}` },
+        credentials: "omit",
+        redirect: "error",
+        cache: "no-store",
+        referrerPolicy: "no-referrer",
+        signal: cancellation.signal,
+      });
+    } catch {
+      throw new Error(
+        "附件上传连接失败、超时、取消或遇到重定向，文章尚未保存。请核对媒体库后重试。",
+      );
+    }
+    if (!response.ok)
+      throw new Error(
+        `附件上传失败（HTTP ${response.status}）。含附件的 Token 需要 media:write；未保存文章，请检查媒体库后重试。`,
+      );
+    const parsed = mediaResponseSchema.safeParse(await response.json());
+    if (!parsed.success) throw new Error("附件上传响应格式异常，未保存文章。");
+    return parsed.data.media;
+  } finally {
+    cancellation.dispose();
   }
-  if (!response.ok)
-    throw new Error(
-      `附件上传失败（HTTP ${response.status}）。含附件的 Token 需要 media:write；未保存文章，请检查媒体库后重试。`,
-    );
-  const parsed = mediaResponseSchema.safeParse(await response.json());
-  if (!parsed.success) throw new Error("附件上传响应格式异常，未保存文章。");
-  return parsed.data.media;
 }
 
 /** Obsidian 与网页共用解析、路径边界、去重及 MIME 转换，正文和附件全部就绪后才创建私有草稿。 */
@@ -361,7 +370,7 @@ export async function createDraftWithAttachments(
       readFile: options.readAttachment,
     },
   );
-  options.signal?.throwIfAborted();
+  throwIfAborted(options.signal);
   const blocks = applyMediaKinds(
     markdownToBlocks(prepared.markdown),
     prepared.mimeByUrl,

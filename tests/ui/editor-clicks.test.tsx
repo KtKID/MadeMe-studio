@@ -255,6 +255,63 @@ describe("编辑器真实按钮与状态链路", () => {
       "文件读取中输入",
     );
   });
+  it("先选A再选B，A文件读取迟到不能替换B的导入窗口", async () => {
+    const a = deferred<string>(),
+      b = deferred<string>();
+    setup();
+    const fileA = new File(["A"], "A.md"),
+      fileB = new File(["B"], "B.md");
+    Object.defineProperty(fileA, "text", { value: () => a.promise });
+    Object.defineProperty(fileB, "text", { value: () => b.promise });
+    const input = document.querySelector(
+      'input[type=file][accept*=".markdown"]',
+    )!;
+    fireEvent.change(input, { target: { files: [fileA] } });
+    fireEvent.change(input, { target: { files: [fileB] } });
+    await act(async () => b.resolve("# B"));
+    expect(
+      screen.getByRole("dialog", { name: "导入 Markdown 与附件" }).textContent,
+    ).toContain("B.md");
+    await act(async () => a.resolve("# A"));
+    expect(
+      screen.getByRole("dialog", { name: "导入 Markdown 与附件" }).textContent,
+    ).toContain("B.md");
+    expect(
+      screen.getByRole("dialog", { name: "导入 Markdown 与附件" }).textContent,
+    ).not.toContain("A.md");
+    expect(h.editor.replaceBlocks).not.toHaveBeenCalled();
+  });
+  it("A上传时选择B会取消旧导入；A迟到不应用也不关闭B", async () => {
+    const pending = deferred<{ media: { url: string; mime: string } }>();
+    h.api.mockReturnValueOnce(pending.promise);
+    setup();
+    const input = document.querySelector(
+      'input[type=file][accept*=".markdown"]',
+    )!;
+    const a = new File(["![A](x.png)"], "A.md"),
+      b = new File(["# B"], "B.md");
+    Object.defineProperty(a, "text", { value: async () => "![A](x.png)" });
+    Object.defineProperty(b, "text", { value: async () => "# B" });
+    await act(async () => fireEvent.change(input, { target: { files: [a] } }));
+    fireEvent.change(screen.getByLabelText("选择附件文件"), {
+      target: { files: [new File(["test"], "x.png", { type: "image/png" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "上传附件并导入" }));
+    const signal = h.api.mock.calls[0][1].signal as AbortSignal;
+    await act(async () => fireEvent.change(input, { target: { files: [b] } }));
+    expect(signal.aborted).toBe(true);
+    await act(async () =>
+      pending.resolve({ media: { url: "/api/files/a-id", mime: "image/png" } }),
+    );
+    expect(h.editor.replaceBlocks).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "导入 Markdown 与附件" }).textContent,
+    ).toContain("B.md");
+    await act(async () =>
+      fireEvent.click(screen.getByRole("button", { name: "上传附件并导入" })),
+    );
+    expect(h.editor.replaceBlocks).toHaveBeenCalledOnce();
+  });
   it("发布等待保存时锁定可见范围，防止界面选择与提交快照不一致", async () => {
     const pending = deferred<{ post: Post }>();
     h.api.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({

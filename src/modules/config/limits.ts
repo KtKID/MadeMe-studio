@@ -23,6 +23,8 @@ export const GENERATED_IMAGE_MAX_BYTES = HARD_MAX_UPLOAD_BYTES;
 export const MEDIA_FILENAME_MAX = 200;
 /** 客户端单次媒体上传/文章写入的网络等待；超时仍需核对是否已到达服务端。 */
 export const INTEGRATION_REQUEST_TIMEOUT_MS = 20_000;
+/** 媒体请求包含二进制传输，不沿用短 JSON 请求的20秒预算；用户取消仍立即生效。 */
+export const INTEGRATION_MEDIA_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 /** 单次导入引用数量上限，约束目录匹配与顺序上传成本。 */
 export const MAX_MARKDOWN_MEDIA_REFERENCES = 128;
 

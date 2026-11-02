@@ -53,19 +53,144 @@ async function seed(page: import("@playwright/test").Page) {
   return post.id;
 }
 async function open(page: import("@playwright/test").Page, markdown = mixed) {
-  await page
-    .locator('input[type=file][accept*=".markdown"]')
-    .setInputFiles({
-      name: "mixed.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from(markdown),
-    });
+  await page.locator('input[type=file][accept*=".markdown"]').setInputFiles({
+    name: "mixed.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(markdown),
+  });
   await expect(
     page.getByRole("dialog", { name: "导入 Markdown 与附件" }),
   ).toBeVisible();
 }
 const flatten = (blocks: any[]): any[] =>
   blocks.flatMap((block) => [block, ...flatten(block.children || [])]);
+
+test("真实编辑器切换导入A/B：取消旧请求，新窗口与正文不会被迟到回调覆盖", async ({
+  page,
+}) => {
+  const id = await seed(page);
+  await open(page, "![A](<中文 空格.png>)");
+  await page
+    .getByLabel("选择附件文件")
+    .setInputFiles(join(fixtures, "中文 空格.png"));
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/media", async () => {
+    await gate;
+    // 应用切换来源时会取消这个尚未放行的请求；不对已取消的 route 再次 abort。
+  });
+  const requested = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/api/media") && request.method() === "POST",
+  );
+  await page
+    .getByRole("button", { name: "上传附件并导入", exact: true })
+    .click();
+  await requested;
+  const cancelled = page.waitForEvent("requestfailed", {
+    predicate: (request) =>
+      request.url().endsWith("/api/media") && request.method() === "POST",
+  });
+  await page.locator('input[type=file][accept*=".markdown"]').setInputFiles({
+    name: "B.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# B新文档\n\n仅保留这份新选择。"),
+  });
+  await expect(
+    page.getByRole("dialog", { name: "导入 Markdown 与附件" }),
+  ).toContainText("B.md");
+  expect((await cancelled).failure()?.errorText).toMatch(/ABORTED|FAILED/);
+  release();
+  await page.unroute("**/api/media");
+  await expect(
+    page.getByRole("dialog", { name: "导入 Markdown 与附件" }),
+  ).toContainText("B.md");
+  await page
+    .getByRole("button", { name: "上传附件并导入", exact: true })
+    .click();
+  await expect(page.locator(".bn-editor")).toContainText("B新文档");
+  await expect(page.locator(".bn-editor img")).toHaveCount(0);
+  await expect(page.getByText(/^上传失败：/)).toHaveCount(0);
+  const save = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      response.url().endsWith(`/api/posts/${id}`),
+  );
+  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  expect((await save).status()).toBe(200);
+  expect(
+    JSON.stringify(
+      (await (await page.request.get(`/api/posts/${id}`)).json()).post.blocks,
+    ),
+  ).toContain("B新文档");
+});
+
+test("链接包裹图片拒绝且无上传；百分号字面文件与URL编码引用分别保存", async ({
+  page,
+}) => {
+  const id = await seed(page);
+  let uploads = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/media") && request.method() === "POST")
+      uploads++;
+  });
+  await open(page, "[![image](x.png)](https://example.com/article)");
+  await expect(page.getByText(/暂不支持链接包裹图片/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "上传附件并导入" }),
+  ).toBeDisabled();
+  expect(uploads).toBe(0);
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "取消", exact: true })
+    .click();
+  await expect(page.locator(".bn-editor")).toContainText("原有输入必须保留");
+  await open(
+    page,
+    "![[100%.png]]\n\n![[100%25.png]]\n\n![encoded](100%25.png)",
+  );
+  const bytes = await readFile(join(fixtures, "中文 空格.png"));
+  await page.getByLabel("选择附件文件").setInputFiles([
+    { name: "100%.png", mimeType: "image/png", buffer: bytes },
+    { name: "100%25.png", mimeType: "image/png", buffer: bytes },
+  ]);
+  await page
+    .getByRole("button", { name: "上传附件并导入", exact: true })
+    .click();
+  await expect(
+    page.getByText("已导入 Markdown，请检查排版后保存。", { exact: true }),
+  ).toBeVisible();
+  expect(uploads).toBe(2);
+  const save = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      response.url().endsWith(`/api/posts/${id}`),
+  );
+  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  expect((await save).status()).toBe(200);
+  const post = (await (await page.request.get(`/api/posts/${id}`)).json()).post;
+  const images = flatten(post.blocks).filter((block) => block.type === "image");
+  expect(images).toHaveLength(3);
+  expect(images[0].props.url).toBe(images[2].props.url);
+  expect(images[0].props.url).not.toBe(images[1].props.url);
+  await page.reload();
+  await expect(page.locator(".bn-editor")).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator(".bn-editor img")
+        .evaluateAll(
+          (images) =>
+            images.length === 3 &&
+            images.every(
+              (image) => (image as HTMLImageElement).naturalWidth === 452,
+            ),
+        ),
+    )
+    .toBe(true);
+});
 
 test("真实文件夹导入：PNG/中文空格/编码/wiki/GIF/MP4/MOV → 上传、保存、刷新、播放", async ({
   page,
@@ -252,13 +377,11 @@ test("缺失/不支持/网络失败/取消：保留原正文，不发保存请�
     .click();
   await expect(page.locator(".bn-editor")).toContainText("原有输入必须保留");
   await open(page, "![[bad.svg]]");
-  await page
-    .getByLabel("选择附件文件")
-    .setInputFiles({
-      name: "bad.svg",
-      mimeType: "image/svg+xml",
-      buffer: Buffer.from("<svg/>"),
-    });
+  await page.getByLabel("选择附件文件").setInputFiles({
+    name: "bad.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from("<svg/>"),
+  });
   await expect(page.getByText(/不支持此嵌入附件格式/)).toBeVisible();
   await page
     .getByRole("dialog")

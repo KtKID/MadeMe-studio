@@ -130,7 +130,7 @@ function block(
     children: [],
   };
 }
-/** 保守导入 Markdown；原始 HTML 永远作为文字保存，不生成可执行内容。 */
+/** 保守导入 Markdown；HTML 媒体标签明确拒绝，其余 HTML 按文字保存，不生成可执行内容。 */
 export function markdownToBlocks(markdown: string): EditorBlock[] {
   if (markdown.length > MAX_DOCUMENT_CHARS)
     throw new AppError(413, "CONTENT_TOO_LARGE", "Markdown is too large.");

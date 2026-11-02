@@ -1,3 +1,4 @@
+import { throwIfAborted } from "../../../src/shared/request-cancellation.ts";
 import {
   attachmentPlan,
   attachmentFile,
@@ -210,7 +211,7 @@ class DraftPreview extends Modal {
               signal: controller.signal,
               cache: this.attachmentCache,
               readAttachment: async (asset) => {
-                controller.signal.throwIfAborted();
+                throwIfAborted(controller.signal);
                 const item = candidates.find((item) => item.asset === asset)!;
                 const file = item.source,
                   before = item.snapshot;

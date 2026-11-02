@@ -26,4 +26,6 @@ GIF 原件保留动画；MP4/WebM/MOV 原件保留，能否播放取决于编码
 
 网络使用浏览器 fetch 的 no-cookie/no-redirect 模式和服务器 Bearer CORS 支持；不借由 `requestUrl` 绕过重定向限制。关闭模态框不能撤回已经发送的请求；发生超时先检查 Studio。真实 Obsidian 桌面/移动端联调仍需人工检查，不从打包成功推断运行成功。
 
+媒体上传的等待预算为10分钟，草稿等JSON写入仍为20秒；用户取消立即传递到进行中的上传。取消组合仅使用基本 AbortController，不要求 AbortSignal.any/timeout/throwIfAborted。原生宿主尚未验收，不据此承诺所有旧版 Electron/WebView 可运行。wiki 嵌入按字面文件名匹配（如 `100%.png`、`100%25.png` 是不同文件）；标准 Markdown URL 才解码一次（`100%25.png` 指向 `100%.png`）。链接包裹图片暂不导入，确认前明确报错，不上传、不保存破损结构。
+
 参考官方 [插件示例](https://github.com/obsidianmd/obsidian-sample-plugin) 与 [API 声明](https://github.com/obsidianmd/obsidian-api)。

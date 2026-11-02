@@ -1,4 +1,5 @@
 import MarkdownImportDialog from "../../modules/markdown-import/ImportDialog";
+import { throwIfAborted } from "../../shared/request-cancellation";
 import {
   applyMediaKinds,
   type UploadedAttachment,
@@ -284,7 +285,15 @@ export default function Editor({
     file: File;
     markdown: string;
     sequence: number;
+    request: number;
   } | null>(null);
+  const importRequest = useRef(0);
+  useEffect(
+    () => () => {
+      importRequest.current++;
+    },
+    [],
+  );
   const lock = useRef(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const leaveGuardRef = useRef<ReturnType<
@@ -301,8 +310,10 @@ export default function Editor({
     picked: File,
     signal?: AbortSignal,
   ): Promise<UploadedAttachment> {
+    throwIfAborted(signal);
     // 超出 Worker 解码上限的照片先在浏览器缩到落库宽度，避免 413。
     const file = mayNeedShrink(picked) ? await shrinkForUpload(picked) : picked;
+    throwIfAborted(signal);
     // BlockNote 上传面板吞掉异常、只显示通用“上传失败”，块会以空 url 留在正文里；
     // 因此拒绝原因必须由这里写日志并显示到编辑器提示栏，避免失败静默。
     const problem = mediaUploadProblem(file, limits.upload);
@@ -324,10 +335,11 @@ export default function Editor({
         body: form,
         signal,
       });
+      throwIfAborted(signal);
       return { url: media.url, mime: media.mime };
     } catch (e) {
       // api() 已经记录 api.request_failed / api.network_failed，这里只负责展示。
-      setError(`上传失败：${(e as Error).message}`);
+      if (!signal?.aborted) setError(`上传失败：${(e as Error).message}`);
       throw e;
     }
   }
@@ -853,6 +865,8 @@ export default function Editor({
   }
   async function importMarkdown(file: File | undefined) {
     if (!file || lock.current) return;
+    const request = ++importRequest.current;
+    setMarkdownImport(null);
     setMessage("");
     setError("");
     // 上限来自设置页“上传与媒体 → Markdown 导入上限”（硬上限与服务端正文字符上限一致）。
@@ -871,18 +885,30 @@ export default function Editor({
     const sequence = editClock.current.snapshot();
     try {
       const markdown = await file.text();
-      setMarkdownImport({ file, markdown, sequence });
+      if (request !== importRequest.current) return;
+      setMarkdownImport({ file, markdown, sequence, request });
     } catch (e) {
-      fail("import", e);
+      if (request === importRequest.current) fail("import", e);
     } finally {
-      if (importInput.current) importInput.current.value = "";
+      if (request === importRequest.current && importInput.current)
+        importInput.current.value = "";
     }
   }
-  async function applyMarkdownImport(prepared: {
-    markdown: string;
-    mimeByUrl: Record<string, string>;
-  }) {
-    if (!markdownImport || lock.current)
+  function closeMarkdownImport(request: number) {
+    if (request !== importRequest.current) return;
+    importRequest.current++;
+    setMarkdownImport(null);
+  }
+  async function applyMarkdownImport(
+    prepared: {
+      markdown: string;
+      mimeByUrl: Record<string, string>;
+    },
+    request: number,
+  ) {
+    if (request !== importRequest.current)
+      throw new Error("旧导入已取消，已保留新选择和当前正文。");
+    if (!markdownImport || markdownImport.request !== request || lock.current)
       throw new Error("编辑器正忙，请稍后重试。");
     lock.current = true;
     setBusy("import");
@@ -1361,10 +1387,13 @@ export default function Editor({
             />
             {markdownImport && (
               <MarkdownImportDialog
+                key={markdownImport.request}
                 source={markdownImport}
-                onClose={() => setMarkdownImport(null)}
+                onClose={() => closeMarkdownImport(markdownImport.request)}
                 upload={uploadEditorAttachment}
-                apply={applyMarkdownImport}
+                apply={(prepared) =>
+                  applyMarkdownImport(prepared, markdownImport.request)
+                }
               />
             )}
           </div>

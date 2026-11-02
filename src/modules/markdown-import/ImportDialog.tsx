@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { throwIfAborted } from "../../shared/request-cancellation";
 import { Modal, Notice, Busy } from "../../components/shared/ui";
 import {
   attachmentPlan,
@@ -33,23 +34,43 @@ export default function MarkdownImportDialog({
   const selection = useRef(0);
   const controller = useRef<AbortController | null>(null);
   const cache = useRef<AttachmentCache>(new Map());
-  useEffect(
-    () => () => {
+  const latestSource = useRef(source);
+  latestSource.current = source;
+  useEffect(() => {
+    cache.current = new Map();
+    setAssets([]);
+    setOptions({ mode: "selected" });
+    setError("");
+    setProgress("");
+    setReading(false);
+    return () => {
       selection.current++;
       controller.current?.abort();
-    },
-    [],
-  );
-  let problem = "",
-    count = 0;
-  try {
-    count = mediaReferences(source.markdown).filter(
-      (ref) => !isHostedMedia(ref.target),
-    ).length;
-    attachmentPlan(source.markdown, assets, options);
-  } catch (e) {
-    problem = (e as Error).message;
-  }
+      controller.current = null;
+    };
+  }, [source]);
+  const analysis = useMemo(() => {
+    try {
+      return {
+        count: mediaReferences(source.markdown).filter(
+          (ref) => !isHostedMedia(ref.target),
+        ).length,
+        error: "",
+      };
+    } catch (e) {
+      return { count: 0, error: (e as Error).message };
+    }
+  }, [source.markdown]);
+  const problem = useMemo(() => {
+    if (analysis.error) return analysis.error;
+    try {
+      attachmentPlan(source.markdown, assets, options);
+      return "";
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }, [source.markdown, assets, options, analysis.error]);
+  const count = analysis.count;
   const close = () => {
     selection.current++;
     controller.current?.abort();
@@ -84,7 +105,8 @@ export default function MarkdownImportDialog({
         return;
       }
       const contents = await notes[0].file.text();
-      if (selection.current !== sequence) return;
+      if (selection.current !== sequence || latestSource.current !== source)
+        return;
       if (contents !== source.markdown) {
         setAssets([]);
         setError(
@@ -95,12 +117,13 @@ export default function MarkdownImportDialog({
       setOptions({ mode: "root", documentPath: notes[0].path });
       setAssets(paths.filter((item) => item !== notes[0]));
     } catch (e) {
-      if (selection.current === sequence) {
+      if (selection.current === sequence && latestSource.current === source) {
         clientCaught("editor.attachment_directory_failed", e);
         setError("无法读取所选目录，请重新选择或改用附件多选。");
       }
     } finally {
-      if (selection.current === sequence) setReading(false);
+      if (selection.current === sequence && latestSource.current === source)
+        setReading(false);
     }
   }
   async function confirm() {
@@ -118,22 +141,31 @@ export default function MarkdownImportDialog({
         {
           signal: operation.signal,
           cache: cache.current,
-          progress: (done, total) =>
-            setProgress(`已上传 ${done} / ${total} 个附件`),
+          progress: (done, total) => {
+            if (
+              latestSource.current === source &&
+              controller.current === operation
+            )
+              setProgress(`已上传 ${done} / ${total} 个附件`);
+          },
         },
       );
-      operation.signal.throwIfAborted();
+      throwIfAborted(operation.signal);
+      if (latestSource.current !== source) return;
       await apply(prepared);
-      operation.signal.throwIfAborted();
+      throwIfAborted(operation.signal);
+      if (latestSource.current !== source) return;
       onClose();
     } catch (e) {
-      if (!operation.signal.aborted) {
+      if (!operation.signal.aborted && latestSource.current === source) {
         clientCaught("editor.attachment_import_failed", e);
         setError(`导入未完成，当前正文已保留：${(e as Error).message}`);
       }
     } finally {
-      controller.current = null;
-      setProgress("");
+      if (controller.current === operation) {
+        controller.current = null;
+        setProgress("");
+      }
     }
   }
   return (

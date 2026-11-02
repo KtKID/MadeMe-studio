@@ -1,5 +1,7 @@
 # 工程交接报告
 
+- [2026-11-02：PR11附件导入审核修复](2026-11-02-markdown-attachments-review-fixes.md)：独立媒体等待、取消兼容、链接包图拒绝、A/B来源竞态、wiki百分号字面路径及预检/区间扫描优化；990单测、6项浏览器/API验收。
+
 - [2026-11-02：Markdown 附件导入 PR 交付复核](2026-11-02-markdown-attachments-pr.md)：独立私有 Site 实际保存/播放、磁盘文件选择额外流程未完成的边界，以及不混入 Sites 配置的业务分支范围。
 
 - [2026-11-01：既有 Cloudflare Worker 生产配置准备](2026-11-01-cloudflare-production-config.md)：独立 production 绑定、保留 Dashboard 变量及路由设置、精确版本部署脚本；968 单测与离线 dry-run 通过，GitHub Actions 通过 needs:test 串接现有 CI，旧PNG测试在未改main复现后按现有WebP契约修正，完整Worker通过；独立PR审查未发布，用户确认保存 CLOUDFLARE_API_TOKEN_FOR_DEPLOY，名称元数据已核验，首次生产结果另核。
