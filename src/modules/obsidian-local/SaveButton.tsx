@@ -1,3 +1,8 @@
+import {
+  listExportPresets as listPresets,
+  assertExportPresetCurrent,
+} from "../obsidian-repository/export-presets";
+import { listRepositories } from "../obsidian-repository/store";
 import { createPortal } from "react-dom";
 import { resolveObsidianUri } from "./open";
 import { useRef, useState } from "react";
@@ -14,10 +19,9 @@ import {
 import { obsidianDirectoryPathSchema, type PresetRecord } from "./contracts";
 import {
   isDirectoryPickerSupported,
-  listPresets,
   pickDirectory,
   verifyVault,
-} from "./presets";
+} from "./directory";
 import {
   LocalConflictError,
   MissingDirectoryError,
@@ -75,13 +79,18 @@ export default function SaveButton({
     snapshot.current = null;
     if (!supported) return;
     try {
-      const list = await listPresets();
+      const [list, repositories] = await Promise.all([
+        listPresets(),
+        listRepositories(),
+      ]);
+      const initial =
+        repositories.length === 1
+          ? list.find((record) => record.repositoryId === repositories[0].id)
+          : undefined;
       if (request.current !== generation) return;
       setRecords(list);
-      setSelected(list[0]);
-      setDirectory(
-        list[0]?.preset.noteDirectory ?? OBSIDIAN_LOCAL_DEFAULTS.noteDirectory,
-      );
+      setSelected(initial);
+      setDirectory(initial?.preset.noteDirectory ?? "");
     } catch (error) {
       if (request.current === generation) fail(error);
     }
@@ -128,6 +137,7 @@ export default function SaveButton({
     setBusy(true);
     setError("");
     try {
+      await assertExportPresetCurrent(selected);
       const chosen = await pickDirectory(selected.handle);
       if (!selected.handle.resolve)
         throw new Error("浏览器不能验证子目录，请重新选择根目录。");
@@ -164,6 +174,7 @@ export default function SaveButton({
       if ((!mode && !createDirectories) || !snapshot.current)
         snapshot.current = prepareExport(getSnapshot(), window.location.origin);
       // 查询不会弹窗；已授权直接继续，被拒绝则停止，不能自动反复请求。
+      await assertExportPresetCurrent(selected);
       const permission =
         (await selected.handle.queryPermission?.({ mode: "readwrite" })) ??
         "prompt";
@@ -183,6 +194,7 @@ export default function SaveButton({
       const prepared = markdownOnly
         ? { ...current, markdown: remoteMarkdown(current) }
         : current;
+      await assertExportPresetCurrent(selected);
       const saved = await saveToDirectory(selected.handle, prepared, {
         noteDirectory: directory,
         imageRule: selected.preset.imageRule,
@@ -363,8 +375,8 @@ export default function SaveButton({
                 </p>
                 {!records.length && (
                   <p className="form-hint">
-                    可先在设置 → 同步 Obsidian
-                    中添加预设；此处临时选择不会改动预设。
+                    可先在设置 → Obsidian 仓库
+                    下添加预设；此处临时选择不会改动预设。
                   </p>
                 )}
               </>

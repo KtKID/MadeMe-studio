@@ -1,0 +1,196 @@
+.markdown-import {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.import-document {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 15px;
+  background: var(--soft);
+  border-radius: 8px;
+}
+.import-document > div {
+  min-width: 0;
+}
+.import-document strong {
+  display: block;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.import-document span,
+.import-file-main span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.import-intro {
+  margin: 15px 0 18px;
+}
+.import-section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 5px 12px;
+  margin-bottom: 9px;
+}
+.import-section-heading > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.import-attachment-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 23rem;
+  overflow-y: auto;
+  border-block: 1px solid var(--line);
+}
+.import-attachment-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 13px 0;
+}
+.import-attachment-list > li + li {
+  border-top: 1px solid var(--line);
+}
+.import-file-main {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex: 1 1 190px;
+  min-width: 0;
+}
+.import-file-main > div {
+  min-width: 0;
+}
+.import-file-main strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 600;
+}
+.import-file-main > svg {
+  color: var(--muted);
+}
+.import-file-end,
+.import-file-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.import-status {
+  border-radius: 5px;
+  padding: 3px 7px;
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.import-status.needs-file {
+  background: var(--tint);
+  color: var(--accent-ink);
+}
+:root[data-color-mode="dark"] .import-status.needs-file,
+:root[data-mode="dark"] .import-status.needs-file {
+  color: var(--ink);
+}
+.markdown-import .import-text-button {
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.markdown-import .import-text-button:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.import-file-problem {
+  width: 100%;
+  color: var(--danger);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.import-guidance {
+  margin: 13px 0;
+  color: var(--ink);
+}
+.import-folder-option {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.import-folder-option > summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.import-folder-option p {
+  margin: 9px 0;
+}
+.import-folder-name {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+.import-footnote {
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin: 17px 0 0;
+}
+.markdown-import .modal-actions {
+  margin-top: 18px;
+  padding-top: 16px;
+}
+.import-other-files {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.import-other-files > small {
+  display: block;
+  color: var(--muted);
+}
+.import-other-files ul {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+}
+.import-other-files li {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+}
+.import-other-files li > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .import-file-main {
+    flex-basis: 165px;
+  }
+  .markdown-import .modal-actions {
+    position: sticky;
+    bottom: -20px;
+    background: var(--surface);
+    padding-bottom: 12px;
+  }
+  .markdown-import .modal-actions > button {
+    flex: 1;
+  }
+}
+.import-reference-path {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}

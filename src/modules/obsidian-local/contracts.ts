@@ -4,6 +4,7 @@ import { OBSIDIAN_LOCAL_DEFAULTS, TEXT_LIMITS } from "../config/limits";
 /** 仅本机使用的目录能力；不是可序列化或上传服务器的业务凭据。 */
 export interface DirectoryHandle {
   readonly name: string;
+  isSameEntry?(other: DirectoryHandle): Promise<boolean>;
   getDirectoryHandle(
     name: string,
     options?: { create?: boolean },
@@ -12,9 +13,16 @@ export interface DirectoryHandle {
     name: string,
     options?: { create?: boolean },
   ): Promise<LocalFileHandle>;
-  resolve?(handle: DirectoryHandle): Promise<string[] | null>;
-  queryPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
-  requestPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
+  resolve?(handle: DirectoryHandle | LocalFileHandle): Promise<string[] | null>;
+  entries?(): AsyncIterableIterator<
+    [string, DirectoryHandle | LocalFileHandle]
+  >;
+  queryPermission?(options: {
+    mode: "read" | "readwrite";
+  }): Promise<PermissionState>;
+  requestPermission?(options: {
+    mode: "read" | "readwrite";
+  }): Promise<PermissionState>;
 }
 export interface LocalFileHandle {
   getFile(): Promise<File>;
@@ -51,6 +59,26 @@ function containedPath(base: string, relative: string) {
   }
   return true;
 }
+/** 导入仓库子预设与旧导出预设共用路径边界，不复制验证规则。 */
+export function presetPathsRefinement(
+  value: { noteDirectory: string; imageRule: string },
+  context: z.RefinementCtx,
+) {
+  if (!containedPath("", value.noteDirectory)) {
+    context.addIssue({
+      code: "custom",
+      path: ["noteDirectory"],
+      message: "文章目录不能越过授权根目录。",
+    });
+  }
+  if (!containedPath(value.noteDirectory, value.imageRule)) {
+    context.addIssue({
+      code: "custom",
+      path: ["imageRule"],
+      message: "图片规则不能越过授权根目录。",
+    });
+  }
+}
 export const presetSchema = z
   .object({
     id: z.string().trim().min(1).max(TEXT_LIMITS.url),
@@ -68,25 +96,10 @@ export const presetSchema = z
     isVault: z.boolean(),
   })
   .strict()
-  .superRefine((value, context) => {
-    if (!containedPath("", value.noteDirectory)) {
-      context.addIssue({
-        code: "custom",
-        path: ["noteDirectory"],
-        message: "文章目录不能越过授权根目录。",
-      });
-    }
-    if (!containedPath(value.noteDirectory, value.imageRule)) {
-      context.addIssue({
-        code: "custom",
-        path: ["imageRule"],
-        message: "图片规则不能越过授权根目录。",
-      });
-    }
-  });
+  .superRefine(presetPathsRefinement);
 export type Preset = z.infer<typeof presetSchema>;
 
-const directoryHandleSchema = z.custom<DirectoryHandle>((value) => {
+export const directoryHandleSchema = z.custom<DirectoryHandle>((value) => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<DirectoryHandle>;
   return (

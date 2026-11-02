@@ -3340,3 +3340,14 @@ kbd {
     padding-right: 14px;
   }
 }
+
+/* 多入口后台导航在窄屏保持单行可滚动，避免挤出新仓库设置页。 */
+@media (max-width: 680px) {
+  .studio-nav {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+    overscroll-behavior-x: contain;
+  }
+}

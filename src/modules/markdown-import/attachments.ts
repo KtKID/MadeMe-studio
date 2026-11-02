@@ -15,7 +15,7 @@ export type MediaReference = {
   label: string;
   wiki: boolean;
 };
-export type Attachment = { path: string; file: File };
+export type Attachment = { path: string; file: File; explicit?: boolean };
 export type ResolveOptions = {
   mode: "selected" | "root";
   documentPath?: string;
@@ -193,6 +193,24 @@ function normalized(path: string) {
   return result.join("/");
 }
 
+/** File System Access与File集合共用相同路径解释，禁止自行拼接越根路径。 */
+export function referencePaths(ref: MediaReference, documentPath: string) {
+  const target = localTarget(ref.target, ref.wiki);
+  const base = documentPath.split("/").slice(0, -1).join("/");
+  const paths = [
+    normalized(`${base ? `${base}/` : ""}${target}`).normalize("NFC"),
+  ];
+  if (ref.wiki) {
+    try {
+      const root = normalized(target).normalize("NFC");
+      if (!paths.includes(root)) paths.push(root);
+    } catch {
+      /* 笔记相对路径已验证；忽略不成立的根相对候选，不读取目录外文件。 */
+    }
+  }
+  return { paths, basename: ref.wiki && !target.includes("/") ? target : null };
+}
+
 /** MIME 来源是文件本身，扩展名只补全浏览器/Obsidian 没给 MIME 的情况；服务端仍检查真实字节。 */
 const extensionMime: Record<string, string> = {
   png: "image/png",
@@ -227,11 +245,7 @@ export function attachmentFile(file: File) {
     lastModified: file.lastModified,
   });
 }
-export function attachmentPlan(
-  markdown: string,
-  assets: Attachment[],
-  options: ResolveOptions,
-) {
+function attachmentResolver(assets: Attachment[], options: ResolveOptions) {
   // File/vault 的路径是已解码的真实文件名，不能再 decodeURIComponent（100%.png 等）。
   const catalogPath = (path: string) => {
     if (
@@ -253,54 +267,75 @@ export function attachmentPlan(
   const documentPath = options.documentPath
     ? catalogPath(options.documentPath)
     : "";
+  return (ref: MediaReference) => {
+    const target = localTarget(ref.target, ref.wiki);
+    let matches: typeof paths;
+    if (options.mode === "root") {
+      const candidate = referencePaths(ref, documentPath);
+      const exact = paths.filter(
+        (item) =>
+          candidate.paths.includes(item.path) ||
+          (item.asset.explicit &&
+            item.path.split("/").at(-1) === target.split("/").at(-1)),
+      );
+      matches = exact.length
+        ? exact
+        : candidate.basename
+          ? paths.filter(
+              (item) => item.path.split("/").at(-1) === candidate.basename,
+            )
+          : [];
+    } else {
+      // 多文件选择仅以显式 File capability 为边界，不按相对路径读取用户磁盘。
+      matches = paths.filter(
+        (item) => item.path.split("/").at(-1) === target.split("/").at(-1),
+      );
+    }
+    if (!matches.length)
+      throw new Error(`缺少附件：${ref.target}。请补充这个文件后再导入。`);
+    if (matches.length !== 1)
+      throw new Error(
+        `附件同名或路径有歧义：${ref.target}。请移除多余的同名文件，或使用明确路径匹配。`,
+      );
+    const asset = matches[0].asset;
+    attachmentFile(asset.file);
+    if (asset.file.size > HARD_MAX_UPLOAD_BYTES)
+      throw new Error(`附件超过上传硬上限：${asset.file.name}`);
+    return { ref, asset };
+  };
+}
+/** 预检与实际上传共用一个解析/匹配实现，界面可一次列出全部缺失项。 */
+export function inspectAttachments(
+  markdown: string,
+  assets: Attachment[],
+  options: ResolveOptions,
+) {
+  const resolve = attachmentResolver(assets, options);
+  return mediaReferences(markdown).map((ref) => {
+    if (isHostedMedia(ref.target))
+      return { ref, asset: null, problem: "", hosted: true };
+    try {
+      return { ref, asset: resolve(ref).asset, problem: "", hosted: false };
+    } catch (error) {
+      // 纯匹配错误交由界面逐项展示；没有吞掉上传/文件读取失败。
+      return {
+        ref,
+        asset: null,
+        problem: error instanceof Error ? error.message : "附件匹配失败",
+        hosted: false,
+      };
+    }
+  });
+}
+export function attachmentPlan(
+  markdown: string,
+  assets: Attachment[],
+  options: ResolveOptions,
+) {
+  const resolve = attachmentResolver(assets, options);
   return mediaReferences(markdown)
     .filter((ref) => !isHostedMedia(ref.target))
-    .map((ref) => {
-      const target = localTarget(ref.target, ref.wiki);
-      let matches: typeof paths;
-      if (options.mode === "root") {
-        const base = documentPath.split("/").slice(0, -1).join("/");
-        const relative = normalized(`${base ? `${base}/` : ""}${target}`);
-        // 标准 Markdown 只接受相对笔记路径；wiki 还允许 vault 根路径与唯一文件名。
-        let rootTarget = "";
-        if (ref.wiki) {
-          try {
-            rootTarget = normalized(target);
-          } catch {
-            // 笔记相对解释已通过上面的边界校验；仅丢弃越界的“vault根相对”候选。
-            // 最终仍只在显式 File/vault 目录表中匹配，无法读取根目录外的文件。
-            rootTarget = "";
-          }
-        }
-        const exact = paths.filter(
-          (item) =>
-            item.path === relative || (ref.wiki && item.path === rootTarget),
-        );
-        matches = exact.length
-          ? exact
-          : ref.wiki && !target.includes("/")
-            ? paths.filter((item) => item.path.split("/").at(-1) === target)
-            : [];
-      } else {
-        // 多文件选择仅以显式 File capability 为边界，不按相对路径读取用户磁盘。
-        matches = paths.filter(
-          (item) => item.path.split("/").at(-1) === target.split("/").at(-1),
-        );
-      }
-      if (!matches.length)
-        throw new Error(
-          `缺少附件：${ref.target}。请选择该附件，或选择包含笔记和附件的共同上级文件夹。`,
-        );
-      if (matches.length !== 1)
-        throw new Error(
-          `附件同名或路径有歧义：${ref.target}。请使用完整路径并选择共同上级文件夹。`,
-        );
-      const asset = matches[0].asset;
-      attachmentFile(asset.file);
-      if (asset.file.size > HARD_MAX_UPLOAD_BYTES)
-        throw new Error(`附件超过上传硬上限：${asset.file.name}`);
-      return { ref, asset };
-    });
+    .map(resolve);
 }
 const escapedLabel = (label: string) => label.replace(/[\[\]\\\r\n]/g, " ");
 export async function prepareAttachments(

@@ -73,7 +73,7 @@ test("@author 本地导出：不支持目录授权时下载当前未保存稿，
   expect(writes).toEqual([]);
 });
 
-test("@author 本地预设：取消目录选择不保存预设且不 PATCH 站点设置", async ({
+test("@author 仓库管理：取消新增目录不创建配置且不 PATCH 站点设置", async ({
   page,
   request,
 }) => {
@@ -97,30 +97,18 @@ test("@author 本地预设：取消目录选择不保存预设且不 PATCH 站�
   });
   await page.goto("/studio/settings");
   await page
-    .getByRole("button", { name: "同步 Obsidian", exact: true })
+    .getByRole("button", { name: "Obsidian 仓库", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "同步 Obsidian", exact: true }),
+    page.getByRole("heading", { name: "Obsidian 仓库", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("预设名称", { exact: true }).fill("E2E 未授权预设");
-  await expect(page.getByLabel("默认文章子目录", { exact: true })).toHaveValue(
-    "笔记",
-  );
-  await expect(
-    page.getByLabel("图片规则（相对文章目录）", { exact: true }),
-  ).toHaveValue("../asset");
   await page
-    .getByRole("button", { name: "浏览选择 vault 根目录", exact: true })
+    .getByRole("button", { name: "新增 Obsidian 仓库", exact: true })
     .click();
   await expect(
-    page.getByText("已取消目录选择，原预设未改变。", { exact: true }),
+    page.getByText("已取消新增，现有仓库与预设保持不变。", { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "保存本地预设", exact: true }),
-  ).toBeDisabled();
-  await expect(
-    page.getByText("本地预设已保存，仅此浏览器可用。", { exact: true }),
-  ).toHaveCount(0);
+  await expect(page.locator(".repository-card")).toHaveCount(0);
   expect(writes).toEqual([]);
 });
 

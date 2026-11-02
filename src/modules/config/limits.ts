@@ -27,6 +27,8 @@ export const INTEGRATION_REQUEST_TIMEOUT_MS = 20_000;
 export const INTEGRATION_MEDIA_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 /** 单次导入引用数量上限，约束目录匹配与顺序上传成本。 */
 export const MAX_MARKDOWN_MEDIA_REFERENCES = 128;
+/** 仅wiki裸文件名回退时遍历仓库目录元数据；不读取其它笔记正文。 */
+export const MAX_REPOSITORY_IMPORT_ENTRIES = 100_000;
 
 export type MediaCategory = "image" | "audio" | "video" | "document";
 /** 允许上传的 MIME 白名单（SVG/HTML 不在范围内）；设置页只能在此基础上“关闭”，不能新增。 */
@@ -222,3 +224,23 @@ export const ARTICLE_TYPE_CAS_ATTEMPTS = 4;
 export const MEDIA_DELETE_COVER_RETRIES = 3;
 /** 删除媒体时 R2 list 衍生对象每页条数（R2 上限 1000）。 */
 export const MEDIA_DELETE_LIST_PAGE = 1000;
+
+/** 独立导入仓库连接；绝不复用/迁移笔记导出预设。 */
+export const OBSIDIAN_REPOSITORY_LOCAL = {
+  databaseName: "mademe-obsidian-repository",
+  databaseVersion: 1,
+  store: "connection",
+  changeEvent: "mademe:obsidian-repository-changed",
+  key: "active",
+} as const;
+
+/** 规范化多仓库/所属预设；旧两个v1库仅作为只读迁移源。 */
+export const OBSIDIAN_WORKSPACE_LOCAL = {
+  databaseName: "mademe-obsidian-workspace",
+  databaseVersion: 1,
+  repositories: "repositories",
+  presets: "presets",
+  meta: "meta",
+  migrationKey: "legacy-import-v1",
+  labelIdLength: 8,
+} as const;
