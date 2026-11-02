@@ -1,8 +1,8 @@
-import PresetImportButton from "../../modules/markdown-import/PresetImportButton";
+import RepositoryImportButton from "../../modules/markdown-import/RepositoryImportButton";
 import type {
-  PresetImportSource,
+  RepositoryImportSource,
   MarkdownImportTicket,
-} from "../../modules/markdown-import/preset-import";
+} from "../../modules/markdown-import/repository-import";
 import MarkdownImportDialog from "../../modules/markdown-import/ImportDialog";
 import { throwIfAborted } from "../../shared/request-cancellation";
 import {
@@ -290,7 +290,7 @@ export default function Editor({
     markdown: string;
     sequence: number;
     request: number;
-    preset?: PresetImportSource;
+    repository?: RepositoryImportSource;
   } | null>(null);
   const importRequest = useRef(0);
   useEffect(
@@ -882,7 +882,7 @@ export default function Editor({
   }
   async function importMarkdown(
     file: File | undefined,
-    preset?: PresetImportSource,
+    repository?: RepositoryImportSource,
     text?: string,
     started?: MarkdownImportTicket,
   ) {
@@ -914,7 +914,7 @@ export default function Editor({
         markdown,
         sequence,
         request,
-        ...(preset ? { preset } : {}),
+        ...(repository ? { repository } : {}),
       });
     } catch (e) {
       if (request === importRequest.current) fail("import", e);
@@ -1381,13 +1381,13 @@ export default function Editor({
               <Link size={14} />
               嵌入
             </button>
-            <PresetImportButton
+            <RepositoryImportButton
               maxBytes={limits.upload.markdownImportMaxKB * KiB}
               onBegin={beginMarkdownImport}
               onChosen={(source, ticket) =>
                 importMarkdown(
                   source.file,
-                  source.preset,
+                  source.repository,
                   source.markdown,
                   ticket,
                 )

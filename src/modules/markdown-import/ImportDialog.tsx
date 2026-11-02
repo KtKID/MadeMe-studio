@@ -1,4 +1,4 @@
-import type { PresetImportSource } from "./preset-import";
+import type { RepositoryImportSource } from "./repository-import";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, FileText, FolderOpen, Link2, X } from "lucide-react";
 import { throwIfAborted } from "../../shared/request-cancellation";
@@ -21,7 +21,7 @@ export default function MarkdownImportDialog({
   upload,
   apply,
 }: {
-  source: { file: File; markdown: string; preset?: PresetImportSource };
+  source: { file: File; markdown: string; repository?: RepositoryImportSource };
   onClose: () => void;
   upload: (file: File, signal?: AbortSignal) => Promise<UploadedAttachment>;
   apply: (
@@ -29,10 +29,10 @@ export default function MarkdownImportDialog({
   ) => Promise<void>;
 }) {
   const [assets, setAssets] = useState<Attachment[]>(
-    source.preset?.assets ?? [],
+    source.repository?.assets ?? [],
   );
   const [options, setOptions] = useState<ResolveOptions>(
-    source.preset?.resolve ?? { mode: "selected" },
+    source.repository?.resolve ?? { mode: "selected" },
   );
   const [folder, setFolder] = useState("");
   const [error, setError] = useState("");
@@ -54,11 +54,11 @@ export default function MarkdownImportDialog({
   latestSource.current = source;
   useEffect(() => {
     cache.current = new Map();
-    assetsRef.current = source.preset?.assets ?? [];
+    assetsRef.current = source.repository?.assets ?? [];
     selectionQueue.current = Promise.resolve();
     pendingSelections.current = 0;
-    setAssets(source.preset?.assets ?? []);
-    setOptions(source.preset?.resolve ?? { mode: "selected" });
+    setAssets(source.repository?.assets ?? []);
+    setOptions(source.repository?.resolve ?? { mode: "selected" });
     setFolder("");
     setError("");
     setProgress("");
@@ -209,7 +209,7 @@ export default function MarkdownImportDialog({
         {
           signal: operation.signal,
           cache: cache.current,
-          readFile: source.preset?.readAttachment,
+          readFile: source.repository?.readAttachment,
           progress: (done, total) => {
             if (
               latestSource.current === source &&
@@ -219,6 +219,9 @@ export default function MarkdownImportDialog({
           },
         },
       );
+      throwIfAborted(operation.signal);
+      if (latestSource.current !== source) return;
+      await source.repository?.validate();
       throwIfAborted(operation.signal);
       if (latestSource.current !== source) return;
       await apply(prepared);
@@ -277,16 +280,16 @@ export default function MarkdownImportDialog({
             </span>
           </div>
         </div>
-        {source.preset && (
+        {source.repository && (
           <p className="form-hint">
-            笔记预设：{source.preset.name}
+            Obsidian 仓库：{source.repository.name}
             <br />
-            文章路径：{source.preset.documentPath}
+            文章路径：{source.repository.documentPath}
           </p>
         )}
         <p className="import-intro">
-          {source.preset
-            ? "已从笔记预设自动匹配附件；只上传这篇文章的引用文件，远程链接保留。"
+          {source.repository
+            ? "已从独立仓库自动匹配附件；只上传这篇文章的引用文件，远程链接保留。"
             : inspection.error
               ? "请检查附件写法，当前正文尚未改变。"
               : rows.length
@@ -354,8 +357,8 @@ export default function MarkdownImportDialog({
                   : row.problem
                     ? /同名|歧义/.test(row.problem)
                       ? "同名待确认"
-                      : source.preset
-                        ? "预设中缺失"
+                      : source.repository
+                        ? "仓库中缺失"
                         : "待添加"
                     : uploaded
                       ? "已上传"
@@ -386,7 +389,7 @@ export default function MarkdownImportDialog({
                             ? ` · 已选择 ${row.asset.file.name}`
                             : ""}
                         </span>
-                        {source.preset && !row.hosted && (
+                        {source.repository && !row.hosted && (
                           <small className="import-reference-path">
                             {row.asset?.path ?? row.ref.target}
                           </small>
@@ -399,7 +402,7 @@ export default function MarkdownImportDialog({
                       >
                         {status}
                       </span>
-                      {row.asset && !source.preset && controls(row.asset)}
+                      {row.asset && !source.repository && controls(row.asset)}
                     </div>
                     {row.problem && assets.length > 0 && (
                       <small className="import-file-problem">
@@ -428,7 +431,7 @@ export default function MarkdownImportDialog({
             </ul>
           </section>
         )}
-        {!source.preset && !!local.length && (
+        {!source.repository && !!local.length && (
           <details className="import-folder-option">
             <summary>附件较多？从文件夹自动匹配</summary>
             <p>选择包含这篇笔记和附件的笔记库文件夹；只读取引用附件。</p>
@@ -465,8 +468,8 @@ export default function MarkdownImportDialog({
         )}
         {missing.length > 0 && (
           <p className="import-guidance">
-            {source.preset
-              ? `预设中还有 ${missing.length} 处引用未匹配，请检查仓库文件和笔记路径后重新选择文章。当前正文尚未改变。`
+            {source.repository
+              ? `仓库中还有 ${missing.length} 处引用未匹配，请检查仓库文件和笔记路径后重新选择文章。当前正文尚未改变。`
               : `还有 ${missing.length} 处本地附件待添加。可以一次多选，也可以分次添加；之前的选择会保留。`}
           </p>
         )}
@@ -481,7 +484,9 @@ export default function MarkdownImportDialog({
           <button
             type="button"
             className="button primary"
-            disabled={!!inspection.error || busy || (!!source.preset && !ready)}
+            disabled={
+              !!inspection.error || busy || (!!source.repository && !ready)
+            }
             onClick={() =>
               ready ? void confirm() : filesInput.current?.click()
             }
@@ -498,7 +503,7 @@ export default function MarkdownImportDialog({
               ) : (
                 "导入正文"
               )
-            ) : source.preset ? (
+            ) : source.repository ? (
               "附件未匹配，无法导入"
             ) : (
               "补充缺失附件"

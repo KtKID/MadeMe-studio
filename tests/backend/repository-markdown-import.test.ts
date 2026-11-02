@@ -2,13 +2,12 @@ import { it, expect, vi } from "vitest";
 import type {
   DirectoryHandle,
   LocalFileHandle,
-  PresetRecord,
 } from "../../src/modules/obsidian-local/contracts";
+import { readRepositoryMarkdown } from "../../src/modules/markdown-import/repository-import";
 import {
-  readPresetMarkdown,
-  checkPresetRead,
-  authorizePresetRead,
-} from "../../src/modules/markdown-import/preset-import";
+  checkRepositoryRead,
+  type RepositoryRoot,
+} from "../../src/modules/obsidian-repository/connection";
 import {
   inspectAttachments,
   prepareAttachments,
@@ -96,18 +95,8 @@ class Root implements DirectoryHandle {
   entries() {
     return this.children("");
   }
-  record(): PresetRecord {
-    return {
-      preset: {
-        id: "p1",
-        name: "笔记预设",
-        vaultName: this.name,
-        noteDirectory: "notes",
-        imageRule: "../assets",
-        isVault: true,
-      },
-      handle: this,
-    };
+  record(): RepositoryRoot {
+    return { name: this.name, handle: this };
   }
 }
 it("真实位置解析自动收集跨目录附件，重复引用去重，只读选中笔记与引用文件", async () => {
@@ -124,23 +113,23 @@ it("真实位置解析自动收集跨目录附件，重复引用去重，只读�
   ])
     root.put(name, "synthetic");
   root.put("notes/private.md", "must not read");
-  const source = await readPresetMarkdown(root.record(), note, 10000);
-  expect(source.preset.documentPath).toBe("notes/test.md");
-  expect(source.preset.assets).toHaveLength(4);
+  const source = await readRepositoryMarkdown(root.record(), note, 10000);
+  expect(source.repository.documentPath).toBe("notes/test.md");
+  expect(source.repository.assets).toHaveLength(4);
   expect(
     inspectAttachments(
       source.markdown,
-      source.preset.assets,
-      source.preset.resolve,
+      source.repository.assets,
+      source.repository.resolve,
     ).every((row) => !row.problem),
   ).toBe(true);
   let uploads = 0;
   await prepareAttachments(
     source.markdown,
-    source.preset.assets,
-    source.preset.resolve,
+    source.repository.assets,
+    source.repository.resolve,
     async () => ({ url: "/api/files/item-" + ++uploads, mime: "image/png" }),
-    { readFile: source.preset.readAttachment },
+    { readFile: source.repository.readAttachment },
   );
   expect(uploads).toBe(4);
   expect(root.reads).not.toContain("notes/private.md");
@@ -154,23 +143,22 @@ it("失效权限不读取正文，不自动请求；明确重新授权只请求r
   const root = new Root();
   root.permission = "prompt";
   const note = root.put("notes/n.md", "text");
-  await expect(readPresetMarkdown(root.record(), note, 1000)).rejects.toThrow(
-    /重新授权/,
-  );
+  await expect(
+    readRepositoryMarkdown(root.record(), note, 1000),
+  ).rejects.toThrow(/重新授权/);
   expect(root.reads).toEqual([]);
   expect(root.requestPermission).not.toHaveBeenCalled();
-  await authorizePresetRead(root.record());
-  expect(root.requestPermission).toHaveBeenCalledWith({ mode: "read" });
-  await expect(checkPresetRead(root.record())).resolves.toBeUndefined();
+  root.permission = "granted";
+  await expect(checkRepositoryRead(root.record())).resolves.toBeUndefined();
 });
 it("文章必须由所选根resolve，不能靠同名或相同正文猜测", async () => {
   const a = new Root(),
     b = new Root();
   a.put("notes/same.md", "same");
   const outside = b.put("notes/same.md", "same");
-  await expect(readPresetMarkdown(a.record(), outside, 1000)).rejects.toThrow(
-    /不在/,
-  );
+  await expect(
+    readRepositoryMarkdown(a.record(), outside, 1000),
+  ).rejects.toThrow(/不在/);
   expect(b.reads).toEqual([]);
   expect(a.reads).toEqual([]);
 });
@@ -181,9 +169,9 @@ it("越根引用在任何附件getFile之前失败，原文件不写", async () 
       "![a](../assets/a.png)\n![bad](../../secret.png)",
     );
   root.put("assets/a.png", "data");
-  await expect(readPresetMarkdown(root.record(), note, 1000)).rejects.toThrow(
-    /越界/,
-  );
+  await expect(
+    readRepositoryMarkdown(root.record(), note, 1000),
+  ).rejects.toThrow(/越界/);
   expect(root.reads).toEqual(["notes/n.md"]);
   expect(root.writes).toBe(0);
 });
@@ -193,22 +181,22 @@ it("裸wiki同名歧义拒绝，不读其它文章正文；明确路径仍可选
   root.put("a/x.png", "a");
   root.put("b/x.png", "b");
   root.put("private.md", "secret");
-  await expect(readPresetMarkdown(root.record(), note, 1000)).rejects.toThrow(
-    /同名/,
-  );
+  await expect(
+    readRepositoryMarkdown(root.record(), note, 1000),
+  ).rejects.toThrow(/同名/);
   expect(root.reads).toEqual(["notes/n.md"]);
 });
 it("缺失引用留在清单，不能当已完成或自动上传其它文件", async () => {
   const root = new Root(),
     note = root.put("notes/n.md", "![[missing.gif]]");
   root.put("private.md", "secret");
-  const source = await readPresetMarkdown(root.record(), note, 1000);
-  expect(source.preset.assets).toHaveLength(0);
+  const source = await readRepositoryMarkdown(root.record(), note, 1000);
+  expect(source.repository.assets).toHaveLength(0);
   expect(
     inspectAttachments(
       source.markdown,
-      source.preset.assets,
-      source.preset.resolve,
+      source.repository.assets,
+      source.repository.resolve,
     )[0].problem,
   ).toMatch(/缺少/);
   expect(root.reads).toEqual(["notes/n.md"]);
@@ -220,14 +208,14 @@ it("预先取消不读任何文件，上传前本地附件变化拒绝", async (
     controller = new AbortController();
   controller.abort();
   await expect(
-    readPresetMarkdown(root.record(), note, 1000, controller.signal),
+    readRepositoryMarkdown(root.record(), note, 1000, controller.signal),
   ).rejects.toThrow();
   expect(root.reads).toEqual([]);
-  const source = await readPresetMarkdown(root.record(), note, 1000);
+  const source = await readRepositoryMarkdown(root.record(), note, 1000);
   image.getFile = async () =>
     new File(["changed"], "a.png", { lastModified: 2 });
   await expect(
-    source.preset.readAttachment(source.preset.assets[0]),
+    source.repository.readAttachment(source.repository.assets[0]),
   ).rejects.toThrow(/修改/);
   expect(root.writes).toBe(0);
 });
@@ -235,40 +223,38 @@ it("读取权限拒绝与取消重授不改预设，不继续读文档", async (
   const root = new Root(),
     note = root.put("notes/n.md", "text");
   root.permission = "denied";
-  root.requestPermission.mockResolvedValueOnce("denied");
-  await expect(authorizePresetRead(root.record())).rejects.toThrow(/拒绝/);
-  await expect(readPresetMarkdown(root.record(), note, 1000)).rejects.toThrow(
-    /拒绝/,
-  );
+  await expect(
+    readRepositoryMarkdown(root.record(), note, 1000),
+  ).rejects.toThrow(/拒绝/);
   expect(root.reads).toEqual([]);
   expect(root.writes).toBe(0);
 });
 it("无附件直接导入，NFC引用能匹配NFD原生目录名，不触碰其它笔记", async () => {
   const root = new Root();
-  const empty = await readPresetMarkdown(
+  const empty = await readRepositoryMarkdown(
     root.record(),
     root.put("notes/empty.md", "# text"),
     1000,
   );
-  expect(empty.preset.assets).toEqual([]);
+  expect(empty.repository.assets).toEqual([]);
   const note = root.put("notes/n.md", "![图](../media/caf%C3%A9.png)");
   root.put("media/café.png".normalize("NFD"), "synthetic");
-  const source = await readPresetMarkdown(root.record(), note, 1000);
-  expect(source.preset.assets).toHaveLength(1);
-  expect(source.preset.assets[0].path).toBe("media/café.png");
+  const source = await readRepositoryMarkdown(root.record(), note, 1000);
+  expect(source.repository.assets).toHaveLength(1);
+  expect(source.repository.assets[0].path).toBe("media/café.png");
 });
 it("上传前授权失效/附件移出根，不能继续读文件上传", async () => {
   const root = new Root(),
     note = root.put("notes/n.md", "![图](../a.png)");
   root.put("a.png", "data");
-  const source = await readPresetMarkdown(root.record(), note, 1000);
+  const source = await readRepositoryMarkdown(root.record(), note, 1000);
   root.permission = "prompt";
   await expect(
-    source.preset.readAttachment(source.preset.assets[0]),
+    source.repository.readAttachment(source.repository.assets[0]),
   ).rejects.toThrow(/重新授权/);
   root.permission = "granted";
   root.files.delete("a.png");
   await expect(
-    source.preset.readAttachment(source.preset.assets[0]),
+    source.repository.readAttachment(source.repository.assets[0]),
   ).rejects.toThrow(/位置/);
 });

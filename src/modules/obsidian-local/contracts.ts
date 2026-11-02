@@ -93,7 +93,7 @@ export const presetSchema = z
   });
 export type Preset = z.infer<typeof presetSchema>;
 
-const directoryHandleSchema = z.custom<DirectoryHandle>((value) => {
+export const directoryHandleSchema = z.custom<DirectoryHandle>((value) => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<DirectoryHandle>;
   return (

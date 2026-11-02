@@ -1,12 +1,16 @@
 import type {
   DirectoryHandle,
   LocalFileHandle,
-  PresetRecord,
 } from "../obsidian-local/contracts";
-import { verifyVault } from "../obsidian-local/presets";
+import {
+  checkRepositoryRead,
+  assertRepositoryCurrent,
+  type RepositoryRoot,
+  type RepositoryConnection,
+} from "../obsidian-repository/connection";
 import {
   HARD_MAX_UPLOAD_BYTES,
-  MAX_PRESET_IMPORT_ENTRIES,
+  MAX_REPOSITORY_IMPORT_ENTRIES,
 } from "../config/limits";
 import { throwIfAborted } from "../../shared/request-cancellation";
 import {
@@ -18,40 +22,31 @@ import {
   type ResolveOptions,
 } from "./attachments";
 
-export class PresetReadPermissionError extends Error {
-  constructor(readonly state: PermissionState) {
-    super(
-      state === "denied"
-        ? "此笔记预设的读取权限被拒绝。请重新授权此预设；不会请求写入权限。"
-        : "此笔记预设需要重新授权读取，原文尚未改变。",
-    );
-    this.name = "PresetReadPermissionError";
-  }
-}
-export type PresetImportSource = {
+export type RepositoryImportSource = {
   name: string;
   documentPath: string;
   assets: Attachment[];
   resolve: ResolveOptions;
   readAttachment: (asset: Attachment) => Promise<File>;
+  validate: () => Promise<void>;
 };
 export type MarkdownImportTicket = { request: number; sequence: number };
-export type PresetMarkdown = {
+export type RepositoryMarkdown = {
   file: File;
   markdown: string;
-  preset: PresetImportSource;
+  repository: RepositoryImportSource;
 };
 
-export function supportsPresetFilePicker() {
+export function supportsRepositoryFilePicker() {
   return (
     typeof window !== "undefined" &&
     typeof (window as unknown as { showOpenFilePicker?: unknown })
       .showOpenFilePicker === "function"
   );
 }
-/** 点击已明确的预设后才打开文章选择器，不从list[0]猜测用户仓库。 */
-export function pickPresetMarkdown(
-  record: PresetRecord,
+/** 点击已明确的仓库连接后才打开文章选择器，不从list[0]猜测用户仓库。 */
+export function pickRepositoryMarkdown(
+  record: RepositoryRoot,
 ): Promise<LocalFileHandle[]> {
   const picker = (
     window as unknown as {
@@ -61,7 +56,7 @@ export function pickPresetMarkdown(
   if (!picker)
     return Promise.reject(
       new Error(
-        "此浏览器不支持从笔记预设选择文章，请使用支持本机文件访问的桌面浏览器。",
+        "此浏览器不支持从Obsidian 仓库选择文章，请使用支持本机文件访问的桌面浏览器。",
       ),
     );
   return picker.call(window, {
@@ -76,34 +71,21 @@ export function pickPresetMarkdown(
     ],
   });
 }
-export async function checkPresetRead(record: PresetRecord) {
-  const state =
-    (await record.handle.queryPermission?.({ mode: "read" })) ?? "prompt";
-  if (state !== "granted") throw new PresetReadPermissionError(state);
-  if (!(await verifyVault(record.handle)))
-    throw new Error(
-      "这个预设已找不到 Obsidian 仓库，请到笔记预设重新关联；原文没有改变。",
-    );
-}
-/** 仅用于用户点“重新授权此预设”的事件；不调用putPreset，不改变既有导出写权限。 */
-export async function authorizePresetRead(record: PresetRecord) {
-  if (!record.handle.requestPermission)
-    throw new Error("浏览器无法重新授权此句柄，请到现有笔记预设重新关联。");
-  const state = await record.handle.requestPermission({ mode: "read" });
-  if (state !== "granted") throw new PresetReadPermissionError(state);
-}
-
 /** 从真实FileHandle确定路径，只读取选中MD和引用文件；不按文件名/正文扫描猜文章。 */
-export async function readPresetMarkdown(
-  record: PresetRecord,
+export async function readRepositoryMarkdown(
+  record: RepositoryRoot,
   handle: LocalFileHandle,
   maxBytes: number,
   signal?: AbortSignal,
-): Promise<PresetMarkdown> {
+  ensureCurrent?: () => Promise<void>,
+): Promise<RepositoryMarkdown> {
   const root = record.handle;
-  await checkPresetRead(record);
+  await ensureCurrent?.();
+  await checkRepositoryRead(record);
   if (!root.resolve)
-    throw new Error("浏览器无法确认文章相对仓库的位置，请重新关联此笔记预设。");
+    throw new Error(
+      "浏览器无法确认文章相对仓库的位置，请重新关联此Obsidian 仓库。",
+    );
   throwIfAborted(signal);
   const resolved = await root.resolve(handle);
   if (
@@ -117,15 +99,17 @@ export async function readPresetMarkdown(
     )
   )
     throw new Error(
-      "所选文章不在这个笔记预设的仓库中，请选择该仓库内的 Markdown。",
+      "所选文章不在这个Obsidian 仓库的仓库中，请选择该仓库内的 Markdown。",
     );
   const documentPath = resolved.join("/");
   if (!/\.(md|markdown)$/i.test(documentPath))
     throw new Error("请选择一篇 Markdown 文档。");
+  await ensureCurrent?.();
   const file = await handle.getFile();
   if (file.size > maxBytes)
     throw new Error("所选 Markdown 超过站点导入大小上限。");
   const markdown = await file.text();
+  await ensureCurrent?.();
   throwIfAborted(signal);
   if ((await root.resolve(handle))?.join("/") !== documentPath)
     throw new Error("读取期间文章位置已变化，请重新选择。");
@@ -140,7 +124,7 @@ export async function readPresetMarkdown(
   let scanned = 0;
   const step = () => {
     throwIfAborted(signal);
-    if (++scanned > MAX_PRESET_IMPORT_ENTRIES)
+    if (++scanned > MAX_REPOSITORY_IMPORT_ENTRIES)
       throw new Error(
         "仓库目录过大，无法安全按裸文件名查找，请在笔记中使用明确的附件相对路径。",
       );
@@ -235,6 +219,7 @@ export async function readPresetMarkdown(
     if (paths[0]) used.set(paths[0], byPath.get(paths[0])!);
   }
   async function snapshot(path: string, item: LocalFileHandle) {
+    await ensureCurrent?.();
     throwIfAborted(signal);
     if (
       (await root.resolve!(item))
@@ -243,6 +228,7 @@ export async function readPresetMarkdown(
     )
       throw new Error("附件位置已变化或越出仓库，请重新选择文章。");
     const value = await item.getFile();
+    await ensureCurrent?.();
     if (
       (await root.resolve!(item))
         ?.map((part) => part.normalize("NFC"))
@@ -258,16 +244,21 @@ export async function readPresetMarkdown(
   const assets: Attachment[] = [];
   for (const [path, item] of used)
     assets.push({ path, file: await snapshot(path, item) });
+  await ensureCurrent?.();
   return {
     file,
     markdown,
-    preset: {
-      name: record.preset.name,
+    repository: {
+      name: record.name,
       documentPath,
       assets,
       resolve: { mode: "root", documentPath },
+      validate: async () => {
+        await ensureCurrent?.();
+      },
       readAttachment: async (asset) => {
-        await checkPresetRead(record);
+        await ensureCurrent?.();
+        await checkRepositoryRead(record);
         const item = used.get(asset.path);
         if (!item) throw new Error("附件计划已失效，请重新选择文章。");
         const current = await snapshot(asset.path, item);
@@ -280,4 +271,16 @@ export async function readPresetMarkdown(
       },
     },
   };
+}
+
+/** 正常导入绑定独立连接版本，替换/清除期间停止旧根结果及后续上传。 */
+export function readConnectedMarkdown(
+  connection: RepositoryConnection,
+  handle: LocalFileHandle,
+  maxBytes: number,
+  signal?: AbortSignal,
+) {
+  return readRepositoryMarkdown(connection, handle, maxBytes, signal, () =>
+    assertRepositoryCurrent(connection),
+  );
 }

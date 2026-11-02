@@ -4,6 +4,8 @@
 
 ## 业务模块 `src/modules`
 
+新增：[obsidian-repository](../src/modules/obsidian-repository/README.md) 保存独立、同源、仅导入使用的Obsidian仓库连接，不依赖笔记导出预设。
+
 新增：[markdown-import](../src/modules/markdown-import/README.md) 负责网页/Obsidian 的 Markdown 嵌入附件解析、路径校验、去重上传、地址替换及 MIME 转块；包含支持矩阵和验证边界。
 
 | 模块                   | 职责                                                                                                                  | 详细入口及文档状态                                                                              |

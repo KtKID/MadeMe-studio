@@ -1,3 +1,4 @@
+import RepositorySettings from "../../modules/obsidian-repository/Settings";
 import TypeSettings from "../../modules/article-types/TypeSettings";
 import Dropdown from "../shared/Dropdown";
 import ObsidianSettings from "../../modules/obsidian-local/Settings";
@@ -190,6 +191,8 @@ export default function SettingsPanel({
   }
   useEffect(() => {
     if (active && location.hash === "#models") setTab("models");
+    if (active && location.hash === "#obsidian-repository")
+      setTab("obsidian-repository");
   }, [active, navigationKey]);
   function change<K extends keyof Settings>(key: K, value: Settings[K]) {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -287,7 +290,7 @@ export default function SettingsPanel({
             {dirty ? "有未保存设置" : "设置已同步"}
           </p>
         </div>
-        {tab !== "article-types" && (
+        {tab !== "article-types" && tab !== "obsidian-repository" && (
           <button
             className="button primary"
             disabled={busy || !authenticated}
@@ -307,7 +310,7 @@ export default function SettingsPanel({
       {error && <Notice kind="error">{error}</Notice>}
       {message && <Notice kind="success">{message}</Notice>}
       {!authenticated && <Notice>设置仅限已认证作者修改。</Notice>}
-      {tab !== "article-types" && (
+      {tab !== "article-types" && tab !== "obsidian-repository" && (
         <p className="form-hint">
           不同字段独立保存，不覆盖其他窗口的设置；同一字段在多个窗口同时修改时，以最后一次成功保存为准。
         </p>
@@ -322,6 +325,11 @@ export default function SettingsPanel({
             { id: "prompts", name: "提示词", icon: Sparkles },
             { id: "code", name: "自定义代码", icon: Code2 },
             { id: "obsidian-local", name: "同步 Obsidian", icon: BookOpen },
+            {
+              id: "obsidian-repository",
+              name: "Obsidian 仓库",
+              icon: BookOpen,
+            },
             ...CONFIG_TABS.map((t) => ({
               id: t.id,
               name: t.label,
@@ -341,6 +349,7 @@ export default function SettingsPanel({
         </nav>
         <section className="settings-content">
           {tab === "obsidian-local" && <ObsidianSettings />}
+          {tab === "obsidian-repository" && <RepositorySettings />}
           {tab === "article-types" && (
             <TypeSettings
               initialTypes={settings.articleTypes}

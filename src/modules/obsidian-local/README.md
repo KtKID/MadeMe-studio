@@ -44,7 +44,6 @@ Markdown 转换本身有损；特殊块/样式需核对。平台视频和嵌入�
 
 保存本地预设先显示博客共享 Modal“是否保存此预设？”，确认摘要后才写 IndexedDB；取消保留编辑输入，失败留在弹窗可重试。它只是业务配置确认，不能替代真正保存文章时浏览器必要的文件写入授权。
 
-
 ## Obsidian 打开边界
 
 `open.ts` 保留相对路径校验与参数编码，恢复原有 best-effort URI：已授权目录 `name` + 已保存相对路径。仅沿用现有 `.obsidian` 检测，不扫描更多位置，不移动文件，不猜绝对路径或读取应用登记表。浏览器句柄只暴露名称及授权树内访问，不能可靠验证 Obsidian 实际登记的仓库名称。
@@ -73,14 +72,13 @@ Markdown 转换本身有损；特殊块/样式需核对。平台视频和嵌入�
 
 完整用户规则见 [Obsidian 本地保存规则](../../../docs/OBSIDIAN-LOCAL-SAVE.md)：身份映射、重复保存、媒体复用及并发/非事务边界，以实际实现为准。
 
-
 ## 主动路径审计后的兼容与边界
+
 新导出basename的#改为_，正文和网站原名不变，旧文件保留；用户目录含#明确拒绝。采用新根后清空旧子目录选择。正文提交前复核全部附件摘要，长下载期间复用附件被删/改则安全失败。同名目录按占用避让，不吞权限/父路径错误。
 实际临时文件、官方Obsidian1.14.5、浏览器授权受限的证据逐项见[主动审计](../../../reports/2026-10-29-obsidian-path-audit.md)。未保存临时UUID→服务端ID可能生成第二MD，不自动跨ID迁移；不声明事务级幂等。
 
+## 与独立导入仓库的边界
 
-## 导入复用现有预设
+本模块继续负责笔记导出预设与本机保存。导入使用独立[Obsidian仓库连接](../obsidian-repository/README.md)，不依赖预设ID、不读取/复制/迁移旧预设。删除、改名或修改预设不影响导入；清除导入连接也不影响本模块数据或文件。
 
-编辑器 Markdown 导入复用本模块 `listPresets` 返回的同源 `{preset,handle}`，不新增数据库/默认预设字段，不把导出 `list[0]` 当作导入用户确认。句柄接口最小扩展 read 查询/请求、原生 FileHandle resolve 和可选 entries；原有保存/导出仍按既有 readwrite 契约执行，保存实现没有更改。
-
-导入只请求读取，只处理用户选中文档及其引用附件；不调用 createWritable。权限失效由明确按钮请求 read。实际路径、安全与测试边界见 [Markdown 导入模块](../markdown-import/README.md) 和[验收清单](../../../docs/task/task-preset-markdown-import.md)。Site 与正式博客预设不跨 origin 继承。
+`directory.ts`仅从原presets.ts抽出原有只读picker与直属 `.obsidian` 检查供两处复用，presets.ts保持原导出再导出函数与v1/presets存储不变。DirectoryHandle接口来自单一contracts.ts，既有保存/导出仍按原readwrite契约，写入实现未改。

@@ -1,4 +1,6 @@
-# 复用笔记预设导入 Markdown：需求与验收
+# 复用笔记预设导入 Markdown：历史需求与验收
+
+> 已被用户最新独立仓库要求取代，当前实现见 [独立仓库TODO](task-obsidian-repository-import.md)。以下保留为历史证据，不再作为产品验收目标。
 
 ## 用户目标
 
