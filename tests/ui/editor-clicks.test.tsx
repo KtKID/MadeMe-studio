@@ -96,10 +96,10 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
-function setup(onClose = vi.fn()) {
+function setup(onClose = vi.fn(), initialPost = post) {
   render(
     <Editor
-      post={post}
+      post={initialPost}
       settings={defaultSettings}
       authenticated
       aiConfigured={false}
@@ -134,11 +134,11 @@ describe("编辑器真实按钮与状态链路", () => {
   it("导入入口只用独立仓库，不直接丢失MD的仓库位置", async () => {
     setup();
     await act(async () =>
-      fireEvent.click(
-        screen.getByRole("button", { name: "导入" }),
-      ),
+      fireEvent.click(screen.getByRole("button", { name: "导入" })),
     );
-    expect(screen.getByRole("dialog", { name: "从 Obsidian 仓库导入" })).toBeTruthy();
+    expect(
+      screen.getByRole("dialog", { name: "从 Obsidian 仓库导入" }),
+    ).toBeTruthy();
   });
   it("原地返回只显示站内 Modal，取消保留输入，确认才关闭", () => {
     const close = setup();
@@ -563,4 +563,82 @@ it("AI 对话框重新选择当前动作/模型/提示词不清空已编辑的�
   expect(screen.getByRole("combobox", { name: "模型" }).textContent).toBe(
     modelLabel,
   );
+});
+
+describe("Markdown导入默认标题", () => {
+  it.each([
+    {
+      title: "",
+      markdown: "没有一级标题的正文",
+      name: "中文笔记.md",
+      expected: "中文笔记",
+    },
+    {
+      title: "   ",
+      markdown: "普通正文",
+      name: "中文.多点.记录.MARKDOWN",
+      expected: "中文.多点.记录",
+    },
+    {
+      title: "",
+      markdown: "# 正文一级标题\n\n普通正文",
+      name: "文件名.Md",
+      expected: "正文一级标题",
+    },
+    {
+      title: "作者输入的标题",
+      markdown: "# 正文一级标题",
+      name: "文件名.md",
+      expected: "作者输入的标题",
+    },
+    {
+      title: "  有效手动标题  ",
+      markdown: "正文",
+      name: "文件名.md",
+      expected: "  有效手动标题  ",
+    },
+  ])("$name / 初始$title → $expected", async (value) => {
+    setup(undefined, { ...post, title: value.title });
+    const file = new File([value.markdown], value.name);
+    file.text = async () => value.markdown;
+    await act(async () => {
+      fireEvent.change(document.querySelector('input[accept*=".markdown"]')!, {
+        target: { files: [file] },
+      });
+    });
+    expect((screen.getByLabelText("文章标题") as HTMLInputElement).value).toBe(
+      value.title,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "导入正文" }));
+    });
+    expect((screen.getByLabelText("文章标题") as HTMLInputElement).value).toBe(
+      value.expected,
+    );
+    h.api.mockResolvedValueOnce({
+      post: { ...post, title: value.expected.trim(), version: 2 },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    });
+    const write = h.api.mock.calls.find(
+      ([, options]) => options?.method === "PATCH",
+    );
+    expect(JSON.parse(write![1].body).title).toBe(value.expected.trim());
+  });
+  it("无H1文件取消导入不改变空标题或正文", async () => {
+    setup(undefined, { ...post, title: "" });
+    const file = new File(["正文"], "不能提前变标题.md");
+    file.text = async () => "正文";
+    await act(async () => {
+      fireEvent.change(document.querySelector('input[accept*=".markdown"]')!, {
+        target: { files: [file] },
+      });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect((screen.getByLabelText("文章标题") as HTMLInputElement).value).toBe(
+      "",
+    );
+    expect(h.editor.replaceBlocks).not.toHaveBeenCalled();
+  });
 });

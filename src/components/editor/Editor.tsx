@@ -956,9 +956,12 @@ export default function Editor({
             editor.document,
             parsed as PartialBlock<typeof schema.blockSchema>[],
           );
-          if (!title) {
+          if (!title.trim()) {
             const match = prepared.markdown.match(/^#\s+(.+)$/m);
-            if (match) setTitle(match[1]);
+            const importedTitle =
+              match?.[1].trim() ||
+              markdownImport.file.name.replace(/\.(md|markdown)$/i, "").trim();
+            if (importedTitle) setTitle(importedTitle);
           }
           markDirty();
           setError("");

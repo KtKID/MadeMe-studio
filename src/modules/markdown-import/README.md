@@ -11,6 +11,10 @@
 - `blocks.ts`：原服务器保守 Markdown 转块逻辑的同构实现；`src/server/content/markdown.ts` 仅再导出。旧客户端若直接提交未上传的相对图片或 wiki 嵌入，返回 422，避免静默变成文字。
 - Obsidian 入口见 [插件 README](../../../integrations/obsidian-publisher/README.md)；请求安全与 scope 见 [共享客户端](../../../integrations/shared/README.md)。
 
+## 默认标题
+
+仅确认导入成功后处理：保留已有非空白标题；空/纯空白标题优先取正文H1，否则使用所选Markdown的File.name去掉末尾.md/.markdown（不区分大小写）。中文及中间点号保留；不改正文、不新增frontmatter解析，取消/失败不提前修改标题。普通文件与仓库导入共用Editor赋值点。
+
 ## 路径与权限
 
 文件夹/vault 模式以所选根目录为边界，标准路径相对笔记所在目录；wiki 额外接受根相对路径或唯一文件名。拒绝越界、绝对路径、反斜线、危险协议。标准 Markdown URL 解码一次再检查；wiki 和真实目录名按字面匹配，不做百分号解码：`![[100%25.png]]` 指向字面文件 `100%25.png`，`![图](100%25.png)` 才指向 `100%.png`。支持中文、空格、百分号和 Unicode NFC。多个同名候选明确报错，不猜第一项。网页多文件模式仅在用户显式选择的 File 集合里按唯一文件名匹配，相对路径本身不能授予任意磁盘访问权。

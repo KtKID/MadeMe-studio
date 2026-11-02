@@ -146,6 +146,11 @@ async function setup(page: Page, includeSecond = false) {
             ? "# A仓库正文\n\n![一](../assets/a.png)\n\n![二](../other/b.png)\n\n![[../assets/动画.gif]]\n\n![视频](../assets/片段.mp4)\n\n![重复](../assets/a.png)\n\n![远程视频](https://media.example.test/remote.mp4)"
             : "# B仓库正文\n\n![唯一B](../assets/b-only.png)";
         await put(vault, "notes/mixed.md", markdown);
+        await put(
+          vault,
+          "notes/仓库.中文标题.MARKDOWN",
+          "仓库原始正文，没有一级标题。",
+        );
         await put(vault, "notes/escape.md", "![越界](../../private.png)");
         await put(
           vault,
@@ -790,6 +795,51 @@ test(
         staleConfirmationRejected: true,
         noResurrection: true,
       }),
+    );
+  },
+);
+
+test(
+  "仓库MD无H1用中文多点文件名作标题，保存刷新保持",
+  { tag: "@native-handles" },
+  async ({ page }) => {
+    test.setTimeout(60_000);
+    await setup(page);
+    await page.goto("/studio/new");
+    await page.evaluate(() => {
+      (window as any).__noteChoice = "仓库.中文标题.MARKDOWN";
+    });
+    await page.getByRole("button", { name: "导入", exact: true }).click();
+    const choosing = page.getByRole("dialog", { name: "从 Obsidian 仓库导入" });
+    await expect(
+      choosing.getByRole("button", { name: "选择 Markdown 文章", exact: true }),
+    ).toBeVisible();
+    await choosing
+      .getByRole("button", { name: "选择 Markdown 文章", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "导入 Markdown 与附件" }),
+    ).toContainText("仓库.中文标题.MARKDOWN");
+    await expect(page.getByLabel("文章标题")).toHaveValue("");
+    await page.getByRole("button", { name: "导入正文", exact: true }).click();
+    await expect(page.getByLabel("文章标题")).toHaveValue("仓库.中文标题");
+    await expect(page.locator(".bn-editor")).toContainText(
+      "仓库原始正文，没有一级标题。",
+    );
+    const saving = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/posts"),
+    );
+    await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+    const response = await saving;
+    expect(response.status()).toBe(201);
+    const { post } = await response.json();
+    expect(post.title).toBe("仓库.中文标题");
+    await page.goto("/studio/edit?id=" + post.id);
+    await expect(page.getByLabel("文章标题")).toHaveValue("仓库.中文标题");
+    await expect(page.locator(".bn-editor")).toContainText(
+      "仓库原始正文，没有一级标题。",
     );
   },
 );

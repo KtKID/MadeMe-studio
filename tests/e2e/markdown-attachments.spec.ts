@@ -724,3 +724,94 @@ test("无附件MD只确认正文，取消与重选不改原文", async ({ page }
   await page.getByRole("button", { name: "导入正文" }).click();
   await expect(page.locator(".bn-editor")).toContainText("纯文字验收");
 });
+
+test("普通MD默认标题：文件名/H1/有效输入/空白输入与取消，保存刷新保持", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const cases = [
+    {
+      name: "普通.中文文件.Md",
+      markdown: "没有H1的原始正文。",
+      title: "",
+      expected: "普通.中文文件",
+    },
+    {
+      name: "另一个文件.MARKDOWN",
+      markdown: "# 一级标题优先\n\n原始正文。",
+      title: "",
+      expected: "一级标题优先",
+    },
+    {
+      name: "不要覆盖.md",
+      markdown: "# 正文一级标题\n\n手动标题必须保留。",
+      title: "作者手动标题",
+      expected: "作者手动标题",
+    },
+    {
+      name: "空白标题回顾.markdown",
+      markdown: "空白标题对应的原始正文。",
+      title: "   ",
+      expected: "空白标题回顾",
+    },
+  ];
+  for (const [index, value] of cases.entries()) {
+    const path = join(vault, "文章", value.name);
+    await writeFile(path, value.markdown);
+    await page.goto("/studio/new");
+    await expect(page.getByLabel("文章标题")).toBeVisible();
+    if (value.title) await page.getByLabel("文章标题").fill(value.title);
+    const choose = async () => {
+      const picking = page.waitForEvent("filechooser");
+      await page.getByRole("button", { name: "导入", exact: true }).click();
+      await page
+        .getByRole("button", {
+          name: "仅选择单个文件（不自动读取本地附件）",
+          exact: true,
+        })
+        .click();
+      await (await picking).setFiles(path);
+      await expect(
+        page.getByRole("dialog", { name: "导入 Markdown 与附件" }),
+      ).toBeVisible();
+    };
+    await choose();
+    await expect(page.getByLabel("文章标题")).toHaveValue(value.title);
+    if (index === 0) {
+      await page
+        .getByRole("dialog", { name: "导入 Markdown 与附件" })
+        .getByRole("button", { name: "取消", exact: true })
+        .click();
+      await expect(page.getByLabel("文章标题")).toHaveValue("");
+      await choose();
+    }
+    await page.getByRole("button", { name: "导入正文", exact: true }).click();
+    await expect(page.getByLabel("文章标题")).toHaveValue(value.expected);
+    const saving = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/posts"),
+    );
+    await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+    const response = await saving;
+    expect(response.status()).toBe(201);
+    const { post } = await response.json();
+    expect(post.title).toBe(value.expected);
+    expect(post.visibility).toBe("draft");
+    await page.goto("/studio/edit?id=" + post.id);
+    await expect(page.getByLabel("文章标题")).toHaveValue(value.expected);
+    const persisted = (
+      await (await page.request.get("/api/posts/" + post.id)).json()
+    ).post;
+    expect(persisted.title).toBe(value.expected);
+    expect(JSON.stringify(persisted.blocks)).toContain(
+      index === 0
+        ? "没有H1的原始正文"
+        : index === 1
+          ? "一级标题优先"
+          : index === 2
+            ? "正文一级标题"
+            : "空白标题对应的原始正文",
+    );
+  }
+});
