@@ -1,27 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import type { z } from "zod";
 import { Eye, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { api, Notice, Busy, date } from "../shared/ui";
 import { useStudioPane } from "../../modules/studio-navigation/pane";
 import { useNavigationReady } from "../../modules/navigation-performance/use-navigation-ready";
 import { clientCaught } from "../../modules/log/client";
+import type {
+  visitSummaryResponseSchema,
+  visitorsResponseSchema,
+} from "../../shared/contracts";
 
-interface VisitSummary {
-  visits: number;
-  visitors: number;
-}
-interface VisitorRow {
-  ip: string | null;
-  views: number;
-  lastTs: number;
-  country: string | null;
-}
-interface VisitorsPage {
-  items: VisitorRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
+// 类型直接取自共享协议，避免与 contracts / 服务端模块三处平行定义漂移。
+type VisitSummary = z.infer<typeof visitSummaryResponseSchema>;
+type VisitorsPage = z.infer<typeof visitorsResponseSchema>;
 
 // 本期只有「网站状态」；横向 tab 预留扩展位，后续数据视图按序追加。
 const tabs = [{ id: "site", label: "网站状态" }] as const;
@@ -30,41 +21,58 @@ type TabId = (typeof tabs)[number]["id"];
 /** 工作台「数据」面板：访问数据全站唯一展示处，访客不可见。 */
 export default function DataStudio() {
   const { active } = useStudioPane();
-  const activation = useRef(0);
-  const activeRef = useRef(active);
-  activeRef.current = active;
   const [tab, setTab] = useState<TabId>("site");
   const [summary, setSummary] = useState<VisitSummary | null>(null);
   const [visitors, setVisitors] = useState<VisitorsPage | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [visitorsLoading, setVisitorsLoading] = useState(true);
+  const loading = summaryLoading || visitorsLoading;
   useNavigationReady("/studio/data", !loading, !!error);
+
+  // 汇总与分页列表分开请求：翻页只重新拉列表，不重复拉汇总。
+  // 面板失活或依赖变化时由 cleanup 作废迟到的响应，不把旧数据写进新状态。
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    setSummaryLoading(true);
+    setError("");
+    api<VisitSummary>("/api/views/summary")
+      .then((s) => {
+        if (!cancelled) setSummary(s);
+      })
+      .catch((e) => {
+        clientCaught("datastudio.summary_failed", e);
+        if (!cancelled) setError(e instanceof Error ? e.message : "加载失败");
+      })
+      .finally(() => {
+        if (!cancelled) setSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
-    const epoch = ++activation.current;
-    setLoading(true);
+    let cancelled = false;
+    setVisitorsLoading(true);
     setError("");
-    Promise.all([
-      api<VisitSummary>("/api/views/summary"),
-      api<VisitorsPage>(`/api/views/visitors?page=${page}`),
-    ])
-      .then(([s, v]) => {
-        if (activeRef.current && activation.current === epoch) {
-          setSummary(s);
-          setVisitors(v);
-        }
+    api<VisitorsPage>(`/api/views/visitors?page=${page}`)
+      .then((v) => {
+        if (!cancelled) setVisitors(v);
       })
       .catch((e) => {
-        clientCaught("datastudio.load_failed", e);
-        if (activeRef.current && activation.current === epoch)
-          setError(e instanceof Error ? e.message : "加载失败");
+        clientCaught("datastudio.visitors_failed", e);
+        if (!cancelled) setError(e instanceof Error ? e.message : "加载失败");
       })
       .finally(() => {
-        if (activeRef.current && activation.current === epoch)
-          setLoading(false);
+        if (!cancelled) setVisitorsLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [active, page]);
 
   return (

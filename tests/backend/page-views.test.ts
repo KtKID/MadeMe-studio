@@ -224,7 +224,14 @@ describe("访问汇总与访客列表", () => {
   };
   async function seed(env: ReturnType<typeof fixtureEnv>) {
     const now = Date.now();
-    await recordPageView(env, { ts: now, path: "/p/a", ip: "1.1.1.1", ...ok });
+    // 1.1.1.1 先从 US 访问、后从 CN 访问：列表应显示最近一次的 CN（字典序最大的是 US，用以区分口径）。
+    await recordPageView(env, {
+      ts: now,
+      path: "/p/a",
+      ip: "1.1.1.1",
+      ...ok,
+      country: "US",
+    });
     await recordPageView(env, {
       ts: now + 1,
       path: "/p/b",
@@ -274,7 +281,7 @@ describe("访问汇总与访客列表", () => {
       env.DB.close();
     }
   });
-  it("访客列表：按最近访问倒序、含 IP 与国家汇总", async () => {
+  it("访客列表：按最近访问倒序，国家取该 IP 最近一次访问的值", async () => {
     const env = fixtureEnv();
     try {
       const now = await seed(env);
@@ -290,7 +297,7 @@ describe("访问汇总与访客列表", () => {
       env.DB.close();
     }
   });
-  it("访客列表：分页边界与无数据库绑定", async () => {
+  it("访客列表：分页边界（越界夹紧到最后一页）与无数据库绑定", async () => {
     const env = fixtureEnv();
     try {
       await seed(env);
@@ -298,8 +305,12 @@ describe("访问汇总与访客列表", () => {
       expect(page2.items.map((row) => row.ip)).toEqual(["1.1.1.1"]);
       expect(page2.totalPages).toBe(2);
       expect(page2.page).toBe(2);
+      const beyond = await listVisitors(env, { page: 3, pageSize: 2 });
+      expect(beyond.page).toBe(2);
+      expect(beyond.items.map((row) => row.ip)).toEqual(["1.1.1.1"]);
       const far = await listVisitors(env, { page: 99 });
-      expect(far.items).toEqual([]);
+      expect(far.page).toBe(1);
+      expect(far.items).toHaveLength(3);
       expect((await listVisitors(env, { page: 0 })).page).toBe(1);
       expect(await listVisitors({})).toEqual({
         items: [],

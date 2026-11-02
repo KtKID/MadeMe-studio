@@ -58,7 +58,10 @@ export async function recordPageView(
     .run();
 }
 
-/** 文章页展示的阅读数：只计访客 200 响应，爬虫不计入；无绑定或查询失败（如迁移未应用）返回 null，页面据此隐藏。 */
+/**
+ * 文章页阅读数：只计访客 200 响应，爬虫不计入；无绑定或查询失败（如迁移未应用）返回 null。
+ * 当前未被任何页面引用（访问数据只在工作台「数据」面板展示），保留为模块能力并由测试覆盖。
+ */
 export async function readPostViewCount(
   env: RuntimeEnv,
   path: string,
@@ -77,7 +80,7 @@ export async function readPostViewCount(
   }
 }
 
-/** 热门文章：时间窗口内按访问次数降序，口径与阅读数一致。 */
+/** 热门文章：时间窗口内按访问次数降序，口径与阅读数一致。当前未被页面引用，保留为模块能力。 */
 export async function listTopPaths(
   env: RuntimeEnv,
   options: { sinceMs: number; limit: number },
@@ -101,7 +104,7 @@ export interface VisitSummary {
   visitors: number;
 }
 
-/** 工作台「网站状态」汇总；无数据库绑定时返回零值。 */
+/** 工作台「网站状态」汇总；无数据库绑定时返回零值。两条独立查询，避免同一参数按占位符顺序重复绑定。 */
 export async function visitSummary(
   env: RuntimeEnv,
   options: { sinceMs?: number } = {},
@@ -114,16 +117,19 @@ export async function visitSummary(
     params.push(options.sinceMs);
   }
   const where = `WHERE status = 200 ${BOT_FILTER} ${timeFilter}`;
-  const row = await env.DB.prepare(
-    `SELECT COUNT(*) AS visits,
-       (SELECT COUNT(*) FROM (SELECT ip FROM page_view_events ${where} GROUP BY ip)) AS visitors
-     FROM page_view_events ${where}`,
+  const visitsRow = await env.DB.prepare(
+    `SELECT COUNT(*) AS visits FROM page_view_events ${where}`,
   )
-    .bind(...params, ...params)
-    .first<{ visits: number; visitors: number }>();
+    .bind(...params)
+    .first<{ visits: number }>();
+  const visitorsRow = await env.DB.prepare(
+    `SELECT COUNT(*) AS visitors FROM (SELECT ip FROM page_view_events ${where} GROUP BY ip)`,
+  )
+    .bind(...params)
+    .first<{ visitors: number }>();
   return {
-    visits: row ? Number(row.visits) : 0,
-    visitors: row ? Number(row.visitors) : 0,
+    visits: visitsRow ? Number(visitsRow.visits) : 0,
+    visitors: visitorsRow ? Number(visitorsRow.visitors) : 0,
   };
 }
 
@@ -142,15 +148,20 @@ export interface VisitorsPage {
   totalPages: number;
 }
 
-/** 按 IP 汇总的访客分页列表：最近访问倒序，页码小于 1 时归一为 1。 */
+/**
+ * 按 IP 汇总的访客分页列表：最近访问倒序（并列再按次数、IP 固定次序，翻页不重不漏）。
+ * 国家取该 IP 最近一次访问的值（SQLite 对含单个 MAX() 的分组查询，裸列取自 MAX 所在行）。
+ * 页码小于 1 归一为 1，超过总页数夹紧到最后一页，响应中的 page 为实际使用值。
+ */
 export async function listVisitors(
   env: RuntimeEnv,
   options: { page?: number; pageSize?: number; sinceMs?: number } = {},
 ): Promise<VisitorsPage> {
   const pageSize = Math.min(Math.max(options.pageSize ?? 10, 1), 100);
-  const page = Math.max(1, Math.trunc(options.page ?? 1));
+  const requested = Math.max(1, Math.trunc(options.page ?? 1));
   const items: VisitorRow[] = [];
   let total = 0;
+  let page = 1;
   if (env.DB) {
     let timeFilter = "";
     const params: number[] = [];
@@ -165,10 +176,11 @@ export async function listVisitors(
       .bind(...params)
       .first<{ total: number }>();
     total = countRow ? Number(countRow.total) : 0;
+    page = Math.min(requested, Math.max(1, Math.ceil(total / pageSize)));
     const result = await env.DB.prepare(
-      `SELECT ip, COUNT(*) AS views, MAX(ts) AS lastTs, MAX(country) AS country
+      `SELECT ip, COUNT(*) AS views, MAX(ts) AS lastTs, country
        FROM page_view_events ${where}
-       GROUP BY ip ORDER BY lastTs DESC, views DESC LIMIT ? OFFSET ?`,
+       GROUP BY ip ORDER BY lastTs DESC, views DESC, ip ASC LIMIT ? OFFSET ?`,
     )
       .bind(...params, pageSize, (page - 1) * pageSize)
       .all<{

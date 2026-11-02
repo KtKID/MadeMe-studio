@@ -61,3 +61,36 @@ it("DELETE /api/media/:id 带 ?force=1 时仍按删除响应 schema 校验", () 
     parseApiResponse({ deleted: true }, "/api/media/abc?force=1", "DELETE"),
   ).toThrow();
 });
+
+it("GET /api/views/* 带 ?page=N 时仍命中访问统计协议，不 mock api()", () => {
+  const summary = { visits: 7, visitors: 3 };
+  expect(parseApiResponse(summary, "/api/views/summary", "GET")).toEqual(
+    summary,
+  );
+  const visitors = {
+    items: [
+      { ip: "203.0.113.7", views: 5, lastTs: 1735689600123, country: "CN" },
+    ],
+    total: 12,
+    page: 2,
+    pageSize: 10,
+    totalPages: 2,
+  };
+  expect(
+    parseApiResponse(visitors, "/api/views/visitors?page=2", "GET"),
+  ).toEqual(visitors);
+  expect(parseApiResponse(visitors, "/api/views/visitors", "GET")).toEqual(
+    visitors,
+  );
+  // 结构不符（缺 totalPages）与未知端点一律拒绝
+  expect(() =>
+    parseApiResponse(
+      { items: [], total: 0, page: 1, pageSize: 10 },
+      "/api/views/visitors?page=1",
+      "GET",
+    ),
+  ).toThrow();
+  expect(() =>
+    parseApiResponse(summary, "/api/views/unknown", "GET"),
+  ).toThrow();
+});

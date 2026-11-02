@@ -90,6 +90,7 @@
 - src/pages/studio/data.astro: 深链页（新）
 - src/styles/global.css: 面板样式
 - tests/backend/page-views.test.ts: 16 项（15 unit + 1 smoke）
+- tests/ui-protocol.test.ts: 新增 1 项（访问统计端点带 query string 的协议匹配，不 mock）
 - tests/ui/data-studio.test.tsx: 3 项 jsdom UI 测试（新）
 - tests/backend/README.md、tests/ui/README.md、src/server/README.md、src/components/studio/README.md、src/modules/studio-navigation/README.md: 文档同步
 
@@ -101,6 +102,8 @@
 - **需求演进**：首轮在公开文章页展示「N 次阅读」，用户明确要求访客不可见、只在工作台展示；撤销页面展示，新增工作台「数据」面板。第二轮测试（汇总/访客/API/UI）先写后实现。
 - 实现「数据」面板时发现客户端 `api()` 按端点白名单 + Zod 协议解析响应，未注册端点一律抛 INVALID_RESPONSE；据此补齐 contracts 与 api-protocol 注册。
 - UI 测试两处选择器修正：「访问次数」同时出现在统计卡和表头，改用 `getAllByText`；分页按钮文本被图标拆分，改用 `getByRole("button", { name })`；分页用例初始 mock 需返回两页才会渲染分页栏。均为测试写法问题，实现未改。
+
+- **PR 审核修复**（AI 审核 PR #12）：① `listVisitors` 的国家改为取该 IP 最近一次访问的值（原 `MAX(country)` 为字典序最大）；② 排序追加 `ip` 作稳定键，翻页不重不漏；③ 越界页码夹紧到最后一页，响应 `page` 为实际值；④ `visitSummary` 拆成两条查询，去掉同一参数按占位符顺序双重绑定；⑤ 中间件落库改用 `cloudflare:workers` 的 `waitUntil` 移出响应路径（无上下文时退回同步等待）；⑥ 面板拆成两个 effect，翻页不重复请求汇总；⑦ 面板类型改为 `z.infer` 自 contracts；⑧ 补 `tests/ui-protocol.test.ts` 不 mock `api()` 的回归：`/api/views/visitors?page=N` 命中协议。未采纳：默认时间窗口/保留策略（产品决策，另议）、爬虫启发式扩展、Prettier 噪音回退。
 
 ## ④ 验证结果
 
@@ -119,7 +122,7 @@
 
 ```
  Test Files  1 failed | 111 passed (112)
-      Tests  16 failed | 971 passed (987)
+      Tests  16 failed | 972 passed (988)
 ```
 
 类型检查（`npm run check`）：本次改动文件 0 错误；仅存错误全部位于任务开始前已存在的未跟踪审计证据文件 `reports/audit/evidence-*/`（与本次无关）。
@@ -134,7 +137,7 @@
 ### 结论
 
 - [x] 所有需求点被测试覆盖
-- [x] 所有测试真实跑过且通过（本次新增 19/19；既有失败经干净树复现确认为与本任务无关的既有问题）
+- [x] 所有测试真实跑过且通过（本次新增 20/20；既有失败经干净树复现确认为与本任务无关的既有问题）
 - [x] 实现在边界内（公开页零展示；数据只在工作台「数据」面板）
 - [x] 不变量未破坏
 

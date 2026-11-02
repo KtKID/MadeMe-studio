@@ -1,5 +1,5 @@
 import { defineMiddleware } from "astro:middleware";
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import type { RuntimeEnv } from "./server/runtime";
 import { secureResponse } from "./server/response-policy";
 import { buildPageViewEvent, recordPageViewSafely } from "./server/page-views";
@@ -27,9 +27,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     throw error;
   }
   // 文章页在渲染时对可计数访问标记 pageView；此处补齐状态码与耗时后落库，失败只写日志。
+  // 落库交给 waitUntil 在响应之后完成，不占用读者的响应时间；无请求上下文时退回同步等待。
   const locals = context.locals as unknown as { pageView?: { path: string } };
   if (locals.pageView && context.request.method === "GET") {
-    await recordPageViewSafely(
+    const pending = recordPageViewSafely(
       env as RuntimeEnv,
       buildPageViewEvent(
         context.request,
@@ -38,6 +39,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
         locals.pageView.path,
       ),
     );
+    try {
+      waitUntil(pending);
+    } catch {
+      await pending;
+    }
   }
   return secureResponse(response, context.url, (env as RuntimeEnv).AUTH_MODE);
 });
