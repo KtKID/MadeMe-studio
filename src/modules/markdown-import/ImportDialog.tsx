@@ -1,3 +1,4 @@
+import type { PresetImportSource } from "./preset-import";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, FileText, FolderOpen, Link2, X } from "lucide-react";
 import { throwIfAborted } from "../../shared/request-cancellation";
@@ -20,15 +21,19 @@ export default function MarkdownImportDialog({
   upload,
   apply,
 }: {
-  source: { file: File; markdown: string };
+  source: { file: File; markdown: string; preset?: PresetImportSource };
   onClose: () => void;
   upload: (file: File, signal?: AbortSignal) => Promise<UploadedAttachment>;
   apply: (
     prepared: Awaited<ReturnType<typeof prepareAttachments>>,
   ) => Promise<void>;
 }) {
-  const [assets, setAssets] = useState<Attachment[]>([]);
-  const [options, setOptions] = useState<ResolveOptions>({ mode: "selected" });
+  const [assets, setAssets] = useState<Attachment[]>(
+    source.preset?.assets ?? [],
+  );
+  const [options, setOptions] = useState<ResolveOptions>(
+    source.preset?.resolve ?? { mode: "selected" },
+  );
   const [folder, setFolder] = useState("");
   const [error, setError] = useState("");
   const [progress, setProgress] = useState("");
@@ -49,11 +54,11 @@ export default function MarkdownImportDialog({
   latestSource.current = source;
   useEffect(() => {
     cache.current = new Map();
-    assetsRef.current = [];
+    assetsRef.current = source.preset?.assets ?? [];
     selectionQueue.current = Promise.resolve();
     pendingSelections.current = 0;
-    setAssets([]);
-    setOptions({ mode: "selected" });
+    setAssets(source.preset?.assets ?? []);
+    setOptions(source.preset?.resolve ?? { mode: "selected" });
     setFolder("");
     setError("");
     setProgress("");
@@ -204,6 +209,7 @@ export default function MarkdownImportDialog({
         {
           signal: operation.signal,
           cache: cache.current,
+          readFile: source.preset?.readAttachment,
           progress: (done, total) => {
             if (
               latestSource.current === source &&
@@ -271,12 +277,21 @@ export default function MarkdownImportDialog({
             </span>
           </div>
         </div>
+        {source.preset && (
+          <p className="form-hint">
+            笔记预设：{source.preset.name}
+            <br />
+            文章路径：{source.preset.documentPath}
+          </p>
+        )}
         <p className="import-intro">
-          {inspection.error
-            ? "请检查附件写法，当前正文尚未改变。"
-            : rows.length
-              ? "链接会自动保留。本地附件添加后会自动匹配，只上传本文引用的文件。"
-              : "没有需要上传的附件，可以直接导入正文。"}
+          {source.preset
+            ? "已从笔记预设自动匹配附件；只上传这篇文章的引用文件，远程链接保留。"
+            : inspection.error
+              ? "请检查附件写法，当前正文尚未改变。"
+              : rows.length
+                ? "链接会自动保留。本地附件添加后会自动匹配，只上传本文引用的文件。"
+                : "没有需要上传的附件，可以直接导入正文。"}
         </p>
         <input
           hidden
@@ -339,7 +354,9 @@ export default function MarkdownImportDialog({
                   : row.problem
                     ? /同名|歧义/.test(row.problem)
                       ? "同名待确认"
-                      : "待添加"
+                      : source.preset
+                        ? "预设中缺失"
+                        : "待添加"
                     : uploaded
                       ? "已上传"
                       : progress
@@ -369,6 +386,11 @@ export default function MarkdownImportDialog({
                             ? ` · 已选择 ${row.asset.file.name}`
                             : ""}
                         </span>
+                        {source.preset && !row.hosted && (
+                          <small className="import-reference-path">
+                            {row.asset?.path ?? row.ref.target}
+                          </small>
+                        )}
                       </div>
                     </div>
                     <div className="import-file-end">
@@ -377,7 +399,7 @@ export default function MarkdownImportDialog({
                       >
                         {status}
                       </span>
-                      {row.asset && controls(row.asset)}
+                      {row.asset && !source.preset && controls(row.asset)}
                     </div>
                     {row.problem && assets.length > 0 && (
                       <small className="import-file-problem">
@@ -406,7 +428,7 @@ export default function MarkdownImportDialog({
             </ul>
           </section>
         )}
-        {!!local.length && (
+        {!source.preset && !!local.length && (
           <details className="import-folder-option">
             <summary>附件较多？从文件夹自动匹配</summary>
             <p>选择包含这篇笔记和附件的笔记库文件夹；只读取引用附件。</p>
@@ -443,8 +465,9 @@ export default function MarkdownImportDialog({
         )}
         {missing.length > 0 && (
           <p className="import-guidance">
-            还有 {missing.length}{" "}
-            处本地附件待添加。可以一次多选，也可以分次添加；之前的选择会保留。
+            {source.preset
+              ? `预设中还有 ${missing.length} 处引用未匹配，请检查仓库文件和笔记路径后重新选择文章。当前正文尚未改变。`
+              : `还有 ${missing.length} 处本地附件待添加。可以一次多选，也可以分次添加；之前的选择会保留。`}
           </p>
         )}
         {error && <Notice kind="error">{error}</Notice>}
@@ -458,7 +481,7 @@ export default function MarkdownImportDialog({
           <button
             type="button"
             className="button primary"
-            disabled={!!inspection.error || busy}
+            disabled={!!inspection.error || busy || (!!source.preset && !ready)}
             onClick={() =>
               ready ? void confirm() : filesInput.current?.click()
             }
@@ -475,6 +498,8 @@ export default function MarkdownImportDialog({
               ) : (
                 "导入正文"
               )
+            ) : source.preset ? (
+              "附件未匹配，无法导入"
             ) : (
               "补充缺失附件"
             )}

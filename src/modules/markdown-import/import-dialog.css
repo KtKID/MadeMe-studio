@@ -188,3 +188,9 @@
     flex: 1;
   }
 }
+.import-reference-path {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}

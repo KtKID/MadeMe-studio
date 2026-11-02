@@ -131,6 +131,15 @@ afterEach(() => {
 });
 
 describe("编辑器真实按钮与状态链路", () => {
+  it("导入入口先复用笔记预设，不直接丢失MD的仓库位置", async () => {
+    setup();
+    await act(async () =>
+      fireEvent.click(
+        screen.getByRole("button", { name: "导入" }),
+      ),
+    );
+    expect(screen.getByRole("dialog", { name: "从笔记预设导入" })).toBeTruthy();
+  });
   it("原地返回只显示站内 Modal，取消保留输入，确认才关闭", () => {
     const close = setup();
     fireEvent.change(screen.getByLabelText("文章标题"), {

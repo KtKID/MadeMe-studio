@@ -27,6 +27,8 @@ export const INTEGRATION_REQUEST_TIMEOUT_MS = 20_000;
 export const INTEGRATION_MEDIA_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 /** 单次导入引用数量上限，约束目录匹配与顺序上传成本。 */
 export const MAX_MARKDOWN_MEDIA_REFERENCES = 128;
+/** 仅wiki裸文件名回退时遍历预设元数据；不读取其它笔记正文。 */
+export const MAX_PRESET_IMPORT_ENTRIES = 100_000;
 
 export type MediaCategory = "image" | "audio" | "video" | "document";
 /** 允许上传的 MIME 白名单（SVG/HTML 不在范围内）；设置页只能在此基础上“关闭”，不能新增。 */

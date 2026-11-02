@@ -538,6 +538,12 @@ test("真实磁盘MD：两图分次累加、多选GIF/本地视频、远程视�
   );
   let chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "导入", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: "仅选择单个文件（不自动读取本地附件）",
+      exact: true,
+    })
+    .click();
   await (await chooser).setFiles(mdPath);
   const dialog = page.getByRole("dialog", { name: "导入 Markdown 与附件" });
   await expect(dialog).toContainText("已识别 5 处附件引用");
@@ -611,6 +617,22 @@ test("真实磁盘MD：两图分次累加、多选GIF/本地视频、远程视�
   await page.setViewportSize({ width: 1440, height: 1000 });
   if (artifacts)
     await dialog.screenshot({ path: join(artifacts, "desktop-ready.png") });
+  if (process.env.MD_UI_SCREENSHOTS) {
+    await dialog.screenshot({
+      path: join(process.env.MD_UI_SCREENSHOTS, "preset-desktop.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(dialog).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await dialog.screenshot({
+      path: join(process.env.MD_UI_SCREENSHOTS, "preset-mobile.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
   const uploads: any[] = [];
   page.on("response", (response) => {
     if (
@@ -671,6 +693,12 @@ test("无附件MD只确认正文，取消与重选不改原文", async ({ page }
   await writeFile(path, "# 纯文字验收\n\n没有附件。");
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "导入", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: "仅选择单个文件（不自动读取本地附件）",
+      exact: true,
+    })
+    .click();
   await (await chooser).setFiles(path);
   const dialog = page.getByRole("dialog", { name: "导入 Markdown 与附件" });
   await expect(dialog).toContainText("已识别 0 处附件引用");
@@ -686,7 +714,225 @@ test("无附件MD只确认正文，取消与重选不改原文", async ({ page }
   await expect(page.locator(".bn-editor")).toContainText("原有输入必须保留");
   const again = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "导入", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: "仅选择单个文件（不自动读取本地附件）",
+      exact: true,
+    })
+    .click();
   await (await again).setFiles(path);
   await page.getByRole("button", { name: "导入正文" }).click();
   await expect(page.locator(".bn-editor")).toContainText("纯文字验收");
+});
+
+test("笔记预设真实IDB/native OPFS handle → 只选一篇MD自动读取跨目录附件、保存刷新", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const png = await readFile(join(fixtures, "中文 空格.png")),
+    gif = await readFile(join(fixtures, "动画.gif")),
+    mp4 = await readFile(join(fixtures, "片段.mp4"));
+  const source =
+    "# 预设自动导入\n\n![一](../自媒体/assets/a.png)\n\n![二](../第二目录/b.png)\n\n![[../自媒体/assets/动画.gif]]\n\n![本地视频](../视频/片段.mp4)\n\n![重复](../自媒体/assets/a.png)\n\n![远程视频](https://media.example.test/remote.mp4)\n";
+  await page.addInitScript(() => {
+    const win = window as any;
+    win.__presetReads = [];
+    win.__unexpectedLocalWrites = 0;
+    win.__permissionModes = [];
+    win.__readOnlyImport = false;
+    const vault = async () => {
+      const root = await navigator.storage.getDirectory();
+      return root.getDirectoryHandle("PresetImportVault", { create: false });
+    };
+    // 仅系统picker结果受控；返回真实浏览器原生handle，应用自行读预设/resolve/读取引用，未注入attachments。
+    win.showDirectoryPicker = async (options: any) => {
+      const root = await vault();
+      win.__readOnlyImport = true;
+      return typeof options.startIn === "string"
+        ? root
+        : root.getDirectoryHandle("个人AgentOS", { create: false });
+    };
+    win.showOpenFilePicker = async (options: any) => {
+      const root = await vault();
+      if (!(await options.startIn.isSameEntry(root)))
+        throw Error("wrong preset");
+      win.__readOnlyImport = true;
+      return [
+        await (
+          await root.getDirectoryHandle("个人AgentOS", { create: false })
+        ).getFileHandle("自动导入.md", { create: false }),
+      ];
+    };
+    const originalGet = FileSystemFileHandle.prototype.getFile,
+      originalWrite = FileSystemFileHandle.prototype.createWritable;
+    FileSystemFileHandle.prototype.getFile = async function () {
+      if (win.__readOnlyImport) {
+        const root = await vault();
+        win.__presetReads.push((await root.resolve(this))?.join("/"));
+      }
+      return originalGet.call(this);
+    };
+    FileSystemFileHandle.prototype.createWritable = function (...args: any[]) {
+      if (win.__readOnlyImport) {
+        win.__unexpectedLocalWrites++;
+        throw Error("import must not write local files");
+      }
+      return originalWrite.apply(this, args as []);
+    };
+    const prototype = (window as any).FileSystemHandle.prototype,
+      query = prototype.queryPermission;
+    prototype.queryPermission = function (options: any) {
+      win.__permissionModes.push(options.mode);
+      return query.call(this, options);
+    };
+    prototype.requestPermission = function (options: any) {
+      win.__permissionModes.push(options.mode);
+      throw Error("existing OPFS read grant must not re-request");
+    };
+  });
+  await page.goto("/studio/settings");
+  await page.evaluate(
+    async (data) => {
+      const root = await navigator.storage.getDirectory(),
+        vault = await root.getDirectoryHandle("PresetImportVault", {
+          create: true,
+        });
+      await vault.getDirectoryHandle(".obsidian", { create: true });
+      async function put(path: string, bytes: number[] | string) {
+        const parts = path.split("/");
+        let directory = vault;
+        for (const part of parts.slice(0, -1))
+          directory = await directory.getDirectoryHandle(part, {
+            create: true,
+          });
+        const file = await directory.getFileHandle(parts.at(-1)!, {
+          create: true,
+        });
+        const stream = await file.createWritable();
+        await stream.write(
+          typeof bytes === "string" ? bytes : new Uint8Array(bytes),
+        );
+        await stream.close();
+      }
+      await put("个人AgentOS/自动导入.md", data.source);
+      await put(
+        "个人AgentOS/不可读取的其它笔记.md",
+        "private synthetic note must not read",
+      );
+      await put("自媒体/assets/a.png", data.png);
+      await put("第二目录/b.png", data.png);
+      await put("自媒体/assets/动画.gif", data.gif);
+      await put("视频/片段.mp4", data.mp4);
+    },
+    { source, png: [...png], gif: [...gif], mp4: [...mp4] },
+  );
+  await page
+    .getByRole("button", { name: "同步 Obsidian", exact: true })
+    .click();
+  await page.getByLabel("预设名称", { exact: true }).fill("E2E 现有笔记预设");
+  await page
+    .getByRole("button", { name: "浏览选择 vault 根目录", exact: true })
+    .click();
+  await page.getByRole("button", { name: "选择目录", exact: true }).click();
+  await page.getByRole("button", { name: "保存本地预设", exact: true }).click();
+  await page.getByRole("button", { name: "确认保存预设", exact: true }).click();
+  await expect(
+    page.getByText("本地预设已保存，仅此浏览器可用。", { exact: true }),
+  ).toBeVisible();
+  const id = await seed(page);
+  await page.route("https://media.example.test/**", (route) =>
+    route.fulfill({ contentType: "video/mp4", body: mp4 }),
+  );
+  await page.getByRole("button", { name: "导入", exact: true }).click();
+  const presetDialog = page.getByRole("dialog", { name: "从笔记预设导入" });
+  await expect(presetDialog).toContainText("E2E 现有笔记预设");
+  await presetDialog
+    .getByRole("button", { name: "选择 Markdown 文章" })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "导入 Markdown 与附件" });
+  await expect(dialog).toContainText("已识别 6 处附件引用");
+  await expect(dialog).toContainText("个人AgentOS/自动导入.md");
+  await expect(dialog).toContainText("4 个文件上传 · 1 个链接保留");
+  await expect(
+    dialog.getByRole("button", { name: "补充缺失附件" }),
+  ).toHaveCount(0);
+  await expect(dialog.getByText("已匹配", { exact: true })).toHaveCount(5);
+  await expect(
+    dialog.getByText("视频/片段.mp4", { exact: true }),
+  ).toBeVisible();
+  if (process.env.MD_UI_SCREENSHOTS) {
+    await dialog.screenshot({
+      path: join(process.env.MD_UI_SCREENSHOTS, "preset-desktop.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(dialog).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await dialog.screenshot({
+      path: join(process.env.MD_UI_SCREENSHOTS, "preset-mobile.png"),
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  const uploads: any[] = [];
+  page.on("response", (response) => {
+    if (
+      response.url().endsWith("/api/media") &&
+      response.request().method() === "POST"
+    )
+      uploads.push(response);
+  });
+  await dialog.getByRole("button", { name: "上传附件并导入" }).click();
+  await expect(page.locator(".bn-editor video")).toHaveCount(2);
+  expect(uploads).toHaveLength(4);
+  const save = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      response.url().endsWith("/api/posts/" + id),
+  );
+  await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+  expect((await save).status()).toBe(200);
+  const audit = await page.evaluate(() => ({
+    reads: (window as any).__presetReads,
+    writes: (window as any).__unexpectedLocalWrites,
+    modes: (window as any).__permissionModes,
+  }));
+  expect(audit.reads).not.toContain("个人AgentOS/不可读取的其它笔记.md");
+  expect(audit.writes).toBe(0);
+  expect(audit.modes.every((mode: string) => mode === "read")).toBe(true);
+  await page.reload();
+  await expect(page.locator(".bn-editor img")).toHaveCount(4);
+  await expect(page.locator(".bn-editor video")).toHaveCount(2);
+  const animated = page.locator('.bn-editor img[src*="/api/files/"]').nth(2);
+  await expect(animated).toBeVisible();
+  for (const media of await page.locator(".bn-editor video").all()) {
+    await media.evaluate(async (element: HTMLVideoElement) => {
+      element.muted = true;
+      await element.play();
+    });
+    await page.waitForTimeout(350);
+    expect(
+      await media.evaluate((element: HTMLVideoElement) => element.currentTime),
+    ).toBeGreaterThan(0.2);
+    await media.evaluate((element: HTMLVideoElement) => element.pause());
+  }
+  if (process.env.MD_UI_SCREENSHOTS)
+    await page.screenshot({
+      path: join(process.env.MD_UI_SCREENSHOTS, "preset-saved.png"),
+      fullPage: true,
+    });
+  console.log(
+    JSON.stringify({
+      scenario: "existing preset/IDB/native OPFS handle",
+      preset: "E2E 现有笔记预设",
+      references: 6,
+      uploads: 4,
+      readPaths: [...new Set(audit.reads)],
+      permissionModes: audit.modes,
+      nativeOSPicker:
+        "controlled return of real OPFS handle; real external OS grant NOT verified",
+    }),
+  );
 });

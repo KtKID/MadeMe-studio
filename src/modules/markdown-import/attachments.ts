@@ -193,6 +193,24 @@ function normalized(path: string) {
   return result.join("/");
 }
 
+/** File System Access与File集合共用相同路径解释，禁止自行拼接越根路径。 */
+export function referencePaths(ref: MediaReference, documentPath: string) {
+  const target = localTarget(ref.target, ref.wiki);
+  const base = documentPath.split("/").slice(0, -1).join("/");
+  const paths = [
+    normalized(`${base ? `${base}/` : ""}${target}`).normalize("NFC"),
+  ];
+  if (ref.wiki) {
+    try {
+      const root = normalized(target).normalize("NFC");
+      if (!paths.includes(root)) paths.push(root);
+    } catch {
+      /* 笔记相对路径已验证；忽略不成立的根相对候选，不读取目录外文件。 */
+    }
+  }
+  return { paths, basename: ref.wiki && !target.includes("/") ? target : null };
+}
+
 /** MIME 来源是文件本身，扩展名只补全浏览器/Obsidian 没给 MIME 的情况；服务端仍检查真实字节。 */
 const extensionMime: Record<string, string> = {
   png: "image/png",
@@ -253,30 +271,19 @@ function attachmentResolver(assets: Attachment[], options: ResolveOptions) {
     const target = localTarget(ref.target, ref.wiki);
     let matches: typeof paths;
     if (options.mode === "root") {
-      const base = documentPath.split("/").slice(0, -1).join("/");
-      const relative = normalized(`${base ? `${base}/` : ""}${target}`);
-      // 标准 Markdown 只接受相对笔记路径；wiki 还允许 vault 根路径与唯一文件名。
-      let rootTarget = "";
-      if (ref.wiki) {
-        try {
-          rootTarget = normalized(target);
-        } catch {
-          // 笔记相对解释已通过上面的边界校验；仅丢弃越界的“vault根相对”候选。
-          // 最终仍只在显式 File/vault 目录表中匹配，无法读取根目录外的文件。
-          rootTarget = "";
-        }
-      }
+      const candidate = referencePaths(ref, documentPath);
       const exact = paths.filter(
         (item) =>
-          item.path === relative ||
-          (ref.wiki && item.path === rootTarget) ||
+          candidate.paths.includes(item.path) ||
           (item.asset.explicit &&
             item.path.split("/").at(-1) === target.split("/").at(-1)),
       );
       matches = exact.length
         ? exact
-        : ref.wiki && !target.includes("/")
-          ? paths.filter((item) => item.path.split("/").at(-1) === target)
+        : candidate.basename
+          ? paths.filter(
+              (item) => item.path.split("/").at(-1) === candidate.basename,
+            )
           : [];
     } else {
       // 多文件选择仅以显式 File capability 为边界，不按相对路径读取用户磁盘。

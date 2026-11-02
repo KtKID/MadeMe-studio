@@ -12,9 +12,16 @@ export interface DirectoryHandle {
     name: string,
     options?: { create?: boolean },
   ): Promise<LocalFileHandle>;
-  resolve?(handle: DirectoryHandle): Promise<string[] | null>;
-  queryPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
-  requestPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
+  resolve?(handle: DirectoryHandle | LocalFileHandle): Promise<string[] | null>;
+  entries?(): AsyncIterableIterator<
+    [string, DirectoryHandle | LocalFileHandle]
+  >;
+  queryPermission?(options: {
+    mode: "read" | "readwrite";
+  }): Promise<PermissionState>;
+  requestPermission?(options: {
+    mode: "read" | "readwrite";
+  }): Promise<PermissionState>;
 }
 export interface LocalFileHandle {
   getFile(): Promise<File>;

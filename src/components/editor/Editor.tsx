@@ -1,3 +1,8 @@
+import PresetImportButton from "../../modules/markdown-import/PresetImportButton";
+import type {
+  PresetImportSource,
+  MarkdownImportTicket,
+} from "../../modules/markdown-import/preset-import";
 import MarkdownImportDialog from "../../modules/markdown-import/ImportDialog";
 import { throwIfAborted } from "../../shared/request-cancellation";
 import {
@@ -25,7 +30,6 @@ import {
   ArrowUpRight,
   Check,
   Download,
-  FileUp,
   Globe2,
   History,
   ImagePlus,
@@ -286,6 +290,7 @@ export default function Editor({
     markdown: string;
     sequence: number;
     request: number;
+    preset?: PresetImportSource;
   } | null>(null);
   const importRequest = useRef(0);
   useEffect(
@@ -867,9 +872,24 @@ export default function Editor({
       `# ${title || "未命名文章"}\n\n${md}`,
     );
   }
-  async function importMarkdown(file: File | undefined) {
-    if (!file || lock.current) return;
+  function beginMarkdownImport(): MarkdownImportTicket | null {
+    if (lock.current) return null;
     const request = ++importRequest.current;
+    setMarkdownImport(null);
+    setMessage("");
+    setError("");
+    return { request, sequence: editClock.current.snapshot() };
+  }
+  async function importMarkdown(
+    file: File | undefined,
+    preset?: PresetImportSource,
+    text?: string,
+    started?: MarkdownImportTicket,
+  ) {
+    if (!file || lock.current) return;
+    const ticket = started ?? beginMarkdownImport();
+    if (!ticket || ticket.request !== importRequest.current) return;
+    const { request, sequence } = ticket;
     setMarkdownImport(null);
     setMessage("");
     setError("");
@@ -886,11 +906,16 @@ export default function Editor({
       if (importInput.current) importInput.current.value = "";
       return;
     }
-    const sequence = editClock.current.snapshot();
     try {
-      const markdown = await file.text();
+      const markdown = text ?? (await file.text());
       if (request !== importRequest.current) return;
-      setMarkdownImport({ file, markdown, sequence, request });
+      setMarkdownImport({
+        file,
+        markdown,
+        sequence,
+        request,
+        ...(preset ? { preset } : {}),
+      });
     } catch (e) {
       if (request === importRequest.current) fail("import", e);
     } finally {
@@ -1356,10 +1381,19 @@ export default function Editor({
               <Link size={14} />
               嵌入
             </button>
-            <button onClick={() => importInput.current?.click()}>
-              <FileUp size={14} />
-              导入
-            </button>
+            <PresetImportButton
+              maxBytes={limits.upload.markdownImportMaxKB * KiB}
+              onBegin={beginMarkdownImport}
+              onChosen={(source, ticket) =>
+                importMarkdown(
+                  source.file,
+                  source.preset,
+                  source.markdown,
+                  ticket,
+                )
+              }
+              onManual={() => importInput.current?.click()}
+            />
             <button onClick={exportMarkdown}>
               <Download size={14} />
               导出
