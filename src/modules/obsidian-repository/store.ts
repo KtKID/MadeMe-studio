@@ -90,6 +90,9 @@ async function migrated() {
   });
 }
 let migrating: Promise<void> | undefined;
+export function resetWorkspaceMigrationForTests() {
+  migrating = undefined;
+}
 export function ensureMigration(): Promise<void> {
   if (migrating) return migrating;
   migrating = (async () => {
