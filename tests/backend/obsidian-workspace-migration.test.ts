@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   OBSIDIAN_LOCAL_DEFAULTS,
   OBSIDIAN_REPOSITORY_LOCAL,
@@ -58,7 +58,6 @@ function installFakeIndexedDB(options: FakeOptions = {}) {
     storeNames: string | string[],
     mode: IDBTransactionMode,
   ) {
-    const names = Array.isArray(storeNames) ? storeNames : [storeNames];
     let pending = 0,
       finished = false,
       aborted = false;

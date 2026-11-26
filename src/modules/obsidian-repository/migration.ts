@@ -15,6 +15,12 @@ import {
   repositoryPresetSchema,
   type Workspace,
 } from "./models";
+import {
+  closeIndexedDb,
+  indexedDatabaseExists,
+  tryDeleteIndexedDatabase,
+  withIndexedDbTimeout,
+} from "./idb";
 const oldConnectionSchema = z
   .object({
     id: z.literal(OBSIDIAN_REPOSITORY_LOCAL.key),
@@ -114,49 +120,87 @@ export async function planLegacyMigration(
   }
   return result;
 }
-/** 只读既有v1库；不存在时中止创建，绝不升级或写入旧数据。 */
-function readLegacy(name: string, storeName: string): Promise<unknown[]> {
+/** 只读既有v1库。不存在时不 abort 升级事务（部分浏览器会因此既不成功也不失败）。 */
+async function readLegacy(name: string, storeName: string): Promise<unknown[]> {
   if (typeof indexedDB === "undefined")
     return Promise.reject(new Error("IndexedDB不可用，原配置未改变。"));
+  const exists = await indexedDatabaseExists(name);
+  if (exists === false) return [];
+  return openLegacy(name, storeName);
+}
+function openLegacy(name: string, storeName: string): Promise<unknown[]> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(name, 1);
-    let absent = false;
-    request.onupgradeneeded = () => {
-      absent = true;
-      request.transaction?.abort();
-    };
-    request.onerror = () =>
-      absent
-        ? resolve([])
-        : reject(request.error ?? new Error("旧配置读取失败，尚未迁移。"));
-    request.onblocked = () =>
-      reject(new Error("旧配置读取被其他标签页阻塞，请关闭旧页面后重试。"));
-    request.onsuccess = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(storeName)) {
-        db.close();
-        reject(new Error("旧配置结构不符合已知版本，未迁移或删除。"));
+    const request = indexedDB.open(name);
+    let created = false,
+      settled = false;
+    const finish = (error?: Error, rows?: unknown[]) => {
+      if (settled) {
+        closeIndexedDb(request.result);
         return;
       }
-      const tx = db.transaction(storeName, "readonly"),
-        read = tx.objectStore(storeName).getAll();
-      let rows: unknown[] = [];
-      read.onsuccess = () => {
-        rows = read.result;
-      };
-      tx.oncomplete = () => {
-        db.close();
-        resolve(rows);
-      };
-      tx.onabort = () => {
-        db.close();
-        reject(tx.error ?? new Error("旧配置读取中止。"));
-      };
-      tx.onerror = () => {
-        db.close();
-        reject(tx.error ?? new Error("旧配置读取失败。"));
-      };
+      settled = true;
+      if (error) {
+        closeIndexedDb(request.result);
+        reject(error);
+      } else resolve(rows ?? []);
     };
+    const work = new Promise<unknown[]>((innerResolve, innerReject) => {
+      const done = (error?: Error, rows?: unknown[]) =>
+        error ? innerReject(error) : innerResolve(rows ?? []);
+      request.onupgradeneeded = () => {
+        created = true;
+      };
+      request.onerror = () =>
+        done(request.error ?? new Error("旧配置读取失败，尚未迁移。"));
+      request.onblocked = () =>
+        done(new Error("旧配置读取被其他标签页阻塞，请关闭旧页面后重试。"));
+      request.onsuccess = () => {
+        const db = request.result;
+        const absent =
+          created ||
+          (!db.objectStoreNames.contains(storeName) &&
+            db.objectStoreNames.length === 0);
+        if (absent) {
+          closeIndexedDb(db);
+          void tryDeleteIndexedDatabase(name).finally(() =>
+            done(undefined, []),
+          );
+          return;
+        }
+        if (!db.objectStoreNames.contains(storeName)) {
+          closeIndexedDb(db);
+          done(new Error("旧配置结构不符合已知版本，未迁移或删除。"));
+          return;
+        }
+        const tx = db.transaction(storeName, "readonly"),
+          read = tx.objectStore(storeName).getAll();
+        let rows: unknown[] = [];
+        read.onsuccess = () => {
+          rows = read.result;
+        };
+        tx.oncomplete = () => {
+          closeIndexedDb(db);
+          done(undefined, rows);
+        };
+        tx.onabort = () => {
+          closeIndexedDb(db);
+          done(tx.error ?? new Error("旧配置读取中止。"));
+        };
+        tx.onerror = () => {
+          closeIndexedDb(db);
+          done(tx.error ?? new Error("旧配置读取失败。"));
+        };
+      };
+    });
+    void withIndexedDbTimeout(
+      "旧配置读取超时，请关闭其他本站标签页后重试。",
+      work,
+      request,
+    ).then(
+      (rows) => finish(undefined, rows),
+      (error) =>
+        finish(error instanceof Error ? error : new Error(String(error))),
+    );
   });
 }
 export async function legacyMigrationPlan() {
