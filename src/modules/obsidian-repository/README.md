@@ -12,7 +12,7 @@
 
 ## 两套历史数据的兼容迁移
 
-`migration.ts`只读 `mademe-obsidian-local` v1/presets 的 `{preset,handle}` 及 `mademe-obsidian-repository` v1/connection 的旧单连接，不升级旧库、不先清旧数据、不跨origin、不读其他笔记正文、不请求目录或写权限。
+`migration.ts`只读 `mademe-obsidian-local` v1/presets 的 `{preset,handle}` 及 `mademe-obsidian-repository` v1/connection 的旧单连接，不升级旧库、不先清旧数据、不跨origin、不读其他笔记正文、不请求目录或写权限。先用 `indexedDB.databases()` 判断旧库是否存在；没有该 API 时才打开探测，若触发升级说明旧库本不存在，让打开完成后再删掉误建的空库，绝不在 `onupgradeneeded` 里 abort（部分浏览器会让请求既不成功也不失败）。打开、列举都有超时；被其他标签页阻塞或一直无回调时，设置页必须进入空状态或明确报错，不能一直转圈。超时或误建空库的删除都不会删掉已有仓库连接或仍含数据的旧库。
 
 只有 `isSameEntry === true`（或同一对象能力）证明同根才合并。不同根即使同名也独立；方法不支持/权限不足时分别保留，显示“历史目录待确认”。可以恢复read权限后明确确认保留为独立仓库，不悄悄重关联。
 

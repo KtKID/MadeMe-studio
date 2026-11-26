@@ -1,4 +1,5 @@
 import { OBSIDIAN_WORKSPACE_LOCAL as LOCAL } from "../config/limits";
+import { closeIndexedDb, withIndexedDbTimeout } from "./idb";
 import { legacyMigrationPlan, sameDirectory } from "./migration";
 import {
   repositorySchema,
@@ -14,19 +15,42 @@ async function openDatabase(): Promise<IDBDatabase> {
     throw new Error("IndexedDB不可用，无法读取仓库与预设。 ");
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(LOCAL.databaseName, LOCAL.databaseVersion);
-    request.onupgradeneeded = () => {
-      for (const name of [LOCAL.repositories, LOCAL.presets, LOCAL.meta])
-        if (!request.result.objectStoreNames.contains(name))
-          request.result.createObjectStore(name, { keyPath: "id" });
+    let settled = false;
+    const finish = (error?: Error, db?: IDBDatabase) => {
+      if (settled) {
+        closeIndexedDb(db ?? request.result);
+        return;
+      }
+      settled = true;
+      if (error) {
+        closeIndexedDb(request.result);
+        reject(error);
+      } else resolve(db as IDBDatabase);
     };
-    request.onerror = () =>
-      reject(request.error ?? new Error("仓库配置打开失败。"));
-    request.onblocked = () =>
-      reject(new Error("仓库配置被旧页面阻塞，请关闭其他本站标签页。"));
-    request.onsuccess = () => {
-      request.result.onversionchange = () => request.result.close();
-      resolve(request.result);
-    };
+    const work = new Promise<IDBDatabase>((innerResolve, innerReject) => {
+      request.onupgradeneeded = () => {
+        for (const name of [LOCAL.repositories, LOCAL.presets, LOCAL.meta])
+          if (!request.result.objectStoreNames.contains(name))
+            request.result.createObjectStore(name, { keyPath: "id" });
+      };
+      request.onerror = () =>
+        innerReject(request.error ?? new Error("仓库配置打开失败。"));
+      request.onblocked = () =>
+        innerReject(new Error("仓库配置被旧页面阻塞，请关闭其他本站标签页。"));
+      request.onsuccess = () => {
+        request.result.onversionchange = () => request.result.close();
+        innerResolve(request.result);
+      };
+    });
+    void withIndexedDbTimeout(
+      "仓库配置打开超时，请关闭其他本站标签页后重试。",
+      work,
+      request,
+    ).then(
+      (db) => finish(undefined, db),
+      (error) =>
+        finish(error instanceof Error ? error : new Error(String(error))),
+    );
   });
 }
 /** callback只能同步排入IDB请求，异步目录比较在事务外规划。 */
@@ -90,6 +114,9 @@ async function migrated() {
   });
 }
 let migrating: Promise<void> | undefined;
+export function resetWorkspaceMigrationForTests() {
+  migrating = undefined;
+}
 export function ensureMigration(): Promise<void> {
   if (migrating) return migrating;
   migrating = (async () => {

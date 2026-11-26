@@ -203,3 +203,34 @@ it("待确认旧根清楚展示，读取恢复不自动request或写权限", asy
   expect(h.authorize).toHaveBeenCalled();
   expect(screen.getByText("写作预设")).toBeTruthy();
 });
+
+it("listWorkspace 完成后进入空状态，不再转圈，新增按钮可用", async () => {
+  h.state = { repositories: [], presets: [] };
+  await setup();
+  expect(screen.queryByText("读取仓库与兼容旧配置…")).toBeNull();
+  expect(screen.getByText(/尚未添加 Obsidian 仓库/)).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "新增 Obsidian 仓库",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(false);
+});
+it("listWorkspace 失败时展示明确错误并结束加载，不无限转圈", async () => {
+  h.list.mockRejectedValue(
+    new Error("旧配置读取超时，请关闭其他本站标签页后重试。"),
+  );
+  await setup();
+  expect(screen.queryByText("读取仓库与兼容旧配置…")).toBeNull();
+  expect(
+    screen.getByText("旧配置读取超时，请关闭其他本站标签页后重试。"),
+  ).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "新增 Obsidian 仓库",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(false);
+});
