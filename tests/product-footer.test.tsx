@@ -7,8 +7,8 @@ import { runtimeConfigPatchSchema } from "../src/modules/config/schema.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 describe("统一产品页脚", () => {
-  it("SSR 署名从发布配置读取0.5版本，不改变作者可调协议", () => {
-    expect(PRODUCT_VERSION).toBe("0.5");
+  it("SSR 署名从发布配置读取0.6版本，不改变作者可调协议", () => {
+    expect(PRODUCT_VERSION).toBe("0.6");
     expect(renderToStaticMarkup(<ProductCredit />)).toContain(
       `Powered by MadeMe · v${PRODUCT_VERSION}`,
     );
@@ -16,7 +16,7 @@ describe("统一产品页脚", () => {
       false,
     );
     expect(read("src/components/shared/ProductCredit.tsx")).not.toContain(
-      '"0.5"',
+      '"0.6"',
     );
   });
   it("博客首页、文章页、两套后台页脚都使用同一个署名组件", () => {
