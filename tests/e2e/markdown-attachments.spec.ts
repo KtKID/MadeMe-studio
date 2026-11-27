@@ -108,7 +108,8 @@ test("真实编辑器切换导入A/B：取消旧请求，新窗口与正文不�
     page.getByRole("dialog", { name: "导入 Markdown 与附件" }),
   ).toContainText("B.md");
   await page.getByRole("button", { name: "导入正文", exact: true }).click();
-  await expect(page.locator(".bn-editor")).toContainText("B新文档");
+  await expect(page.getByLabel("文章标题")).toHaveValue("B新文档");
+  await expect(page.locator(".bn-editor")).toContainText("仅保留这份新选择。");
   await expect(page.locator(".bn-editor img")).toHaveCount(0);
   await expect(page.getByText(/^上传失败：/)).toHaveCount(0);
   const save = page.waitForResponse(
@@ -118,11 +119,10 @@ test("真实编辑器切换导入A/B：取消旧请求，新窗口与正文不�
   );
   await page.getByRole("button", { name: "保存草稿", exact: true }).click();
   expect((await save).status()).toBe(200);
-  expect(
-    JSON.stringify(
-      (await (await page.request.get(`/api/posts/${id}`)).json()).post.blocks,
-    ),
-  ).toContain("B新文档");
+  const { post } = await (await page.request.get(`/api/posts/${id}`)).json();
+  expect(post.title).toBe("B新文档");
+  expect(JSON.stringify(post.blocks)).toContain("仅保留这份新选择。");
+  expect(JSON.stringify(post.blocks)).not.toContain("B新文档");
 });
 
 test("链接包裹图片拒绝且无上传；百分号字面文件与URL编码引用分别保存", async ({
@@ -722,10 +722,11 @@ test("无附件MD只确认正文，取消与重选不改原文", async ({ page }
     .click();
   await (await again).setFiles(path);
   await page.getByRole("button", { name: "导入正文" }).click();
-  await expect(page.locator(".bn-editor")).toContainText("纯文字验收");
+  await expect(page.getByLabel("文章标题")).toHaveValue("纯文字验收");
+  await expect(page.locator(".bn-editor")).toContainText("没有附件。");
 });
 
-test("普通MD默认标题：文件名/H1/有效输入/空白输入与取消，保存刷新保持", async ({
+test("Markdown 的开头 H1 提升为标题，纯正文保留手动标题，保存刷新结果一致", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -735,24 +736,35 @@ test("普通MD默认标题：文件名/H1/有效输入/空白输入与取消，�
       markdown: "没有H1的原始正文。",
       title: "",
       expected: "普通.中文文件",
+      expectedBody: "没有H1的原始正文。",
     },
     {
       name: "另一个文件.MARKDOWN",
       markdown: "# 一级标题优先\n\n原始正文。",
       title: "",
       expected: "一级标题优先",
+      expectedBody: "原始正文。",
     },
     {
-      name: "不要覆盖.md",
-      markdown: "# 正文一级标题\n\n手动标题必须保留。",
+      name: "标题迁移.md",
+      markdown: "# 正文一级标题\n\n内容必须保留。",
+      title: "作者手动标题",
+      expected: "正文一级标题",
+      expectedBody: "内容必须保留。",
+    },
+    {
+      name: "无标题.md",
+      markdown: "正文中没有标题。",
       title: "作者手动标题",
       expected: "作者手动标题",
+      expectedBody: "正文中没有标题。",
     },
     {
       name: "空白标题回顾.markdown",
       markdown: "空白标题对应的原始正文。",
       title: "   ",
       expected: "空白标题回顾",
+      expectedBody: "空白标题对应的原始正文。",
     },
   ];
   for (const [index, value] of cases.entries()) {
@@ -804,14 +816,7 @@ test("普通MD默认标题：文件名/H1/有效输入/空白输入与取消，�
       await (await page.request.get("/api/posts/" + post.id)).json()
     ).post;
     expect(persisted.title).toBe(value.expected);
-    expect(JSON.stringify(persisted.blocks)).toContain(
-      index === 0
-        ? "没有H1的原始正文"
-        : index === 1
-          ? "一级标题优先"
-          : index === 2
-            ? "正文一级标题"
-            : "空白标题对应的原始正文",
-    );
+    expect(JSON.stringify(persisted.blocks)).toContain(value.expectedBody);
+    expect(JSON.stringify(persisted.blocks)).not.toContain(value.expected);
   }
 });

@@ -1,4 +1,4 @@
-import { parseImportMetadata, appendCoverReference } from "./metadata";
+import { prepareImportDocument, appendCoverReference } from "./metadata";
 import type {
   DirectoryHandle,
   LocalFileHandle,
@@ -118,7 +118,7 @@ export async function readRepositoryMarkdown(
   await preflight?.(markdown);
   await ensureCurrent?.();
   throwIfAborted(signal);
-  const metadata = parseImportMetadata(markdown);
+  const metadata = prepareImportDocument(markdown);
   const refs = mediaReferences(
     appendCoverReference(metadata.markdown, metadata.cover),
   ).filter((ref) => !isHostedMedia(ref.target));

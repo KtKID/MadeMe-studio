@@ -15,7 +15,11 @@ function markdownWithCover(cid: string, bodyHasCover: boolean) {
     "private_note: unselected-internal-property",
     "---",
     "",
+    "# 兵种**模型**制作手记",
+    "",
     ...(bodyHasCover ? ["![与文章封面相同的首图](images/cover.png)", ""] : []),
+    "## 模型细节",
+    "",
     body,
   ].join("\n");
 }
@@ -76,6 +80,8 @@ test("网页导入将首图作为独立封面，保存后作者可见 CID，访�
   expect(media.url).toMatch(/^\/api\/files\//);
   const editor = page.locator(".bn-editor");
   await expect(editor).toContainText(body);
+  await expect(editor.locator("h1")).toHaveCount(0);
+  await expect(editor.locator("h2")).toHaveText("模型细节");
   await expect(editor.locator("img")).toHaveCount(0);
   await expect(editor).not.toContainText("images/cover.png");
   await expect(editor).not.toContainText("private_note");
@@ -98,6 +104,15 @@ test("网页导入将首图作为独立封面，保存后作者可见 CID，访�
   expect(post.cid).toBe(cid);
   // 检查同一张媒体进入保存请求的封面字段，正文没有重复的图片引用。
   const submitted = response.request().postDataJSON();
+  // 标题只走文章字段，保存在正文里的二级章节仍可阅读。
+  expect(submitted.title).toBe("兵种模型制作手记");
+  expect(post.title).toBe(submitted.title);
+  const duplicateHeading = expect.objectContaining({
+    type: "heading",
+    props: expect.objectContaining({ level: 1 }),
+  });
+  expect(submitted.blocks).not.toContainEqual(duplicateHeading);
+  expect(post.blocks).not.toContainEqual(duplicateHeading);
   expect(submitted.coverImage).toBe(media.url);
   expect(JSON.stringify(submitted.blocks)).not.toContain(media.url);
   expect(post.coverImage).toBe(media.url);
@@ -135,6 +150,10 @@ test("网页导入将首图作为独立封面，保存后作者可见 CID，访�
     expect(text).not.toContain('"cid":');
   }
   await page.goto(`${guest}/p/${post.slug}`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "兵种模型制作手记",
+  );
+  await expect(page.locator(".reading-prose h2")).toHaveText("模型细节");
   const cover = page.locator(".reading-cover img");
   await expect(cover).toHaveCount(1);
   await expect
@@ -176,7 +195,8 @@ test("只在属性区引用封面仍可导入，缺图时草稿保持原样", as
   await dialog.getByRole("button", { name: "上传附件并导入" }).click();
   await expect(page.locator(".bn-editor")).toContainText(body);
   await expect(page.locator(".editor-byline")).toContainText(cid);
-  await expect(title).toHaveValue("当前稿件的标题");
+  await expect(title).toHaveValue("兵种模型制作手记");
+  await expect(page.locator(".bn-editor h1")).toHaveCount(0);
   const saved = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&

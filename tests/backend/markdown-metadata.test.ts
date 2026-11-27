@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   parseImportMetadata,
+  prepareImportDocument,
   appendCoverReference,
   finishCoverImport,
   hasStandaloneFirstImage,
@@ -63,4 +64,48 @@ it("属性拒绝控制字符，超长空白的普通水平线保持可读", () =
   ).toThrow(/格式/);
   const text = "---\n" + " ".repeat(200000) + "普通正文";
   expect(parseImportMetadata(text).markdown).toBe(text);
+});
+
+it.each([
+  [
+    "---\ntitle: 测试标题\n---\n# **测试标题** #\n\n正文",
+    "测试标题",
+    "\n\n正文",
+  ],
+  [
+    "---\ntitle: 站内标题\n---\n# 内容标题\n\n正文",
+    "站内标题",
+    "# 内容标题\n\n正文",
+  ],
+  ["# 转义\\*标题\\* #\n\n正文", "转义*标题*", "\n\n正文"],
+  ["# 正文标题\n\n## 次标题", "正文标题", "\n\n## 次标题"],
+  ["正文\n\n# 中间标题", undefined, "正文\n\n# 中间标题"],
+  ["```\n# 代码标题\n```", undefined, "```\n# 代码标题\n```"],
+  ["## 二级标题\n\n# 中间标题", undefined, "## 二级标题\n\n# 中间标题"],
+])("网页导入标题语义：%s", (raw, title, markdown) => {
+  const prepared = prepareImportDocument(raw);
+  expect(prepared.title).toBe(title);
+  expect(prepared.markdown).toBe(markdown);
+});
+
+it.each([
+  "# ![封面](images/cover.png) 标题\n\n正文",
+  "# <span>标题</span>\n\n正文",
+])("包含图片或 HTML 的首块保留且不自动充当标题：%s", (raw) => {
+  const result = prepareImportDocument(raw);
+  expect(result.title).toBeUndefined();
+  expect(result.markdown).toBe(raw);
+});
+
+it("文件头标题存在时仍保留含图片的标题块，纯文本链接和行内代码可提取", () => {
+  const raw =
+    "---\ntitle: 图 标题\n---\n# [![图](a.png)](https://example.test) 标题\n\n正文";
+  const result = prepareImportDocument(raw);
+  expect(result.title).toBe("图 标题");
+  expect(result.markdown).toContain("![图](a.png)");
+  const plain = prepareImportDocument(
+    "# [链接](https://example.test) 和 `代码`\n\n正文",
+  );
+  expect(plain.title).toBe("链接 和 代码");
+  expect(plain.markdown).toBe("\n\n正文");
 });

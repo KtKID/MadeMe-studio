@@ -1,5 +1,6 @@
 import { parseDocument, isMap } from "yaml";
 import { fromMarkdown } from "mdast-util-from-markdown";
+import type { Heading, PhrasingContent } from "mdast";
 import { mediaReferences } from "./attachments";
 import { TEXT_LIMITS } from "../config/limits";
 
@@ -59,6 +60,47 @@ export function parseImportMetadata(raw: string) {
     title: field("title", TEXT_LIMITS.postTitle),
     cover,
   };
+}
+/** 网页导入只把正文首块的一级标题用作文章标题。 */
+export function prepareImportDocument(raw: string) {
+  const metadata = parseImportMetadata(raw);
+  const first = fromMarkdown(metadata.markdown).children[0];
+  if (first?.type !== "heading" || first.depth !== 1) return metadata;
+  // mdast 已处理 Markdown 转义、强调和标题结尾标记，提取用户看到的文字。
+  function headingText(node: Heading | PhrasingContent): string | null {
+    switch (node.type) {
+      case "text":
+      case "inlineCode":
+        return node.value;
+      case "break":
+        return " ";
+      case "heading":
+      case "emphasis":
+      case "strong":
+      case "delete":
+      case "link":
+      case "linkReference": {
+        const parts = node.children.map(headingText);
+        return parts.some((part) => part === null) ? null : parts.join("");
+      }
+      default:
+        return null;
+    }
+  }
+  const heading = headingText(first)?.trim();
+  if (heading === undefined) return metadata;
+  const usable =
+    heading &&
+    heading.length <= TEXT_LIMITS.postTitle &&
+    !/[\u0000-\u001f\u007f]/.test(heading);
+  const title = metadata.title ?? (usable ? heading : undefined);
+  const start = first.position?.start.offset;
+  const end = first.position?.end.offset;
+  const markdown =
+    title && heading === title && start !== undefined && end !== undefined
+      ? metadata.markdown.slice(0, start) + metadata.markdown.slice(end)
+      : metadata.markdown;
+  return { ...metadata, title, markdown };
 }
 /** 固定置首，确保正文代码围栏无法吞掉封面引用。 */
 export function appendCoverReference(markdown: string, cover?: string) {
