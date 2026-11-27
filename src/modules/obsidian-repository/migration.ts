@@ -21,6 +21,14 @@ import {
   tryDeleteIndexedDatabase,
   withIndexedDbTimeout,
 } from "./idb";
+import {
+  DIRECTORY_QUERY_TIMEOUT_MESSAGE,
+  DirectoryQueryTimeoutError,
+  noteRepositoryLoadProblem,
+  startDirectoryQueryBudget,
+  withDirectoryQueryTimeout,
+  type DirectoryQueryBudget,
+} from "./deadline";
 const oldConnectionSchema = z
   .object({
     id: z.literal(OBSIDIAN_REPOSITORY_LOCAL.key),
@@ -30,30 +38,53 @@ const oldConnectionSchema = z
   })
   .strict();
 export type LegacyConnection = z.infer<typeof oldConnectionSchema>;
+function failureReason(error: unknown) {
+  if (error instanceof DirectoryQueryTimeoutError) return "timeout";
+  return error instanceof DOMException || error instanceof Error
+    ? error.name
+    : "operation_failed";
+}
+/** 本批时限已用尽时不再发起新的目录调用。首次超时已由调用处记录。 */
+function budgetExhausted(budget?: DirectoryQueryBudget) {
+  if (!budget || budget.remaining() > 0) return false;
+  budget.markTimedOut();
+  return true;
+}
 /** 不读取正文/标记，不申请权限；只能true证明同根，undefined必须分开保留。 */
 export async function sameDirectory(
   a: DirectoryHandle,
   b: DirectoryHandle,
+  budget?: DirectoryQueryBudget,
 ): Promise<boolean | undefined> {
   if (a === b) return true;
   const handle = a.isSameEntry ? a : b,
     other = a.isSameEntry ? b : a;
   if (!handle.isSameEntry) return undefined;
+  if (budgetExhausted(budget)) return undefined;
   try {
-    return await handle.isSameEntry(other);
+    const compare = handle.isSameEntry(other);
+    return budget
+      ? await budget.race(compare)
+      : await withDirectoryQueryTimeout(compare);
   } catch (error) {
     clientLog("warn", "obsidian_repository.identity_pending", {
-      reason: error instanceof DOMException ? error.name : "operation_failed",
+      reason: failureReason(error),
     });
     return undefined;
   }
 }
-async function hasRead(handle: DirectoryHandle) {
+async function hasRead(handle: DirectoryHandle, budget?: DirectoryQueryBudget) {
+  if (!handle.queryPermission) return false;
+  if (budgetExhausted(budget)) return false;
   try {
-    return (await handle.queryPermission?.({ mode: "read" })) === "granted";
+    const query = handle.queryPermission({ mode: "read" });
+    const state = budget
+      ? await budget.race(query)
+      : await withDirectoryQueryTimeout(query);
+    return state === "granted";
   } catch (error) {
     clientLog("warn", "obsidian_repository.migration_permission_pending", {
-      reason: error instanceof DOMException ? error.name : "operation_failed",
+      reason: failureReason(error),
     });
     return false;
   }
@@ -64,6 +95,7 @@ export async function planLegacyMigration(
   connection?: LegacyConnection,
 ): Promise<Workspace> {
   const result: Workspace = { repositories: [], presets: [] };
+  const budget = startDirectoryQueryBudget();
   const sources = [
     ...(connection
       ? [{ name: connection.name, handle: connection.handle, isVault: true }]
@@ -79,7 +111,11 @@ export async function planLegacyMigration(
     let matched: Workspace["repositories"][number] | undefined,
       uncertain = false;
     for (const repository of result.repositories) {
-      const same = await sameDirectory(repository.handle, source.handle);
+      const same = await sameDirectory(
+        repository.handle,
+        source.handle,
+        budget,
+      );
       if (same === true) {
         matched = repository;
         break;
@@ -96,7 +132,7 @@ export async function planLegacyMigration(
         name: source.name,
         handle: source.handle,
         identity:
-          !uncertain && (await hasRead(source.handle))
+          !uncertain && (await hasRead(source.handle, budget))
             ? "confirmed"
             : "pending",
         isVault: source.isVault,
@@ -118,6 +154,8 @@ export async function planLegacyMigration(
       );
     }
   }
+  if (budget.timedOut)
+    noteRepositoryLoadProblem(DIRECTORY_QUERY_TIMEOUT_MESSAGE);
   return result;
 }
 /** 只读既有v1库。不存在时不 abort 升级事务（部分浏览器会因此既不成功也不失败）。 */

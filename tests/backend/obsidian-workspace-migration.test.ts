@@ -4,6 +4,12 @@ import {
   OBSIDIAN_REPOSITORY_LOCAL,
   OBSIDIAN_WORKSPACE_LOCAL as WORKSPACE,
 } from "../../src/modules/config/limits";
+import {
+  resetLoadDeadlineForTests,
+  setDirectoryQueryTimeoutForTests,
+  takeRepositoryLoadProblem,
+} from "../../src/modules/obsidian-repository/deadline";
+import { setIndexedDbOpenTimeoutForTests } from "../../src/modules/obsidian-repository/idb";
 import { legacyMigrationPlan } from "../../src/modules/obsidian-repository/migration";
 import {
   listWorkspace,
@@ -22,6 +28,8 @@ type FakeOptions = {
   hangOnUpgradeAbort?: boolean;
   /** 不提供 databases()，走打开探测回退路径。 */
   hideDatabasesApi?: boolean;
+  /** 这些库的读写请求不触发回调，模拟打开成功后事务一直挂起。 */
+  hangReads?: Set<string>;
 };
 
 let uninstall: (() => void) | undefined;
@@ -57,7 +65,9 @@ function installFakeIndexedDB(options: FakeOptions = {}) {
     db: DbData,
     storeNames: string | string[],
     mode: IDBTransactionMode,
+    dbName = "",
   ) {
+    const hang = options.hangReads?.has(dbName) ?? false;
     let pending = 0,
       finished = false,
       aborted = false;
@@ -71,7 +81,7 @@ function installFakeIndexedDB(options: FakeOptions = {}) {
       const request: any = { result: undefined, error: null };
       pending++;
       queueMicrotask(() => {
-        if (aborted || finished) return;
+        if (aborted || finished || hang) return;
         try {
           request.result = work();
           request.onsuccess?.();
@@ -134,7 +144,7 @@ function installFakeIndexedDB(options: FakeOptions = {}) {
         );
       },
       transaction: (storeNames: string | string[], mode: IDBTransactionMode) =>
-        transaction(db, storeNames, mode),
+        transaction(db, storeNames, mode, name),
     };
     return object;
   }
@@ -262,8 +272,19 @@ function presetRecord(directory: DirectoryHandle, id = "old-a1") {
 
 afterEach(() => {
   resetWorkspaceMigrationForTests();
+  setIndexedDbOpenTimeoutForTests();
+  resetLoadDeadlineForTests();
   uninstall?.();
   vi.useRealTimers();
+});
+
+it("设置页读取时限长于单次目录查询和 IndexedDB 操作", () => {
+  expect(WORKSPACE.settingsLoadTimeoutMs).toBeGreaterThan(
+    WORKSPACE.directoryQueryTimeoutMs,
+  );
+  expect(WORKSPACE.settingsLoadTimeoutMs).toBeGreaterThan(
+    WORKSPACE.indexedDbTimeoutMs,
+  );
 });
 
 it(
@@ -439,5 +460,86 @@ it(
     } finally {
       setIndexedDbOpenTimeoutForTests();
     }
+  },
+);
+
+it(
+  "打开成功后读取事务一直无回调时必须超时，且不删除已有仓库",
+  { timeout: 1000 },
+  async () => {
+    const { setIndexedDbOpenTimeoutForTests } =
+      await import("../../src/modules/obsidian-repository/idb");
+    setIndexedDbOpenTimeoutForTests(40);
+    try {
+      const directory = handle("保留仓库");
+      const repository = {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        revision: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        name: "保留仓库",
+        handle: directory,
+        identity: "confirmed" as const,
+        isVault: true,
+      };
+      installFakeIndexedDB({ hangReads: new Set([WORKSPACE.databaseName]) });
+      await seed(WORKSPACE.databaseName, WORKSPACE.repositories, "id", [
+        repository,
+      ]);
+      await seed(WORKSPACE.databaseName, WORKSPACE.presets, "id", []);
+      await seed(WORKSPACE.databaseName, WORKSPACE.meta, "id", [
+        {
+          id: WORKSPACE.migrationKey,
+          complete: true,
+          repositories: 1,
+          presets: 0,
+        },
+      ]);
+      await expect(listWorkspace()).rejects.toThrow(/超时/);
+      const rows = memory
+        .get(WORKSPACE.databaseName)
+        ?.stores.get(WORKSPACE.repositories)?.rows;
+      expect(rows?.size).toBe(1);
+      expect([...rows!.values()][0]).toMatchObject({ name: "保留仓库" });
+      expect(deletedNames).toEqual([]);
+    } finally {
+      setIndexedDbOpenTimeoutForTests();
+    }
+  },
+);
+
+it(
+  "旧目录身份比较挂起时仍完成迁移，新旧数据都保留",
+  { timeout: 1000 },
+  async () => {
+    setDirectoryQueryTimeoutForTests(30);
+    installFakeIndexedDB();
+    const first = handle("甲");
+    const second = handle("乙");
+    const hang = () => new Promise<boolean>(() => {});
+    first.isSameEntry = hang;
+    second.isSameEntry = hang;
+    await seed(
+      OBSIDIAN_LOCAL_DEFAULTS.databaseName,
+      OBSIDIAN_LOCAL_DEFAULTS.presetStore,
+      "preset.id",
+      [presetRecord(first, "old-a"), presetRecord(second, "old-b")],
+    );
+    const state = await listWorkspace();
+    expect(state.repositories).toHaveLength(2);
+    expect(
+      state.repositories.every((item) => item.identity === "pending"),
+    ).toBe(true);
+    expect(state.presets).toHaveLength(2);
+    expect(state.repositories.map((item) => item.handle)).toEqual([
+      first,
+      second,
+    ]);
+    expect(memory.has(OBSIDIAN_LOCAL_DEFAULTS.databaseName)).toBe(true);
+    expect(deletedNames).not.toContain(OBSIDIAN_LOCAL_DEFAULTS.databaseName);
+    expect(deletedNames).not.toContain(WORKSPACE.databaseName);
+    expect(
+      memory.get(WORKSPACE.databaseName)?.stores.get(WORKSPACE.repositories)
+        ?.rows.size,
+    ).toBe(2);
+    expect(takeRepositoryLoadProblem()).toMatch(/超时/);
   },
 );

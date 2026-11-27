@@ -234,7 +234,11 @@ export const OBSIDIAN_REPOSITORY_LOCAL = {
   key: "active",
 } as const;
 
-/** 规范化多仓库/所属预设；旧两个v1库仅作为只读迁移源。 */
+/**
+ * 规范化多仓库/所属预设；旧两个v1库仅作为只读迁移源。
+ * 设置页整次读取必须长于一次目录查询和一次 IndexedDB 操作，
+ * 这样单次挂起可以先返回已保留的仓库，而不是被外层时限丢掉。
+ */
 export const OBSIDIAN_WORKSPACE_LOCAL = {
   databaseName: "mademe-obsidian-workspace",
   databaseVersion: 1,
@@ -243,4 +247,10 @@ export const OBSIDIAN_WORKSPACE_LOCAL = {
   meta: "meta",
   migrationKey: "legacy-import-v1",
   labelIdLength: 8,
+  /** 打开、列举与事务的上限。超时失败，不删除已有库。 */
+  indexedDbTimeoutMs: 8_000,
+  /** 同一批 queryPermission / isSameEntry 的上限，不按句柄数量相乘。 */
+  directoryQueryTimeoutMs: 8_000,
+  /** 设置页一次读取的上限。到点必须结束转圈。 */
+  settingsLoadTimeoutMs: 12_000,
 } as const;

@@ -1,7 +1,12 @@
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
-  planLegacyMigration,
-} from "../../src/modules/obsidian-repository/migration";
+  resetLoadDeadlineForTests,
+  setDirectoryQueryTimeoutForTests,
+  takeRepositoryLoadProblem,
+} from "../../src/modules/obsidian-repository/deadline";
+import * as logClient from "../../src/modules/log/client";
+import { checkRepositoryRead } from "../../src/modules/obsidian-repository/connection";
+import { planLegacyMigration } from "../../src/modules/obsidian-repository/migration";
 import { repositoryPresetSchema } from "../../src/modules/obsidian-repository/models";
 import {
   presetSchema,
@@ -113,6 +118,74 @@ it("无读取授权仍保留历史配置并待确认", async () => {
   expect(plan.presets).toHaveLength(1);
   expect(a.requestPermission).not.toHaveBeenCalled();
 });
+afterEach(() => {
+  resetLoadDeadlineForTests();
+  vi.restoreAllMocks();
+});
+it(
+  "queryPermission 一直不返回时仍保留历史配置并待确认",
+  { timeout: 1000 },
+  async () => {
+    const spy = vi.spyOn(logClient, "clientLog").mockImplementation(() => {});
+    setDirectoryQueryTimeoutForTests(30);
+    const a = root("a");
+    a.queryPermission = vi.fn(() => new Promise<PermissionState>(() => {}));
+    const plan = await planLegacyMigration([record(a, "1")]);
+    expect(plan.repositories).toHaveLength(1);
+    expect(plan.repositories[0]?.identity).toBe("pending");
+    expect(plan.repositories[0]?.handle).toBe(a);
+    expect(plan.presets).toHaveLength(1);
+    expect(a.requestPermission).not.toHaveBeenCalled();
+    expect(takeRepositoryLoadProblem()).toMatch(/超时/);
+    expect(spy).toHaveBeenCalledWith(
+      "warn",
+      "obsidian_repository.migration_permission_pending",
+      expect.objectContaining({ reason: "timeout" }),
+    );
+  },
+);
+it(
+  "isSameEntry 一直不返回时分开保留两边，不申请权限",
+  { timeout: 1000 },
+  async () => {
+    const spy = vi.spyOn(logClient, "clientLog").mockImplementation(() => {});
+    setDirectoryQueryTimeoutForTests(30);
+    const a = root("a");
+    const b = root("b");
+    const hang = () => new Promise<boolean>(() => {});
+    a.isSameEntry = hang;
+    b.isSameEntry = hang;
+    const plan = await planLegacyMigration([record(a, "1"), record(b, "2")]);
+    expect(plan.repositories.map((item) => item.handle)).toEqual([a, b]);
+    expect(plan.repositories.every((item) => item.identity === "pending")).toBe(
+      true,
+    );
+    expect(plan.presets).toHaveLength(2);
+    expect(a.requestPermission).not.toHaveBeenCalled();
+    expect(b.requestPermission).not.toHaveBeenCalled();
+    expect(takeRepositoryLoadProblem()).toMatch(/保留/);
+    expect(spy).toHaveBeenCalledWith(
+      "warn",
+      "obsidian_repository.identity_pending",
+      expect.objectContaining({ reason: "timeout" }),
+    );
+  },
+);
+it(
+  "读取校验遇到挂起的 queryPermission 时在时限内失败，不申请写权限",
+  { timeout: 1000 },
+  async () => {
+    setDirectoryQueryTimeoutForTests(30);
+    const directory = root("vault");
+    directory.queryPermission = vi.fn(
+      () => new Promise<PermissionState>(() => {}),
+    );
+    await expect(
+      checkRepositoryRead({ name: directory.name, handle: directory }),
+    ).rejects.toThrow(/超时/);
+    expect(directory.requestPermission).not.toHaveBeenCalled();
+  },
+);
 it("子预设与旧预设共用路径边界，禁止自带handle或越根", () => {
   const value = {
     id: crypto.randomUUID(),

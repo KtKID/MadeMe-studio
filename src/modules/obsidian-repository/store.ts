@@ -1,4 +1,10 @@
+import { clientLog } from "../log/client";
 import { OBSIDIAN_WORKSPACE_LOCAL as LOCAL } from "../config/limits";
+import {
+  DIRECTORY_QUERY_TIMEOUT_MESSAGE,
+  noteRepositoryLoadProblem,
+  startDirectoryQueryBudget,
+} from "./deadline";
 import { closeIndexedDb, withIndexedDbTimeout } from "./idb";
 import { legacyMigrationPlan, sameDirectory } from "./migration";
 import {
@@ -53,6 +59,14 @@ async function openDatabase(): Promise<IDBDatabase> {
     );
   });
 }
+function logAbortFailure(error: unknown) {
+  clientLog("warn", "obsidian_repository.transaction_abort_failed", {
+    reason:
+      error instanceof DOMException || error instanceof Error
+        ? error.name
+        : "operation_failed",
+  });
+}
 /** callback只能同步排入IDB请求，异步目录比较在事务外规划。 */
 async function transact<T>(
   stores: string[],
@@ -64,46 +78,66 @@ async function transact<T>(
   ) => void,
 ): Promise<T> {
   const db = await openDatabase();
+  let tx: IDBTransaction | undefined;
+  let finished = false;
   try {
-    return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(stores, mode);
-      let value: T, reason: unknown;
-      tx.oncomplete = () => resolve(value);
-      tx.onabort = () =>
-        reject(
-          reason ?? tx.error ?? new Error("仓库配置事务未提交，原数据保留。"),
-        );
-      tx.onerror = () => {
-        reason ??= tx.error;
-      };
-      const fail = (error: unknown) => {
-        reason = error;
+    return await withIndexedDbTimeout(
+      "仓库配置操作超时，原数据保留，请稍后重试。",
+      new Promise<T>((resolve, reject) => {
+        tx = db.transaction(stores, mode);
+        let value: T, reason: unknown;
+        tx.oncomplete = () => {
+          finished = true;
+          resolve(value);
+        };
+        tx.onabort = () =>
+          reject(
+            reason ??
+              tx?.error ??
+              new Error("仓库配置事务未提交，原数据保留。"),
+          );
+        tx.onerror = () => {
+          reason ??= tx?.error;
+        };
+        const fail = (error: unknown) => {
+          reason = error;
+          finished = true;
+          try {
+            tx?.abort();
+          } catch (abortError) {
+            logAbortFailure(abortError);
+            reject(error);
+          }
+        };
+        const guard = (fn: () => void) => () => {
+          try {
+            fn();
+          } catch (error) {
+            fail(error);
+          }
+        };
         try {
-          tx.abort();
-        } catch {
-          reject(error);
-        }
-      };
-      const guard = (fn: () => void) => () => {
-        try {
-          fn();
+          operation(
+            tx,
+            (next) => {
+              value = next;
+            },
+            guard,
+          );
         } catch (error) {
           fail(error);
         }
-      };
-      try {
-        operation(
-          tx,
-          (next) => {
-            value = next;
-          },
-          guard,
-        );
-      } catch (error) {
-        fail(error);
-      }
-    });
+      }),
+    );
   } finally {
+    if (!finished) {
+      finished = true;
+      try {
+        tx?.abort();
+      } catch (abortError) {
+        logAbortFailure(abortError);
+      }
+    }
     db.close();
   }
 }
@@ -233,12 +267,15 @@ export async function insertRepository(
 ): Promise<Repository> {
   const repositories = await listRepositories();
   let pending = false;
+  const budget = startDirectoryQueryBudget();
   for (const repository of repositories) {
-    const same = await sameDirectory(repository.handle, handle);
+    const same = await sameDirectory(repository.handle, handle, budget);
     if (same === true)
       throw new Error("这个目录已在仓库列表中，请使用已有仓库。 ");
     if (same === undefined) pending = true;
   }
+  if (budget.timedOut)
+    noteRepositoryLoadProblem(DIRECTORY_QUERY_TIMEOUT_MESSAGE);
   const repository = repositorySchema.parse({
     id: crypto.randomUUID(),
     revision: crypto.randomUUID(),
