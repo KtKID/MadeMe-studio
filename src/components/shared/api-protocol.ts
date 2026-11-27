@@ -3,6 +3,7 @@ import {
   apiErrorSchema,
   bootstrapResponseSchema,
   postResponseSchema,
+  cidCheckResponseSchema,
   postsResponseSchema,
   settingsResponseSchema,
   deploymentResponseSchema,
@@ -38,6 +39,8 @@ export function parseApiResponse(
     return settingsResponseSchema.parse(data);
   if (path === "/api/deployment" && verb === "GET")
     return deploymentResponseSchema.parse(data);
+  if (path === "/api/posts/cid-check" && verb === "POST")
+    return cidCheckResponseSchema.parse(data);
   if (path === "/api/posts")
     return (verb === "GET" ? postsResponseSchema : postResponseSchema).parse(
       data,

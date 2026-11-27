@@ -284,6 +284,103 @@ async function selectImport(page: Page, id: string) {
 }
 
 test(
+  "仓库导入的 CID 冲突在任何附件读取前拦截",
+  { tag: "@native-handles" },
+  async ({ page, baseURL }) => {
+    // 浏览器使用真实 OPFS 文件句柄，控制文件选择以记录每次读取。
+    const cid = "c-20261127-native-conflict-smoke";
+    await setup(page);
+    await page.evaluate(async (value) => {
+      const win = window as Window & { __audit?: boolean };
+      const storage = await navigator.storage.getDirectory();
+      const a = await storage.getDirectoryHandle("A");
+      const brain = await a.getDirectoryHandle("brain");
+      const notes = await brain.getDirectoryHandle("notes");
+      const markdown = await notes.getFileHandle("cid-conflict.md", {
+        create: true,
+      });
+      win.__audit = false;
+      try {
+        const writable = await markdown.createWritable();
+        await writable.write(
+          `---\ncid: ${value}\ncover: ../assets/a.png\n---\n\n![需要附件](../assets/a.png)\n`,
+        );
+        await writable.close();
+      } finally {
+        win.__audit = true;
+      }
+    }, cid);
+    await page.goto("/studio/settings#obsidian-local");
+    await expect(page.locator(".repository-card")).toHaveCount(1);
+    const state = await snapshot(page);
+    const owner = await page.request.post("/api/posts", {
+      headers: { Origin: new URL(baseURL!).origin },
+      data: { title: "已经占用 CID 的草稿", cid },
+    });
+    expect(owner.status()).toBe(201);
+    await page.goto("/studio/new");
+    await page.getByLabel("文章标题").fill("必须保留的编辑内容");
+    await page.evaluate(() => {
+      const win = window as Window & {
+        __noteChoice?: string;
+        __reads?: string[];
+      };
+      win.__noteChoice = "cid-conflict.md";
+      if (!win.__reads) throw new Error("缺少附件读取探针");
+      win.__reads.length = 0;
+    });
+    const uploadRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().endsWith("/api/media"))
+        uploadRequests.push(request.url());
+    });
+    const conflicting = page.waitForResponse((response) =>
+      response.url().endsWith("/api/posts/cid-check"),
+    );
+    await selectImport(page, state.repositories[0].id);
+    expect((await conflicting).status()).toBe(409);
+    await expect(page.getByText(/CID.*占用/)).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => (window as Window & { __reads?: string[] }).__reads,
+      ),
+    ).toEqual(["A/notes/cid-conflict.md"]);
+    expect(uploadRequests).toEqual([]);
+    await expect(
+      page.getByRole("dialog", { name: "导入 Markdown 与附件" }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel("文章标题")).toHaveValue("必须保留的编辑内容");
+
+    // 同一仓库文件在关联文章中可以重导，并复用解析到的封面附件。
+    const { post } = await owner.json();
+    await page.goto(`/studio/edit?id=${post.id}`);
+    await expect(page.locator(".editor-byline")).toContainText(cid);
+    await page.evaluate(() => {
+      const win = window as Window & { __noteChoice?: string };
+      win.__noteChoice = "cid-conflict.md";
+    });
+    await selectImport(page, state.repositories[0].id);
+    const importer = page.getByRole("dialog", { name: "导入 Markdown 与附件" });
+    await importer.getByRole("button", { name: "上传附件并导入" }).click();
+    await expect(importer).toHaveCount(0);
+    await expect(page.locator(".bn-editor img")).toHaveCount(0);
+    expect(uploadRequests).toHaveLength(1);
+    const saved = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        response.url().endsWith(`/api/posts/${post.id}`),
+    );
+    await page.getByRole("button", { name: "保存草稿", exact: true }).click();
+    expect((await saved).status()).toBe(200);
+    const stored = await (
+      await page.request.get(`/api/posts/${post.id}`)
+    ).json();
+    expect(stored.post.cid).toBe(cid);
+    expect(stored.post.coverImage).toMatch(/^\/api\/files\//);
+  },
+);
+
+test(
   "统一仓库与子预设：旧源迁移、第二仓库、CRUD、自动附件导入及所属根导出",
   { tag: "@native-handles" },
   async ({ page, context }) => {

@@ -54,6 +54,7 @@ function setup() {
     onManual = vi.fn();
   render(
     <RepositoryImportButton
+      preflight={async () => {}}
       maxBytes={1000}
       onBegin={onBegin}
       onChosen={onChosen}

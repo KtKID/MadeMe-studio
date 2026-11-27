@@ -1,3 +1,4 @@
+import { parseImportMetadata, appendCoverReference } from "./metadata";
 import type {
   DirectoryHandle,
   LocalFileHandle,
@@ -78,6 +79,7 @@ export async function readRepositoryMarkdown(
   maxBytes: number,
   signal?: AbortSignal,
   ensureCurrent?: () => Promise<void>,
+  preflight?: (markdown: string) => Promise<void>,
 ): Promise<RepositoryMarkdown> {
   const root = record.handle;
   await ensureCurrent?.();
@@ -113,9 +115,13 @@ export async function readRepositoryMarkdown(
   throwIfAborted(signal);
   if ((await root.resolve(handle))?.join("/") !== documentPath)
     throw new Error("读取期间文章位置已变化，请重新选择。");
-  const refs = mediaReferences(markdown).filter(
-    (ref) => !isHostedMedia(ref.target),
-  );
+  await preflight?.(markdown);
+  await ensureCurrent?.();
+  throwIfAborted(signal);
+  const metadata = parseImportMetadata(markdown);
+  const refs = mediaReferences(
+    appendCoverReference(metadata.markdown, metadata.cover),
+  ).filter((ref) => !isHostedMedia(ref.target));
   // 先验证全部路径，越根时不会开始读取任何附件。
   const candidates = refs.map((ref) => ({
     ref,
@@ -279,8 +285,14 @@ export function readConnectedMarkdown(
   handle: LocalFileHandle,
   maxBytes: number,
   signal?: AbortSignal,
+  preflight?: (markdown: string) => Promise<void>,
 ) {
-  return readRepositoryMarkdown(connection, handle, maxBytes, signal, () =>
-    assertRepositoryCurrent(connection),
+  return readRepositoryMarkdown(
+    connection,
+    handle,
+    maxBytes,
+    signal,
+    () => assertRepositoryCurrent(connection),
+    preflight,
   );
 }

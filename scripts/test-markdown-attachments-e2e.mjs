@@ -1,5 +1,5 @@
 import { runLocalWorkerSuite } from "./local-worker-runner.mjs";
-import { DEV_PORT } from "./dev-config.mjs";
+import { DEV_PORT, SECOND_PORT } from "./dev-config.mjs";
 await runLocalWorkerSuite({
   instances: [
     {
@@ -11,6 +11,11 @@ await runLocalWorkerSuite({
         "ALLOW_LOCAL_DEV_IDENTITY:true",
         "DEV_OWNER_ID:local-test-owner",
       ],
+    },
+    {
+      name: "markdown-attachments-guest",
+      port: SECOND_PORT,
+      vars: ["ENVIRONMENT:production"],
     },
   ],
   testFile: "tests/e2e/run-markdown-attachments.mjs",

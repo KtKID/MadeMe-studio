@@ -258,3 +258,27 @@ it("上传前授权失效/附件移出根，不能继续读文件上传", async 
     source.repository.readAttachment(source.repository.assets[0]),
   ).rejects.toThrow(/位置/);
 });
+
+it("CID 预检失败时不枚举或读取任何附件", async () => {
+  const root = new Root();
+  const note = root.put(
+    "notes/n.md",
+    "---\ncid: c-occupied\ncover: ../assets/a.png\n---\n![a](../assets/a.png)",
+  );
+  root.put("assets/a.png", "synthetic");
+  const entries = vi.spyOn(root, "children");
+  await expect(
+    readRepositoryMarkdown(
+      root.record(),
+      note,
+      1000,
+      undefined,
+      undefined,
+      async () => {
+        throw new Error("CID 已占用");
+      },
+    ),
+  ).rejects.toThrow(/CID 已占用/);
+  expect(root.reads).toEqual(["notes/n.md"]);
+  expect(entries).not.toHaveBeenCalled();
+});

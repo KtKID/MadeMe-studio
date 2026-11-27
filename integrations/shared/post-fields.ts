@@ -19,6 +19,7 @@ export type IntegrationClient = (typeof INTEGRATION_CLIENTS)[number];
 export const POST_FIELD_USAGE: { readonly [C in IntegrationClient]: PostFieldManifest } = {
   // Obsidian 插件：只建草稿/发布当前笔记，摘要只显示 id、version、visibility。
   'obsidian-publisher': {
+    cid: 'ignored',
     id: 'used',
     version: 'used',
     visibility: 'used',
@@ -40,6 +41,7 @@ export const POST_FIELD_USAGE: { readonly [C in IntegrationClient]: PostFieldMan
   },
   // Chrome 剪藏：只建草稿，回显 id、version、visibility。
   'chrome-clipper': {
+    cid: 'ignored',
     id: 'used',
     version: 'used',
     visibility: 'used',
@@ -61,6 +63,7 @@ export const POST_FIELD_USAGE: { readonly [C in IntegrationClient]: PostFieldMan
   },
   // Agent CLI：建草稿/发布，输出 id、version、visibility。
   'agent-publisher': {
+    cid: 'ignored',
     id: 'used',
     version: 'used',
     visibility: 'used',

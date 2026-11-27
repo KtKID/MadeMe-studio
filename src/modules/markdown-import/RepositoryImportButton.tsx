@@ -27,6 +27,7 @@ export default function RepositoryImportButton({
   onBegin,
   onChosen,
   onManual,
+  preflight,
 }: {
   maxBytes: number;
   onBegin: () => MarkdownImportTicket | null;
@@ -35,6 +36,7 @@ export default function RepositoryImportButton({
     ticket: MarkdownImportTicket,
   ) => Promise<void>;
   onManual: () => void;
+  preflight: (markdown: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false),
     [connection, setConnection] = useState<RepositoryConnection>();
@@ -134,6 +136,7 @@ export default function RepositoryImportButton({
         handles[0],
         maxBytes,
         operation.signal,
+        preflight,
       );
       if (current !== generation.current) return;
       await assertRepositoryCurrent(record);

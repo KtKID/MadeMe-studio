@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { draftWithPublicationStatus } from "../modules/publication-status/server";
 import { articleTypeMutationSchema } from "../modules/article-types/contracts";
 import {
@@ -171,6 +172,30 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
     const articleTypes =
       path[0] === "posts" ? (await readSettings(env)).articleTypes : undefined;
     const posts = new PostService(repo, articleTypes);
+    if (
+      path[0] === "posts" &&
+      path[1] === "cid-check" &&
+      path.length === 2 &&
+      method === "POST"
+    ) {
+      requireOwner(identity, env);
+      const input = await readJSON(
+        request,
+        z
+          .object({
+            cid: z.string().trim().min(1).max(200),
+            postId: z.string().optional(),
+          })
+          .strict(),
+      );
+      const current = input.postId ? await posts.mustGet(input.postId) : null;
+      if (current?.draft.cid && current.draft.cid !== input.cid)
+        throw new AppError(409, "CID_CONFLICT", "当前文章已关联其他 CID。");
+      const found = await repo.byCid(input.cid);
+      if (found && found.draft.id !== input.postId)
+        throw new AppError(409, "CID_CONFLICT", "该 CID 已被其他文章占用。");
+      return json({ available: true });
+    }
     if (path[0] === "posts") {
       if (path.length === 1) {
         if (method === "GET") {
@@ -191,11 +216,11 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
         }
         if (method === "POST") {
           requireScope(identity, env, "posts:write");
+          const input = await readJSON(request, createPostSchema);
+          if (identity.tokenId && input.cid !== undefined)
+            throw new AppError(403, "FORBIDDEN", "CID 仅供管理员使用。");
           const post = await posts.create(
-            await canonicalArticleType(
-              env,
-              await readJSON(request, createPostSchema),
-            ),
+            await canonicalArticleType(env, input),
           );
           return cors(
             json({ post: mutationPost(post, identity, request) }, 201),
@@ -229,6 +254,9 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
         }
         if (method === "PATCH") {
           requireScope(identity, env, "posts:write");
+          const input = await readJSON(request, patchPostSchema);
+          if (identity.tokenId && input.cid !== undefined)
+            throw new AppError(403, "FORBIDDEN", "CID 仅供管理员使用。");
           return cors(
             json({
               post: mutationPost(
@@ -236,7 +264,7 @@ export async function handleAPI(context: RequestContext): Promise<Response> {
                   id,
                   await canonicalArticleType(
                     env,
-                    await readJSON(request, patchPostSchema),
+                    input,
                     (await posts.mustGet(id)).draft,
                   ),
                 ),
@@ -563,6 +591,8 @@ function mutationPost(post: Post, identity: Identity, request: Request) {
  */
 function postForClient(post: Post, identity: Identity, request: Request) {
   if (!identity.tokenId) return post;
+  const { cid: _cid, ...tokenPost } = post;
+  post = tokenPost;
   return requestedPostSchema(request.headers.get("accept")) >= 2
     ? post
     : legacyPost(post);
