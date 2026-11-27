@@ -1,5 +1,6 @@
 import { clientLog } from "../log/client";
 import { OBSIDIAN_REPOSITORY_LOCAL as LOCAL } from "../config/limits";
+import { withDirectoryQueryTimeout } from "./deadline";
 import { verifyVault } from "../obsidian-local/directory";
 import type { DirectoryHandle } from "../obsidian-local/contracts";
 import {
@@ -37,8 +38,11 @@ export class RepositoryReadPermissionError extends Error {
   }
 }
 export async function checkRepositoryRead(root: RepositoryRoot) {
-  const state =
-    (await root.handle.queryPermission?.({ mode: "read" })) ?? "prompt";
+  const state = root.handle.queryPermission
+    ? await withDirectoryQueryTimeout(
+        root.handle.queryPermission({ mode: "read" }),
+      )
+    : "prompt";
   if (state !== "granted") throw new RepositoryReadPermissionError(state);
   if (!(await verifyVault(root.handle)))
     throw new Error(

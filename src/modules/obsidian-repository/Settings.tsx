@@ -25,16 +25,50 @@ import {
   type RepositoryPreset,
   type Workspace,
 } from "./models";
+import {
+  SETTINGS_LOAD_TIMEOUT_MESSAGE,
+  takeRepositoryLoadProblem,
+  withDirectoryQueryTimeout,
+  withSettingsLoadTimeout,
+} from "./deadline";
 import "./repositories.css";
 function logFailure(error: unknown) {
   clientLog("warn", "obsidian_repository.manager_failed", {
-    reason: error instanceof DOMException ? error.name : "operation_failed",
+    reason:
+      error instanceof Error || error instanceof DOMException
+        ? error.name
+        : "operation_failed",
   });
 }
 function message(error: unknown) {
   return error instanceof Error || error instanceof DOMException
     ? error.message
     : "操作未完成，原配置保留。";
+}
+function permissionFailure(error: unknown) {
+  if (error instanceof DOMException)
+    return "无法确认仓库读取权限，现有仓库与授权均保留。";
+  return message(error);
+}
+async function readPermissions(repositories: Repository[]) {
+  let problem = "";
+  const rows = await Promise.all(
+    repositories.map(async (repository) => {
+      if (!repository.handle.queryPermission)
+        return [repository.id, "prompt" as PermissionState] as const;
+      try {
+        const state = await withDirectoryQueryTimeout(
+          repository.handle.queryPermission({ mode: "read" }),
+        );
+        return [repository.id, state] as const;
+      } catch (error) {
+        logFailure(error);
+        if (!problem) problem = permissionFailure(error);
+        return [repository.id, "prompt" as PermissionState] as const;
+      }
+    }),
+  );
+  return { values: Object.fromEntries(rows), problem };
 }
 function PresetEditor({
   repository,
@@ -221,30 +255,28 @@ export default function RepositorySettings() {
   async function refresh() {
     const sequence = ++generation.current;
     try {
-      const next = await listWorkspace();
-      const rows = await Promise.all(
-        next.repositories.map(async (repository) => {
-          try {
-            return [
-              repository.id,
-              (await repository.handle.queryPermission?.({ mode: "read" })) ??
-                "prompt",
-            ] as const;
-          } catch (e) {
-            logFailure(e);
-            return [repository.id, "prompt"] as const;
-          }
-        }),
+      await withSettingsLoadTimeout(
+        (async () => {
+          const next = await listWorkspace();
+          if (sequence !== generation.current) return;
+          setState(next);
+          const noted = takeRepositoryLoadProblem() ?? "";
+          const permissions = await readPermissions(next.repositories);
+          if (sequence !== generation.current) return;
+          setPermissions(permissions.values);
+          const problem = noted || permissions.problem;
+          if (problem) setError(problem);
+          else
+            setError((current) =>
+              current === SETTINGS_LOAD_TIMEOUT_MESSAGE ? "" : current,
+            );
+        })(),
       );
-      if (sequence === generation.current) {
-        setState(next);
-        setPermissions(Object.fromEntries(rows));
-      }
     } catch (e) {
-      if (sequence === generation.current) {
-        logFailure(e);
-        setError(message(e));
-      }
+      if (sequence !== generation.current) return;
+      logFailure(e);
+      takeRepositoryLoadProblem();
+      setError(message(e));
     } finally {
       if (sequence === generation.current) setLoading(false);
     }
@@ -354,7 +386,9 @@ export default function RepositorySettings() {
       {loading ? (
         <Busy text="读取仓库与兼容旧配置…" />
       ) : !state.repositories.length ? (
-        <Notice>尚未添加 Obsidian 仓库，请使用下方按钮选择真实目录。</Notice>
+        error ? null : (
+          <Notice>尚未添加 Obsidian 仓库，请使用下方按钮选择真实目录。</Notice>
+        )
       ) : (
         state.repositories.map((repository) => {
           const children = state.presets.filter(

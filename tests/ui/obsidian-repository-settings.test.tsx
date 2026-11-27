@@ -8,19 +8,29 @@ import {
   screen,
   within,
 } from "@testing-library/react";
-const h = vi.hoisted(() => ({
-  state: { repositories: [], presets: [] } as any,
-  list: vi.fn(),
-  add: vi.fn(),
-  remove: vi.fn(),
-  savePreset: vi.fn(),
-  removePreset: vi.fn(),
-  check: vi.fn(),
-  authorize: vi.fn(),
-  confirm: vi.fn(),
-  pick: vi.fn(),
-  supported: true,
-}));
+const h = vi.hoisted(() => {
+  const api = {
+    state: { repositories: [], presets: [] } as any,
+    list: vi.fn(),
+    add: vi.fn(),
+    remove: vi.fn(),
+    savePreset: vi.fn(),
+    removePreset: vi.fn(),
+    check: vi.fn(),
+    authorize: vi.fn(),
+    confirm: vi.fn(),
+    pick: vi.fn(),
+    supported: true,
+    listener: undefined as undefined | ((id?: string) => void),
+    subscribe(listener: (id?: string) => void) {
+      api.listener = listener;
+      return () => {
+        if (api.listener === listener) api.listener = undefined;
+      };
+    },
+  };
+  return api;
+});
 vi.mock(
   "../../src/modules/obsidian-repository/connection",
   async (original) => ({
@@ -33,7 +43,7 @@ vi.mock(
     checkRepositoryRead: h.check,
     authorizeRepositoryRead: h.authorize,
     confirmRepositoryIdentity: h.confirm,
-    subscribeRepositoryChanges: () => () => {},
+    subscribeRepositoryChanges: h.subscribe,
   }),
 );
 vi.mock("../../src/modules/obsidian-local/directory", () => ({
@@ -42,6 +52,12 @@ vi.mock("../../src/modules/obsidian-local/directory", () => ({
 }));
 vi.mock("../../src/modules/log/client", () => ({ clientLog: vi.fn() }));
 import RepositorySettings from "../../src/modules/obsidian-repository/Settings";
+import { clientLog } from "../../src/modules/log/client";
+import {
+  resetDirectoryQueryForTests,
+  setDirectoryQueryTimeoutForTests,
+  setSettingsLoadTimeoutForTests,
+} from "../../src/modules/obsidian-repository/deadline";
 const a = {
     id: "11111111-1111-4111-8111-111111111111",
     revision: "22222222-2222-4222-8222-222222222222",
@@ -65,7 +81,10 @@ const p = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  resetDirectoryQueryForTests();
+  h.listener = undefined;
   h.supported = true;
+  a.handle.queryPermission = vi.fn(async () => "granted");
   h.state = { repositories: [a, b], presets: [p] };
   h.list.mockImplementation(async () => h.state);
   h.check.mockResolvedValue(undefined);
@@ -85,7 +104,10 @@ beforeEach(() => {
     };
   });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  resetDirectoryQueryForTests();
+});
 async function setup() {
   await act(async () => {
     render(<RepositorySettings />);
@@ -234,3 +256,98 @@ it("listWorkspace 失败时展示明确错误并结束加载，不无限转圈",
     ).disabled,
   ).toBe(false);
 });
+
+function addButton() {
+  return screen.getByRole("button", {
+    name: "新增 Obsidian 仓库",
+  }) as HTMLButtonElement;
+}
+async function flush(ms: number) {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  });
+}
+it(
+  "queryPermission 挂起时结束转圈、保留仓库并允许新增",
+  { timeout: 1000 },
+  async () => {
+    setDirectoryQueryTimeoutForTests(40);
+    a.handle.queryPermission = vi.fn(
+      () => new Promise<PermissionState>(() => {}),
+    );
+    h.state = { repositories: [a], presets: [p] };
+    await act(async () => {
+      render(<RepositorySettings />);
+    });
+    await flush(200);
+    expect(screen.queryByText("读取仓库与兼容旧配置…")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toMatch(/超时|保留/);
+    expect(screen.getByText(/仓库A/)).toBeTruthy();
+    expect(screen.getByText("写作预设")).toBeTruthy();
+    expect(addButton().disabled).toBe(false);
+    expect(h.authorize).not.toHaveBeenCalled();
+    expect(clientLog).toHaveBeenCalledWith(
+      "warn",
+      "obsidian_repository.manager_failed",
+      expect.objectContaining({ reason: "DirectoryQueryTimeoutError" }),
+    );
+  },
+);
+it(
+  "queryPermission 失败时结束转圈、展示错误并允许新增",
+  { timeout: 1000 },
+  async () => {
+    a.handle.queryPermission = vi.fn(async () => {
+      throw new DOMException("denied", "NotAllowedError");
+    });
+    h.state = { repositories: [a], presets: [] };
+    await setup();
+    expect(screen.queryByText("读取仓库与兼容旧配置…")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toMatch(/保留|权限/);
+    expect(screen.getByText(/仓库A/)).toBeTruthy();
+    expect(addButton().disabled).toBe(false);
+    expect(clientLog).toHaveBeenCalledWith(
+      "warn",
+      "obsidian_repository.manager_failed",
+      expect.objectContaining({ reason: "NotAllowedError" }),
+    );
+  },
+);
+it(
+  "listWorkspace 一直不返回时，设置页读取超时后结束转圈并允许新增",
+  { timeout: 1000 },
+  async () => {
+    setSettingsLoadTimeoutForTests(40);
+    h.list.mockImplementation(() => new Promise(() => {}));
+    await act(async () => {
+      render(<RepositorySettings />);
+    });
+    await flush(200);
+    expect(screen.queryByText("读取仓库与兼容旧配置…")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toMatch(/超时/);
+    expect(addButton().disabled).toBe(false);
+    expect(clientLog).toHaveBeenCalledWith(
+      "warn",
+      "obsidian_repository.manager_failed",
+      expect.objectContaining({ reason: "SettingsLoadTimeoutError" }),
+    );
+  },
+);
+it(
+  "后续刷新挂起时，不能因为世代号挡住第一次加载结束",
+  { timeout: 1000 },
+  async () => {
+    setSettingsLoadTimeoutForTests(40);
+    h.list.mockImplementation(() => new Promise(() => {}));
+    await act(async () => {
+      render(<RepositorySettings />);
+    });
+    await act(async () => {
+      h.listener?.();
+    });
+    await flush(200);
+    expect(screen.queryByText("读取仓库与兼容旧配置…")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toMatch(/超时/);
+    expect(addButton().disabled).toBe(false);
+  },
+);
