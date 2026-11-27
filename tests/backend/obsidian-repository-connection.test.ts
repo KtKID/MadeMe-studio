@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import {
-  resetDirectoryQueryForTests,
+  resetLoadDeadlineForTests,
   setDirectoryQueryTimeoutForTests,
   takeRepositoryLoadProblem,
 } from "../../src/modules/obsidian-repository/deadline";
@@ -119,7 +119,7 @@ it("无读取授权仍保留历史配置并待确认", async () => {
   expect(a.requestPermission).not.toHaveBeenCalled();
 });
 afterEach(() => {
-  resetDirectoryQueryForTests();
+  resetLoadDeadlineForTests();
   vi.restoreAllMocks();
 });
 it(

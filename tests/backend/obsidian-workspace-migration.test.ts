@@ -5,7 +5,7 @@ import {
   OBSIDIAN_WORKSPACE_LOCAL as WORKSPACE,
 } from "../../src/modules/config/limits";
 import {
-  resetDirectoryQueryForTests,
+  resetLoadDeadlineForTests,
   setDirectoryQueryTimeoutForTests,
   takeRepositoryLoadProblem,
 } from "../../src/modules/obsidian-repository/deadline";
@@ -273,7 +273,7 @@ function presetRecord(directory: DirectoryHandle, id = "old-a1") {
 afterEach(() => {
   resetWorkspaceMigrationForTests();
   setIndexedDbOpenTimeoutForTests();
-  resetDirectoryQueryForTests();
+  resetLoadDeadlineForTests();
   uninstall?.();
   vi.useRealTimers();
 });

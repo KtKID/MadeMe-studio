@@ -31,7 +31,7 @@ export function setDirectoryQueryTimeoutForTests(ms?: number) {
 export function setSettingsLoadTimeoutForTests(ms?: number) {
   settingsLoadTimeoutMs = ms === undefined ? LOCAL.settingsLoadTimeoutMs : ms;
 }
-export function resetDirectoryQueryForTests() {
+export function resetLoadDeadlineForTests() {
   setDirectoryQueryTimeoutForTests();
   setSettingsLoadTimeoutForTests();
   loadProblem = undefined;
@@ -51,17 +51,18 @@ export type DirectoryQueryBudget = {
   markTimedOut(): void;
   race<T>(operation: Promise<T>): Promise<T>;
 };
+function logLateFailure(error: unknown) {
+  clientLog("warn", "obsidian_repository.deadline_late_failure", {
+    reason:
+      error instanceof Error || error instanceof DOMException
+        ? error.name
+        : "operation_failed",
+  });
+}
 function rejectLate<T>(operation: Promise<T>) {
   void operation.then(
     () => {},
-    (error) => {
-      clientLog("warn", "obsidian_repository.directory_query_late_failure", {
-        reason:
-          error instanceof Error || error instanceof DOMException
-            ? error.name
-            : "operation_failed",
-      });
-    },
+    (error) => logLateFailure(error),
   );
 }
 export function withDeadline<T>(
@@ -70,9 +71,19 @@ export function withDeadline<T>(
   operation: Promise<T>,
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(createError()), ms);
+    timer = setTimeout(() => {
+      timedOut = true;
+      reject(createError());
+    }, ms);
   });
+  void operation.then(
+    () => {},
+    (error) => {
+      if (timedOut) logLateFailure(error);
+    },
+  );
   return Promise.race([operation, timeout]).finally(() => {
     if (timer !== undefined) clearTimeout(timer);
   });

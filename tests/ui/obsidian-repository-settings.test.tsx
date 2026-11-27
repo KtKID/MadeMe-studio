@@ -54,7 +54,7 @@ vi.mock("../../src/modules/log/client", () => ({ clientLog: vi.fn() }));
 import RepositorySettings from "../../src/modules/obsidian-repository/Settings";
 import { clientLog } from "../../src/modules/log/client";
 import {
-  resetDirectoryQueryForTests,
+  resetLoadDeadlineForTests,
   setDirectoryQueryTimeoutForTests,
   setSettingsLoadTimeoutForTests,
 } from "../../src/modules/obsidian-repository/deadline";
@@ -81,7 +81,7 @@ const p = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
-  resetDirectoryQueryForTests();
+  resetLoadDeadlineForTests();
   h.listener = undefined;
   h.supported = true;
   a.handle.queryPermission = vi.fn(async () => "granted");
@@ -106,7 +106,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  resetDirectoryQueryForTests();
+  resetLoadDeadlineForTests();
 });
 async function setup() {
   await act(async () => {
@@ -203,6 +203,7 @@ it("单删预设不删仓库，仓库更新时拒绝旧确认并保留列表", a
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
+  expect(screen.getAllByText(/请重新确认删除范围/).length).toBeGreaterThan(0);
   expect(document.querySelectorAll(".repository-card")).toHaveLength(2);
 });
 it("待确认旧根清楚展示，读取恢复不自动request或写权限", async () => {
@@ -331,6 +332,29 @@ it(
       "obsidian_repository.manager_failed",
       expect.objectContaining({ reason: "SettingsLoadTimeoutError" }),
     );
+  },
+);
+it(
+  "读取错误在下一次成功读取后消失，新增按钮仍可用",
+  { timeout: 1000 },
+  async () => {
+    setDirectoryQueryTimeoutForTests(40);
+    a.handle.queryPermission = vi.fn(
+      () => new Promise<PermissionState>(() => {}),
+    );
+    h.state = { repositories: [a], presets: [] };
+    await act(async () => {
+      render(<RepositorySettings />);
+    });
+    await flush(80);
+    expect(screen.getByRole("alert").textContent).toMatch(/超时/);
+    a.handle.queryPermission = vi.fn(async () => "granted" as const);
+    await act(async () => {
+      h.listener?.();
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText(/可读取/)).toBeTruthy();
+    expect(addButton().disabled).toBe(false);
   },
 );
 it(

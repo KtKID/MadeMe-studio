@@ -26,7 +26,6 @@ import {
   type Workspace,
 } from "./models";
 import {
-  SETTINGS_LOAD_TIMEOUT_MESSAGE,
   takeRepositoryLoadProblem,
   withDirectoryQueryTimeout,
   withSettingsLoadTimeout,
@@ -251,7 +250,17 @@ export default function RepositorySettings() {
     [confirmation, setConfirmation] = useState<Repository>(),
     [reconfirm, setReconfirm] = useState(false);
   const lock = useRef(false),
-    generation = useRef(0);
+    generation = useRef(0),
+    errorFromLoad = useRef(false);
+  function showLoadError(text: string) {
+    errorFromLoad.current = true;
+    setError(text);
+  }
+  function clearLoadError() {
+    if (!errorFromLoad.current) return;
+    errorFromLoad.current = false;
+    setError("");
+  }
   async function refresh() {
     const sequence = ++generation.current;
     try {
@@ -265,18 +274,15 @@ export default function RepositorySettings() {
           if (sequence !== generation.current) return;
           setPermissions(permissions.values);
           const problem = noted || permissions.problem;
-          if (problem) setError(problem);
-          else
-            setError((current) =>
-              current === SETTINGS_LOAD_TIMEOUT_MESSAGE ? "" : current,
-            );
+          if (problem) showLoadError(problem);
+          else clearLoadError();
         })(),
       );
     } catch (e) {
       if (sequence !== generation.current) return;
       logFailure(e);
       takeRepositoryLoadProblem();
-      setError(message(e));
+      showLoadError(message(e));
     } finally {
       if (sequence === generation.current) setLoading(false);
     }
@@ -295,6 +301,7 @@ export default function RepositorySettings() {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
+    errorFromLoad.current = false;
     setError("");
     setNotice("");
     try {
@@ -303,6 +310,7 @@ export default function RepositorySettings() {
       await refresh();
     } catch (e) {
       logFailure(e);
+      errorFromLoad.current = false;
       setError(message(e));
       await refresh();
     } finally {
@@ -314,6 +322,7 @@ export default function RepositorySettings() {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
+    errorFromLoad.current = false;
     setError("");
     setNotice("");
     const sequence = ++generation.current;
@@ -332,6 +341,7 @@ export default function RepositorySettings() {
           setNotice("已取消新增，现有仓库与预设保持不变。");
         else {
           logFailure(e);
+          errorFromLoad.current = false;
           setError(message(e));
         }
       }
@@ -348,6 +358,7 @@ export default function RepositorySettings() {
     if (!deletion || lock.current) return;
     lock.current = true;
     setBusy(true);
+    errorFromLoad.current = false;
     setError("");
     setNotice("");
     try {
@@ -360,6 +371,7 @@ export default function RepositorySettings() {
       await refresh();
     } catch (e) {
       logFailure(e);
+      errorFromLoad.current = false;
       setError(message(e));
       setReconfirm(true);
       await refresh();

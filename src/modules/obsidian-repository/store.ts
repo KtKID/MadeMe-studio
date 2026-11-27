@@ -82,7 +82,7 @@ async function transact<T>(
   let finished = false;
   try {
     return await withIndexedDbTimeout(
-      "仓库配置读取超时，原数据保留，请稍后重试。",
+      "仓库配置操作超时，原数据保留，请稍后重试。",
       new Promise<T>((resolve, reject) => {
         tx = db.transaction(stores, mode);
         let value: T, reason: unknown;
