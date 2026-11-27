@@ -94,3 +94,17 @@ it("GET /api/views/* 带 ?page=N 时仍命中访问统计协议，不 mock api()
     parseApiResponse(summary, "/api/views/unknown", "GET"),
   ).toThrow();
 });
+
+it("CID 预检成功响应走独立协议，错误原因保持原样", () => {
+  expect(
+    parseApiResponse({ available: true }, "/api/posts/cid-check", "POST"),
+  ).toEqual({ available: true });
+  expect(() =>
+    parseApiResponse({ available: false }, "/api/posts/cid-check", "POST"),
+  ).toThrow();
+  expect(
+    parseApiError({
+      error: { code: "CID_CONFLICT", message: "该 CID 已被其他文章占用。" },
+    }).message,
+  ).toBe("该 CID 已被其他文章占用。");
+});

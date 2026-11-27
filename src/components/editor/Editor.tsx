@@ -4,6 +4,7 @@ import type {
   MarkdownImportTicket,
 } from "../../modules/markdown-import/repository-import";
 import MarkdownImportDialog from "../../modules/markdown-import/ImportDialog";
+import { parseImportMetadata } from "../../modules/markdown-import/metadata";
 import { throwIfAborted } from "../../shared/request-cancellation";
 import {
   applyMediaKinds,
@@ -229,6 +230,9 @@ export default function Editor({
     return () => media.removeEventListener("change", apply);
   }, [settings.mode]);
   const [title, setTitle] = useState(post?.title || "");
+  const [cid, setCid] = useState(post?.cid);
+  const cidRef = useRef(cid);
+  cidRef.current = cid;
   const [excerpt, setExcerpt] = useState(post?.excerpt || "");
   const [category, setCategory] = useState(post?.category || "");
   const [categoryId, setCategoryId] = useState<string | null | undefined>(
@@ -288,6 +292,9 @@ export default function Editor({
   const [markdownImport, setMarkdownImport] = useState<{
     file: File;
     markdown: string;
+    title?: string;
+    cid?: string;
+    cover?: string;
     sequence: number;
     request: number;
     repository?: RepositoryImportSource;
@@ -499,6 +506,7 @@ export default function Editor({
   function fields() {
     return {
       title: title.trim() || "未命名文章",
+      ...(cid ? { cid } : {}),
       blocks: editor.document as unknown as EditorBlock[],
       excerpt,
       category,
@@ -531,6 +539,7 @@ export default function Editor({
       p.blocks as unknown as PartialBlock<typeof schema.blockSchema>[],
     );
     setTitle(p.title);
+    setCid(p.cid);
     setExcerpt(p.excerpt);
     setTags(p.tags.join(", "));
     setCategory(p.category);
@@ -880,6 +889,19 @@ export default function Editor({
     setError("");
     return { request, sequence: editClock.current.snapshot() };
   }
+  async function preflightMarkdown(markdown: string) {
+    const metadata = parseImportMetadata(markdown);
+    if (!metadata.cid) return;
+    if (cidRef.current && cidRef.current !== metadata.cid)
+      throw new Error("当前文章已关联其他 CID。");
+    await api("/api/posts/cid-check", {
+      method: "POST",
+      body: JSON.stringify({
+        cid: metadata.cid,
+        ...(currentRef.current?.id ? { postId: currentRef.current.id } : {}),
+      }),
+    });
+  }
   async function importMarkdown(
     file: File | undefined,
     repository?: RepositoryImportSource,
@@ -907,11 +929,13 @@ export default function Editor({
       return;
     }
     try {
-      const markdown = text ?? (await file.text());
+      const raw = text ?? (await file.text());
+      const metadata = parseImportMetadata(raw);
+      if (!repository) await preflightMarkdown(raw);
       if (request !== importRequest.current) return;
       setMarkdownImport({
         file,
-        markdown,
+        ...metadata,
         sequence,
         request,
         ...(repository ? { repository } : {}),
@@ -932,6 +956,7 @@ export default function Editor({
     prepared: {
       markdown: string;
       mimeByUrl: Record<string, string>;
+      cover?: string;
     },
     request: number,
   ) {
@@ -959,10 +984,13 @@ export default function Editor({
           if (!title.trim()) {
             const match = prepared.markdown.match(/^#\s+(.+)$/m);
             const importedTitle =
+              markdownImport.title ||
               match?.[1].trim() ||
               markdownImport.file.name.replace(/\.(md|markdown)$/i, "").trim();
             if (importedTitle) setTitle(importedTitle);
           }
+          if (prepared.cover) chooseCover(prepared.cover);
+          if (markdownImport.cid) setCid(markdownImport.cid);
           markDirty();
           setError("");
           setMessage("已导入 Markdown，请检查排版后保存。");
@@ -1103,6 +1131,7 @@ export default function Editor({
           );
           updateCurrent(p);
           setTitle(p.title);
+          setCid(p.cid);
           setExcerpt(p.excerpt);
           setCategory(p.category);
           setCategoryId(p.categoryId);
@@ -1369,6 +1398,12 @@ export default function Editor({
               </span>
               <span>·</span>
               <span>自己的文字，自己的空间</span>
+              {cid && (
+                <>
+                  <span>·</span>
+                  <span>CID：{cid}</span>
+                </>
+              )}
             </div>
           </div>
           <div className="writing-shortcuts">
@@ -1387,6 +1422,7 @@ export default function Editor({
             <RepositoryImportButton
               maxBytes={limits.upload.markdownImportMaxKB * KiB}
               onBegin={beginMarkdownImport}
+              preflight={preflightMarkdown}
               onChosen={(source, ticket) =>
                 importMarkdown(
                   source.file,

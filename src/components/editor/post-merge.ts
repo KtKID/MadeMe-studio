@@ -5,6 +5,7 @@ import {
 } from "../../modules/cover/contracts";
 /** 仅编辑器保存的字段；封面/裁切、分类名称/id各自作为不可拆的整体。正文也只作整体比较。 */
 export const mergeGroups = {
+  cid: ["cid"],
   title: ["title"],
   blocks: ["blocks"],
   excerpt: ["excerpt"],
@@ -15,6 +16,7 @@ export const mergeGroups = {
 } as const;
 export type ConflictField = keyof typeof mergeGroups;
 export const conflictLabels: Record<ConflictField, string> = {
+  cid: "CID",
   title: "标题",
   blocks: "正文（整篇）",
   excerpt: "摘要",
@@ -86,6 +88,7 @@ export function chooseLocalConflicts(merge: PostMerge, local: Post): Post {
 /** 不向PATCH泄露发布/删除等非编辑器字段；协议类型仍来自共享Zod。 */
 export function editablePatch(p: Post) {
   return {
+    ...(p.cid ? { cid: p.cid } : {}),
     title: p.title,
     blocks: p.blocks,
     excerpt: p.excerpt,

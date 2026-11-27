@@ -1,3 +1,8 @@
+import {
+  appendCoverReference,
+  finishCoverImport,
+  hasStandaloneFirstImage,
+} from "./metadata";
 import type { RepositoryImportSource } from "./repository-import";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, FileText, FolderOpen, Link2, X } from "lucide-react";
@@ -21,11 +26,18 @@ export default function MarkdownImportDialog({
   upload,
   apply,
 }: {
-  source: { file: File; markdown: string; repository?: RepositoryImportSource };
+  source: {
+    file: File;
+    markdown: string;
+    cover?: string;
+    repository?: RepositoryImportSource;
+  };
   onClose: () => void;
   upload: (file: File, signal?: AbortSignal) => Promise<UploadedAttachment>;
   apply: (
-    prepared: Awaited<ReturnType<typeof prepareAttachments>>,
+    prepared: Awaited<ReturnType<typeof prepareAttachments>> & {
+      cover?: string;
+    },
   ) => Promise<void>;
 }) {
   const [assets, setAssets] = useState<Attachment[]>(
@@ -73,7 +85,11 @@ export default function MarkdownImportDialog({
   const inspection = useMemo(() => {
     try {
       return {
-        rows: inspectAttachments(source.markdown, assets, options),
+        rows: inspectAttachments(
+          appendCoverReference(source.markdown, source.cover),
+          assets,
+          options,
+        ),
         error: "",
       };
     } catch (e) {
@@ -82,7 +98,7 @@ export default function MarkdownImportDialog({
         error: e instanceof Error ? e.message : "无法识别文档中的附件",
       };
     }
-  }, [source.markdown, assets, options]);
+  }, [source.markdown, source.cover, assets, options]);
   const rows = inspection.rows;
   const local = rows.filter((row) => !row.hosted);
   const missing = local.filter((row) => row.problem);
@@ -127,7 +143,7 @@ export default function MarkdownImportDialog({
                 asset.file === target ? { ...asset, file: files[0] } : asset,
               )
             : await appendSelectedAttachments(
-                source.markdown,
+                appendCoverReference(source.markdown, source.cover),
                 assetsRef.current,
                 files,
                 operation.signal,
@@ -149,11 +165,14 @@ export default function MarkdownImportDialog({
           throw new Error(
             "未能在文件夹中唯一找到这篇笔记。请选择包含这份 Markdown 和附件的文件夹。",
           );
-        const contents = await notes[0].file.text();
+        const [contents, original] = await Promise.all([
+          notes[0].file.text(),
+          source.file.text(),
+        ]);
         throwIfAborted(operation.signal);
         if (selection.current !== sequence || latestSource.current !== source)
           return;
-        if (contents !== source.markdown)
+        if (contents !== original)
           throw new Error(
             "文件夹里的笔记内容与当前文档不同，请选择原笔记所在的文件夹。",
           );
@@ -202,7 +221,7 @@ export default function MarkdownImportDialog({
     setProgress("正在准备导入…");
     try {
       const prepared = await prepareAttachments(
-        source.markdown,
+        appendCoverReference(source.markdown, source.cover),
         assets,
         options,
         upload,
@@ -224,7 +243,13 @@ export default function MarkdownImportDialog({
       await source.repository?.validate();
       throwIfAborted(operation.signal);
       if (latestSource.current !== source) return;
-      await apply(prepared);
+      const finished = finishCoverImport(
+        prepared.markdown,
+        prepared.mimeByUrl,
+        !!source.cover,
+        hasStandaloneFirstImage(source.markdown),
+      );
+      await apply({ ...prepared, ...finished });
       throwIfAborted(operation.signal);
       if (latestSource.current === source) onClose();
     } catch (e) {

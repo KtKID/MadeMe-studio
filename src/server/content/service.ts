@@ -69,6 +69,8 @@ export class PostService {
         "Restore the article before editing it.",
       );
     const { version, password, ...patch } = input;
+    if (row.draft.cid && patch.cid && row.draft.cid !== patch.cid)
+      throw new AppError(409, "CID_CONFLICT", "当前文章已关联其他 CID。");
     if (patch.blocks) validateContent(patch.blocks);
     if (password) row.passwordHash = await hashPassword(password);
     // 只换图未给设置的客户端（如外部发布器）：保留比例/方式，位置与缩放归位。
@@ -123,7 +125,8 @@ export class PostService {
       publishedAt: row.draft.publishedAt ?? now,
       updatedAt: now,
     };
-    row.published = structuredClone(row.draft);
+    const { cid: _cid, ...publicDraft } = row.draft;
+    row.published = structuredClone(publicDraft);
     row.publishedPasswordHash =
       visibility === "password" ? row.passwordHash : null;
     await this.commit(row, input.version, "publish");
@@ -180,6 +183,7 @@ export class PostService {
     if (!revision) throw notFound();
     row.draft = {
       ...revision,
+      cid: row.draft.cid,
       id,
       version: currentVersion + 1,
       publishedAt: row.draft.publishedAt,

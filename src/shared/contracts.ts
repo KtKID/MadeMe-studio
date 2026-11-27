@@ -191,6 +191,7 @@ const localOrHttps = z
     "Use an uploaded file or an HTTPS URL",
   );
 export const editablePostSchema = z.object({
+  cid: z.string().trim().min(1).max(200).optional(),
   title: z.string().trim().min(1).max(TEXT_LIMITS.postTitle),
   slug: z
     .string()
@@ -565,6 +566,9 @@ export const apiErrorSchema = z
   })
   .strict();
 export type APIError = z.infer<typeof apiErrorSchema>;
+export const cidCheckResponseSchema = z
+  .object({ available: z.literal(true) })
+  .strict();
 export const postResponseSchema = z.object({ post: postSchema }).strict();
 export const postsResponseSchema = z
   .object({ posts: z.array(postSchema) })

@@ -5,6 +5,7 @@ import {
   integer,
   primaryKey,
   index,
+  uniqueIndex,
   check,
 } from "drizzle-orm/sqlite-core";
 export const posts = sqliteTable(
@@ -23,7 +24,12 @@ export const posts = sqliteTable(
     updatedAt: text("updated_at").notNull(),
     mutationId: text("mutation_id").notNull(),
   },
-  (t) => [index("posts_updated").on(t.updatedAt)],
+  (t) => [
+    index("posts_updated").on(t.updatedAt),
+    uniqueIndex("posts_cid_unique").on(
+      sql`json_extract(${t.documentJson}, '$.cid')`,
+    ),
+  ],
 );
 export const revisions = sqliteTable(
   "revisions",

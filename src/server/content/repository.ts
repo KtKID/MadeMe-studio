@@ -113,6 +113,15 @@ export class D1PostRepository implements PostRepository {
       .first<Row>();
     return row ? decode(row) : null;
   }
+  async byCid(cid: string) {
+    const row = await this.db
+      .prepare(
+        "SELECT document_json,published_json,password_hash,published_password_hash FROM posts WHERE json_extract(document_json, '$.cid')=?",
+      )
+      .bind(cid)
+      .first<Row>();
+    return row ? decode(row) : null;
+  }
   async bySlug(slug: string) {
     const row = await this.db
       .prepare(
@@ -231,6 +240,8 @@ export class D1PostRepository implements PostRepository {
     return row ? (JSON.parse(row.document_json) as Post) : null;
   }
   private mapError(error: unknown): never {
+    if (String(error).includes("posts_cid_unique"))
+      throw new AppError(409, "CID_CONFLICT", "该 CID 已被其他文章占用。");
     if (
       String(error).includes("UNIQUE constraint") ||
       String(error).includes("SLUG_RESERVED")
