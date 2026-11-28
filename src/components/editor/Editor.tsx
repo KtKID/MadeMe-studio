@@ -4,7 +4,10 @@ import type {
   MarkdownImportTicket,
 } from "../../modules/markdown-import/repository-import";
 import MarkdownImportDialog from "../../modules/markdown-import/ImportDialog";
-import { parseImportMetadata } from "../../modules/markdown-import/metadata";
+import {
+  parseImportMetadata,
+  prepareImportDocument,
+} from "../../modules/markdown-import/metadata";
 import { throwIfAborted } from "../../shared/request-cancellation";
 import {
   applyMediaKinds,
@@ -930,9 +933,9 @@ export default function Editor({
     }
     try {
       const raw = text ?? (await file.text());
-      const metadata = parseImportMetadata(raw);
       if (!repository) await preflightMarkdown(raw);
       if (request !== importRequest.current) return;
+      const metadata = prepareImportDocument(raw);
       setMarkdownImport({
         file,
         ...metadata,
@@ -981,14 +984,12 @@ export default function Editor({
             editor.document,
             parsed as PartialBlock<typeof schema.blockSchema>[],
           );
-          if (!title.trim()) {
-            const match = prepared.markdown.match(/^#\s+(.+)$/m);
-            const importedTitle =
-              markdownImport.title ||
-              match?.[1].trim() ||
-              markdownImport.file.name.replace(/\.(md|markdown)$/i, "").trim();
-            if (importedTitle) setTitle(importedTitle);
-          }
+          const importedTitle =
+            markdownImport.title ||
+            (!title.trim()
+              ? markdownImport.file.name.replace(/\.(md|markdown)$/i, "").trim()
+              : "");
+          if (importedTitle) setTitle(importedTitle);
           if (prepared.cover) chooseCover(prepared.cover);
           if (markdownImport.cid) setCid(markdownImport.cid);
           markDirty();

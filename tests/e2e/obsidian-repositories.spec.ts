@@ -143,8 +143,8 @@ async function setup(page: Page, includeSecond = false) {
         await vault.getDirectoryHandle("other", { create: true });
         const markdown =
           key === "A"
-            ? "# A仓库正文\n\n![一](../assets/a.png)\n\n![二](../other/b.png)\n\n![[../assets/动画.gif]]\n\n![视频](../assets/片段.mp4)\n\n![重复](../assets/a.png)\n\n![远程视频](https://media.example.test/remote.mp4)"
-            : "# B仓库正文\n\n![唯一B](../assets/b-only.png)";
+            ? "# A仓库正文\n\nA仓库的正文内容。\n\n![一](../assets/a.png)\n\n![二](../other/b.png)\n\n![[../assets/动画.gif]]\n\n![视频](../assets/片段.mp4)\n\n![重复](../assets/a.png)\n\n![远程视频](https://media.example.test/remote.mp4)"
+            : "# B仓库正文\n\nB仓库的正文内容。\n\n![唯一B](../assets/b-only.png)";
         await put(vault, "notes/mixed.md", markdown);
         await put(
           vault,
@@ -303,7 +303,7 @@ test(
       try {
         const writable = await markdown.createWritable();
         await writable.write(
-          `---\ncid: ${value}\ncover: ../assets/a.png\n---\n\n![需要附件](../assets/a.png)\n`,
+          `---\ncid: ${value}\ncover: ../assets/a.png\n---\n\n# 仓库导入标题 ![[../other/b.png]]\n\n正文\n`,
         );
         await writable.close();
       } finally {
@@ -363,8 +363,10 @@ test(
     const importer = page.getByRole("dialog", { name: "导入 Markdown 与附件" });
     await importer.getByRole("button", { name: "上传附件并导入" }).click();
     await expect(importer).toHaveCount(0);
-    await expect(page.locator(".bn-editor img")).toHaveCount(0);
-    expect(uploadRequests).toHaveLength(1);
+    await expect(page.getByLabel("文章标题")).toHaveValue("已经占用 CID 的草稿");
+    await expect(page.locator(".bn-editor h1")).toHaveText("仓库导入标题");
+    await expect(page.locator(".bn-editor img")).toHaveCount(1);
+    expect(uploadRequests).toHaveLength(2);
     const saved = page.waitForResponse(
       (response) =>
         response.request().method() === "PATCH" &&
@@ -376,7 +378,14 @@ test(
       await page.request.get(`/api/posts/${post.id}`)
     ).json();
     expect(stored.post.cid).toBe(cid);
+    expect(stored.post.title).toBe("已经占用 CID 的草稿");
     expect(stored.post.coverImage).toMatch(/^\/api\/files\//);
+    const images = stored.post.blocks.filter(
+      (block: { type: string }) => block.type === "image",
+    );
+    expect(images).toHaveLength(1);
+    expect(images[0].props.url).toMatch(/^\/api\/files\//);
+    expect(images[0].props.url).not.toBe(stored.post.coverImage);
   },
 );
 
@@ -508,7 +517,8 @@ test(
     await dialog
       .getByRole("button", { name: "上传附件并导入", exact: true })
       .click();
-    await expect(page.locator(".bn-editor")).toContainText("B仓库正文");
+    await expect(page.getByLabel("文章标题")).toHaveValue("B仓库正文");
+    await expect(page.locator(".bn-editor")).toContainText("B仓库的正文内容。");
     await page.route("https://media.example.test/**", (route) =>
       route.fulfill({ contentType: "video/mp4", body: files.mp4 }),
     );
@@ -644,7 +654,7 @@ test(
       .click();
     await expect(card(manager, a)).toHaveCount(0);
     await expect(dialog).toHaveCount(0);
-    await expect(page.locator(".bn-editor")).toContainText("A仓库正文");
+    await expect(page.locator(".bn-editor")).toContainText("A仓库的正文内容。");
     await manager.reload();
     await manager
       .getByRole("button", { name: "Obsidian 仓库", exact: true })
@@ -678,7 +688,7 @@ test(
       .getByRole("dialog", { name: "从 Obsidian 仓库导入" })
       .getByRole("button", { name: "取消", exact: true })
       .click();
-    await expect(page.locator(".bn-editor")).toContainText("A仓库正文");
+    await expect(page.locator(".bn-editor")).toContainText("A仓库的正文内容。");
     await page.evaluate(() => {
       (window as any).__noteChoice = "mixed.md";
       (window as any).__denyRead = true;

@@ -112,6 +112,7 @@ function setup(onClose = vi.fn(), initialPost = post) {
 beforeEach(() => {
   h.api.mockReset();
   h.editor.replaceBlocks.mockReset();
+  h.editor.tryParseMarkdownToBlocks.mockClear();
   vi.stubGlobal(
     "confirm",
     vi.fn(() => true),
@@ -589,7 +590,28 @@ describe("Markdown导入默认标题", () => {
       title: "作者输入的标题",
       markdown: "# 正文一级标题",
       name: "文件名.md",
-      expected: "作者输入的标题",
+      expected: "正文一级标题",
+    },
+    {
+      title: "原来的标题",
+      markdown: "---\ntitle: 站内标题\n---\n# **站内标题** #\n\n正文",
+      name: "文件名.md",
+      expected: "站内标题",
+      expectedBody: "\n\n正文",
+    },
+    {
+      title: "原来的标题",
+      markdown: "---\ntitle: 站内标题\n---\n# 不同的正文标题\n\n正文",
+      name: "文件名.md",
+      expected: "站内标题",
+      expectedBody: "# 不同的正文标题\n\n正文",
+    },
+    {
+      title: "原来的标题",
+      markdown: "正文\n\n# 中间标题",
+      name: "文件名.md",
+      expected: "原来的标题",
+      expectedBody: "正文\n\n# 中间标题",
     },
     {
       title: "  有效手动标题  ",
@@ -615,6 +637,10 @@ describe("Markdown导入默认标题", () => {
     expect((screen.getByLabelText("文章标题") as HTMLInputElement).value).toBe(
       value.expected,
     );
+    if ("expectedBody" in value)
+      expect(h.editor.tryParseMarkdownToBlocks).toHaveBeenLastCalledWith(
+        value.expectedBody,
+      );
     h.api.mockResolvedValueOnce({
       post: { ...post, title: value.expected.trim(), version: 2 },
     });
