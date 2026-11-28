@@ -933,9 +933,9 @@ export default function Editor({
     }
     try {
       const raw = text ?? (await file.text());
-      const metadata = prepareImportDocument(raw);
       if (!repository) await preflightMarkdown(raw);
       if (request !== importRequest.current) return;
+      const metadata = prepareImportDocument(raw);
       setMarkdownImport({
         file,
         ...metadata,

@@ -303,7 +303,7 @@ test(
       try {
         const writable = await markdown.createWritable();
         await writable.write(
-          `---\ncid: ${value}\ntitle: 仓库导入标题\ncover: ../assets/a.png\n---\n\n# 仓库导入标题\n\n![需要附件](../assets/a.png)\n`,
+          `---\ncid: ${value}\ncover: ../assets/a.png\n---\n\n# 仓库导入标题 ![[../other/b.png]]\n\n正文\n`,
         );
         await writable.close();
       } finally {
@@ -363,10 +363,10 @@ test(
     const importer = page.getByRole("dialog", { name: "导入 Markdown 与附件" });
     await importer.getByRole("button", { name: "上传附件并导入" }).click();
     await expect(importer).toHaveCount(0);
-    await expect(page.getByLabel("文章标题")).toHaveValue("仓库导入标题");
-    await expect(page.locator(".bn-editor h1")).toHaveCount(0);
-    await expect(page.locator(".bn-editor img")).toHaveCount(0);
-    expect(uploadRequests).toHaveLength(1);
+    await expect(page.getByLabel("文章标题")).toHaveValue("已经占用 CID 的草稿");
+    await expect(page.locator(".bn-editor h1")).toHaveText("仓库导入标题");
+    await expect(page.locator(".bn-editor img")).toHaveCount(1);
+    expect(uploadRequests).toHaveLength(2);
     const saved = page.waitForResponse(
       (response) =>
         response.request().method() === "PATCH" &&
@@ -378,8 +378,14 @@ test(
       await page.request.get(`/api/posts/${post.id}`)
     ).json();
     expect(stored.post.cid).toBe(cid);
-    expect(stored.post.title).toBe("仓库导入标题");
+    expect(stored.post.title).toBe("已经占用 CID 的草稿");
     expect(stored.post.coverImage).toMatch(/^\/api\/files\//);
+    const images = stored.post.blocks.filter(
+      (block: { type: string }) => block.type === "image",
+    );
+    expect(images).toHaveLength(1);
+    expect(images[0].props.url).toMatch(/^\/api\/files\//);
+    expect(images[0].props.url).not.toBe(stored.post.coverImage);
   },
 );
 

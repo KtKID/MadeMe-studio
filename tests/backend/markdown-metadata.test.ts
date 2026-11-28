@@ -109,3 +109,19 @@ it("文件头标题存在时仍保留含图片的标题块，纯文本链接和�
   expect(plain.title).toBe("链接 和 代码");
   expect(plain.markdown).toBe("\n\n正文");
 });
+
+it.each([undefined, "制作手记 ![[封面.png]]"])(
+  "首标题含 Obsidian 附件时保留正文与独立文件头标题：%s",
+  (title) => {
+    const markdown = "# 制作手记 ![[封面.png]]\n\n正文";
+    const raw = title ? `---\ntitle: "${title}"\n---\n${markdown}` : markdown;
+    expect(prepareImportDocument(raw)).toMatchObject({ title, markdown });
+  },
+);
+
+it("首标题中的 wiki 语法示例仍可作为纯文本标题", () => {
+  expect(prepareImportDocument("# 示例 `![[封面.png]]`\n\n正文")).toMatchObject({
+    title: "示例 ![[封面.png]]",
+    markdown: "\n\n正文",
+  });
+});

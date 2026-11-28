@@ -66,6 +66,18 @@ export function prepareImportDocument(raw: string) {
   const metadata = parseImportMetadata(raw);
   const first = fromMarkdown(metadata.markdown).children[0];
   if (first?.type !== "heading" || first.depth !== 1) return metadata;
+  const start = first.position?.start.offset;
+  const end = first.position?.end.offset;
+  // CommonMark 把 Obsidian 嵌入当作文本；用附件扫描区分嵌入、转义和代码示例。
+  if (
+    start !== undefined &&
+    end !== undefined &&
+    metadata.markdown.slice(start, end).includes("![[") &&
+    mediaReferences(metadata.markdown).some(
+      (ref) => ref.wiki && ref.start >= start && ref.end <= end,
+    )
+  )
+    return metadata;
   // mdast 已处理 Markdown 转义、强调和标题结尾标记，提取用户看到的文字。
   function headingText(node: Heading | PhrasingContent): string | null {
     switch (node.type) {
@@ -94,8 +106,6 @@ export function prepareImportDocument(raw: string) {
     heading.length <= TEXT_LIMITS.postTitle &&
     !/[\u0000-\u001f\u007f]/.test(heading);
   const title = metadata.title ?? (usable ? heading : undefined);
-  const start = first.position?.start.offset;
-  const end = first.position?.end.offset;
   const markdown =
     title && heading === title && start !== undefined && end !== undefined
       ? metadata.markdown.slice(0, start) + metadata.markdown.slice(end)
